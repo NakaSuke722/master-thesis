@@ -1,0 +1,170 @@
+% !TeX encoding = UTF-8
+
+\documentclass[
+  uplatex,        % エンジン指定
+  dvipdfmx,       % ドライバ指定
+  report,         % 章(chapter)を使えるようにする
+  fontsize=11pt,  % フォントサイズ
+  paper=a4,       % 用紙サイズ
+  openany         % 空白ページを入れない
+]{jlreq} % ドキュメントクラスはjlreq
+
+
+\usepackage{graphicx}
+% \usepackage{xcolor}
+\usepackage{amsthm, bbm, bm, booktabs, float, listings, mathtools, setspace, siunitx, amssymb} 
+\usepackage{newtxtext, newtxmath} % フォントをTimes系に
+\usepackage[top=30mm,bottom=30mm,left=25mm,right=25mm]{geometry} %上下左右の余白
+\usepackage[dvipdfmx,bookmarks=true,bookmarksnumbered=true,colorlinks=true,linkcolor=black,citecolor=black,urlcolor=blue]{hyperref}
+\usepackage{pxjahyper} % 日本語文字化け防止
+\setlength{\marginparwidth}{2cm}
+\usepackage[colorinlistoftodos]{todonotes} % 付箋：最終版提出時はdisableオプションをつければ消える.使用例: \todo{ここを見直す}, \todo[inline]{本文中に大きく表示}
+\usepackage[nameinlink,noabbrev]{cleveref} % スマート参照
+
+% 定理環境の定義（番号を節ごとに振る：定理 2.1 など）
+\newtheorem{theorem}{定理}[section]
+\newtheorem{definition}[theorem]{定義}
+\newtheorem{lemma}[theorem]{補題}
+\newtheorem{proposition}[theorem]{命題}
+\newtheorem{corollary}[theorem]{系}
+\newtheorem{note}[theorem]{注意}
+\renewcommand{\proofname}{\textbf{証明}} % 証明環境カスタマイズ（証明の終わりの□を表示）
+
+% 日本語の接頭辞設定
+\crefname{equation}{式}{式}
+\crefname{figure}{図}{図}
+\crefname{table}{表}{表}
+\crefname{chapter}{第}{章}
+\crefname{section}{}{節}
+\crefname{theorem}{定理}{定理}
+\crefname{definition}{定義}{定義}
+\crefname{lemma}{補題}{補題}
+\crefname{proposition}{命題}{命題}
+\crefname{corollary}{系}{系}
+\crefname{note}{注意}{注意}
+\newcommand{\crefrangeconjunction}{--}
+
+% report系の既定（chapter.section）ではなく、sectionを最大単位として採番する
+\renewcommand{\thesection}{\arabic{section}}
+\renewcommand{\thesubsection}{\thesection.\arabic{subsection}}
+\renewcommand{\thesubsubsection}{\thesubsection.\arabic{subsubsection}}
+
+% 数式コマンドのショートカット自作
+\newcommand{\E}{\mathbb{E}} % 期待値
+\newcommand{\pb}{\mathbb{P}} % 確率
+\newcommand{\R}{\mathbb{R}} % 実数
+\newcommand{\N}{\mathbb{N}} % 自然数
+\newcommand{\var}{\operatorname{Var}} % 分散
+\newcommand{\cov}{\operatorname{Cov}} % 共分散
+\newcommand{\corr}{\operatorname{Corr}} % 相関係数
+\newcommand{\ind}{\mathbf{1}} % 指示関数(太字).  
+% \newcommand{\ind}{\mathbbm{1}} % 指示関数(白抜き). こちらはローカル環境で動く
+\newcommand{\pto}{\xrightarrow{\ \ p\ \ }} % 確率収束
+\newcommand{\dto}{\xrightarrow{\ \ d\ \ }} % 分布収束
+\newcommand{\asto}{\xrightarrow{\ \ a.s.\ \ }} % 概収束
+\newcommand{\iid}{\stackrel{\mathrm{i.i.d.}}{\sim}} % i.i.d.
+\newcommand{\Nd}{\mathcal{N}} % 正規分布
+\newcommand{\pdif}[2]{\frac{\partial #1}{\partial #2}} % 偏微分を簡単に書くコマンド.例: \pdif{f}{x} -> ∂f/∂x
+\DeclareMathOperator*{\argmax}{arg\,max} % argmax, argmin の定義
+\DeclareMathOperator*{\argmin}{arg\,min}
+
+
+\numberwithin{equation}{section} % 数式番号をセクション単位にする.
+
+
+% 表紙のカスタマイズ設定（ここから基本書き換えない）
+\makeatletter
+\newcommand{\academicYear}[1]{\def\@academicYear{#1}}
+\newcommand{\advisor}[1]{\def\@advisor{#1}}
+\newcommand{\studentID}[1]{\def\@studentID{#1}}
+\newcommand{\affiliation}[1]{\def\@affiliation{#1}}
+
+\renewcommand{\maketitle}{
+    \begin{titlepage}
+        \centering
+        \vspace*{20mm}
+
+        {\Large \@academicYear \quad 修士論文}
+        \vspace*{40mm}
+
+        \begin{spacing}{1.2}
+            {\huge \bfseries \@title \par}
+        \end{spacing}
+        \vspace{40mm}
+        
+        {\Large \@date}
+        \vspace{20mm}
+        
+        {\Large 指導教員 \quad \@advisor}
+        \vspace{30mm}
+        
+        {\Large \@affiliation}
+        \vspace{10mm}
+        
+        {\Large \@studentID \quad \@author}
+    \end{titlepage}
+}
+\makeatother
+
+% abstract環境の設定
+\renewenvironment{abstract}{
+    \clearpage
+    \setcounter{page}{1}
+    \begin{center}
+        {\Large \bfseries 概要}
+    \end{center}
+    \vspace{10mm}
+    \begin{quote}
+}{
+    \end{quote}
+}
+
+% 参考文献(thebibliography環境)の見出しをChapterサイズする設定
+\makeatletter
+\renewenvironment{thebibliography}[1]{%
+    \section*{参考文献} % 強制的にSection*（番号なし節）にする
+    \addcontentsline{toc}{section}{参考文献} % 目次にも「参考文献」を追加する
+  \list{\@biblabel{\@arabic\c@enumiv}}%
+       {\settowidth\labelwidth{\@biblabel{#1}}%
+        \leftmargin\labelwidth
+        \advance\leftmargin\labelsep
+        \@openbib@code
+        \usecounter{enumiv}%
+        \let\p@enumiv\@empty
+        \renewcommand\theenumiv{\@arabic\c@enumiv}}%
+  \sloppy
+  \clubpenalty4000
+  \@clubpenalty \clubpenalty
+  \widowpenalty4000%
+  \sfcode`\.\@m}
+ {\def\@noitemerr
+   {\@latex@warning{Empty `thebibliography' environment}}%
+  \endlist}
+\makeatother
+% --- ここまで設定なので基本書き換えない ---
+
+
+% --- ここから書く ---
+\begin{document}
+
+% 表紙情報の入力（ここを書き換える）
+\academicYear{令和8年度}
+\title{論文テンプレート\\（ここにタイトル）}
+\date{2027年2月1日}
+\advisor{清水 泰隆}
+\affiliation{早稲田大学 基幹理工学研究科 数学応用数理専攻}
+\studentID{5125A028}
+\author{中川 浩輔}
+
+\maketitle %表紙出力
+
+\input{sections/01_intro}
+\input{sections/02_background}
+\input{sections/03_method}
+\input{sections/04_experiment}
+\input{sections/05_discussion}
+\input{sections/90_acknowledgement}
+\input{sections/99_appendix}
+
+
+\end{document}

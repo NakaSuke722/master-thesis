@@ -1,0 +1,95 @@
+% ---ここから付録---
+\appendix % これ以降,節番号が A, B... に変わる
+\section{本テンプレート使用方法}
+\label{chap:manual}
+
+\subsection{参照の自動化（cleveref）}
+図表や式の番号を参照する際，\verb|\ref| は単に「1.1」のような数字を返すだけ．
+そのため書き手が手動で「図\verb|\ref|」「式(\verb|\ref|)」と入力する必要があった．
+\texttt{cleveref} パッケージの \verb|\cref| を使用すると，参照対象の種類（図，表，式，定理など）を自動判定し，適切な接頭辞を付与してくれる．
+
+\begin{itemize}
+    \item 例: \verb|\cref{eq:sample}| $\to$ \cref{eq:sample}
+\end{itemize}
+
+
+\subsection{定理環境と証明}
+定義，定理，補題，命題，系など節ごとに自動で番号付けされる（例：\cref{thm:sample}）．
+
+\begin{definition}[定義の名前]
+    ここに定義を書く．オプション引数（\texttt{[ ]}）にタイトルを入れる．
+\end{definition}
+
+\begin{theorem}[定理の名前]
+    \label{thm:sample} % 参照するためのラベル付け
+    ここに定理を書く．
+\end{theorem}
+
+\begin{corollary}
+    ここに系を書く．
+\end{corollary}
+
+\begin{proof}
+    証明環境も定義済み．証明終了時にQ.E.D.が右端に配置．
+    \[ 1+1=2 \]
+\end{proof} 
+
+
+\subsection{数式ショートカット}
+
+\begin{table}[H]
+    \centering
+    \caption{定義済みマクロ一覧}
+    \begin{tabular}{lll}
+        \toprule
+        コマンド & 出力 & 意味 \\
+        \midrule
+        \verb|\E| & $\E[X]$ & 期待値 \\
+        \verb|\pb| & $\pb(A)$ & 確率\\
+        \verb|\var| & $\var(X)$ & 分散 \\
+        \verb|\cov| & $\cov(X,Y)$ & 共分散 \\
+        \verb|\ind| & $\ind_{A}$ & 指示関数 \\
+        \verb|\R|, \verb|\N| & $\R, \N$ & 実数,自然数 \\
+        \verb|\pto| & $X_n \pto X$ & 確率収束 \\
+        \verb|\dto| & $X_n \dto X$ & 分布収束 \\
+        \verb|\asto| & $X_n \asto X$ & 概収束 \\
+        \verb|\iid| & $X_i \iid F$ & 独立同分布 \\
+        \verb|\Nd| & $X \sim \Nd (0,1)$ & 正規分布 \\
+        \verb|\pdif{f}{x}| & $\pdif{f}{x}$ & 偏微分 \\
+        \verb|\argmax_{a \in A}| & $\displaystyle\argmax_{a \in A}$ & argmax (argminも同様)\\
+        \bottomrule
+    \end{tabular}
+\end{table}
+
+
+\subsection{数式番号の確認}
+\begin{align}
+    y &= x^2 \label{eq:sample}
+\end{align}
+この式は \cref{eq:sample} である．
+
+\subsection{TODOメモの活用}
+執筆中，後で直したり先生に確認する箇所は \texttt{todonotes} パッケージが便利．
+\todo{メモ内容}
+コマンドは \verb|\todo{メモ内容}|．
+提出時はパッケージオプションに \texttt{disable} を指定すると一括非表示になる．
+
+
+\section{LaTeX 環境構築}
+LaTeXを動かす環境として，自分のPCにインストールして使うローカル環境と，Cloud LaTeX / OverleafなどのWebアプリ環境がある．
+
+個人的には圧倒的にローカル環境（VS Code）を強く推奨．
+\begin{itemize}
+    \item 爆速ビルド: クラウドの待ち時間（数秒〜数十秒）がなく，保存するたびに一瞬でプレビューが更新される．論文修正の試行回数が多い終盤に効いてくる．
+    \item エディタ: VS Codeがそもそも優秀．予測補完や色分けによる視認性などが神．
+    \item Git完全対応: 論文のバージョン管理ができる．「昨日の状態に戻したい」が瞬時に可能．
+    \item AI支援: GitHub Copilotが使える．コードを勝手に補完してくれるので，執筆速度が上がる．
+    \item 容量制限なし: 画像を大量に貼っても容量オーバーにならない．
+\end{itemize}
+
+WindowsはTeX Live，macOSはMacTeXをインストール．特にMacはすぐ終わる． \\
+
+\href{https://code.visualstudio.com/download}{VS Codeインストールはこちら} \\
+
+\href{https://texwiki.texjp.org/?TeX%E5%85%A5%E6%89%8B%E6%B3%95}{TeXインストールはこちら}
+% ---ここまで付録---

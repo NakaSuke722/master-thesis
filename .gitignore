@@ -1,0 +1,37 @@
+# macOS specific
+.DS_Store
+
+# Data files (Do not commit large datasets)
+data/raw/*
+data/processed/*
+!data/**/.gitkeep
+
+# Python specific
+__pycache__/
+*.py[cod]
+*$py.class
+.ipynb_checkpoints/
+venv/
+.env
+
+# LaTeX specific
+*.aux
+*.log
+*.out
+*.toc
+*.fls
+*.fdb_latexmk
+*.synctex.gz
+*.nav
+*.snm
+*.vrb
+*.bbl
+*.blg
+
+# Notes LaTeX specific
+notes/*.aux
+notes/*.log
+notes/*.out
+notes/*.fls
+notes/*.fdb_latexmk
+notes/*.synctex.gz
