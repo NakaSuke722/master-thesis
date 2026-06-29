@@ -27,6 +27,7 @@ venv/
 *.vrb
 *.bbl
 *.blg
+*.pdf
 
 # Notes LaTeX specific
 notes/*.aux
@@ -35,3 +36,12 @@ notes/*.out
 notes/*.fls
 notes/*.fdb_latexmk
 notes/*.synctex.gz
+notes/*.pdf
+
+# 実験結果の出力ファイルを除外（**を使用しサブディレクトリ内も適用）
+results/metrics/**/*.json
+results/final_summary.json
+
+# ただし、空ディレクトリ維持用の.gitkeepは追跡対象として残す
+!results/metrics/**/.gitkeep
+!results/figures/**/.gitkeep

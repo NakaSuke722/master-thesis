@@ -1,0 +1,14 @@
+# configs/default_params.yaml
+paths:
+  raw_data_dir: "data/raw"
+  processed_data_dir: "data/processed"
+  results_dir: "results/metrics"
+
+evaluation:
+  k_values: [1, 3, 5]
+
+# 実験対象のデータセットリスト（一括実行時に参照）
+datasets:
+  - online_boutique
+  - sock_shop
+  - train_ticket
