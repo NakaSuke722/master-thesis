@@ -27,6 +27,7 @@ venv/
 *.vrb
 *.bbl
 *.blg
+*.dvi
 *.pdf
 
 # Notes LaTeX specific
