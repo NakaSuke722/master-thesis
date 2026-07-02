@@ -15,12 +15,17 @@ def main():
 
     all_results = []
     pure_execution_time = 0.0
+    model_used = "unknown"
 
     for filepath in glob.glob(os.path.join(results_dir, "*", "*.json")):
         with open(filepath, "r") as f:
             data = json.load(f)
             all_results.append(data)
             pure_execution_time += data.get("execution_time_sec", 0.0)
+            
+            # 個別データから使用されたモデル名を取得（最初の1つで上書き）
+            if model_used == "unknown" and "model_used" in data:
+                model_used = data["model_used"]
 
     if not all_results: 
         return
@@ -33,15 +38,17 @@ def main():
     summary = {ds: {k: round(sum(v)/len(v), 4) for k, v in metrics.items()} 
                for ds, metrics in dataset_metrics.items()}
 
-    # 指定されたフォーマットに合致するよう出力
-    print("\n=== Evaluation Summary ===")
+    # ターミナルのサマリ表示にもモデル名を記載
+    print(f"\n=== Evaluation Summary (Model: {model_used}) ===")
     print(json.dumps(summary, indent=4))
     
     final_time = args.total_time if args.total_time > 0 else pure_execution_time
     print(f"\nTotal Execution Time: {round(final_time, 1)} seconds")
 
+    # JSONの先頭に model_used を追加
     with open(output_file, "w") as f:
         json.dump({
+            "model_used": model_used,
             "total_execution_time_sec": round(final_time, 1), 
             "pure_python_execution_time_sec": round(pure_execution_time, 2),
             "summary": summary, 

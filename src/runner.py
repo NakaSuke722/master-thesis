@@ -1,8 +1,18 @@
 # src/runner.py
 import os
+import yaml
 from main import run_experiment
 
 def run_all():
+    # 設定ファイルからモデル名を読み込む
+    with open("configs/default_params.yaml", "r") as f:
+        config = yaml.safe_load(f)
+    
+    target_model = config["model"]["target"]
+    
+    # ターミナル出力の先頭にモデル名を記載
+    print(f"=== Running experiments with model: {target_model} ===")
+
     base_data_dir = "data/raw"
     datasets = ["online_boutique", "sock_shop", "train_ticket"]
     runs = [1, 2, 3, 4, 5]
@@ -21,7 +31,6 @@ def run_all():
             for run in runs:
                 file_path = os.path.join(fault_path, str(run), "simple_data.csv")
                 if os.path.isfile(file_path):
-                    # main.pyの関数を直接呼び出し、一括実行フラグ(batch=True)を渡す
                     run_experiment(dataset, fault_type, run, batch=True)
 
 if __name__ == "__main__":
