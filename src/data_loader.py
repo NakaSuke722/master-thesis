@@ -1,35 +1,34 @@
 # src/data_loader.py
 import os
+import json
 import pandas as pd
-import numpy as np
 
 def load_timeseries_data(
         dataset: str,
         fault_type: str, 
         run_id: int, 
-        base_path: str = "data/raw"):
+        strategy: str = "default"):
     """
-    指定された条件のデータを読み込み、前処理を行う関数。
-    戻り値: 前処理済みデータフレーム, 正解ラベル(文字列)
+    指定された前処理戦略(strategy)に従ってデータを読み込む。
     """
-    file_path = os.path.join(base_path, dataset, fault_type, str(run_id), "simple_data.csv")
+    # 提案された階層構造に合わせてパスを結合
+    base_path = os.path.join("data", "processed", strategy)
+    target_dir = os.path.join(base_path, dataset, fault_type, str(run_id))
     
-    if not os.path.exists(file_path):
-        raise FileNotFoundError(f"Data not found: {file_path}")
+    normal_path = os.path.join(target_dir, "normal_data.csv")
+    abnormal_path = os.path.join(target_dir, "abnormal_data.csv")
+    info_path = os.path.join(target_dir, "graph_info.json")
+    
+    if not os.path.exists(normal_path):
+        raise FileNotFoundError(f"Processed data not found for strategy '{strategy}' at: {target_dir}")
         
-    df = pd.read_csv(file_path)
+    df_normal = pd.read_csv(normal_path)
+    df_abnormal = pd.read_csv(abnormal_path)
     
-    # 1. 因果に関与しない時間情報の削除
-    if 'time' in df.columns:
-        df = df.drop(columns=['time'])
+    with open(info_path, "r") as f:
+        graph_info = json.load(f)
         
-    # 2. 分散がゼロ（値が変動しない）の無効な変数を削除
-    df = df.loc[:, df.std() > 0]
-    
-    # 3. 欠損値の補間（直前の値で埋める等）
-    df = df.ffill().fillna(0)
-    
-    # 正解ラベルの抽出（フォルダ名 'cartservice_cpu' などがそのまま原因ノード名となる）
+    df_full = pd.concat([df_normal, df_abnormal], ignore_index=True)
     ground_truth = fault_type
     
-    return df, ground_truth
+    return df_full, ground_truth, graph_info

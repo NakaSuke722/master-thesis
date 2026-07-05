@@ -19,15 +19,18 @@ def run_experiment(dataset, fault, run, batch=False):
     with open("configs/default_params.yaml", "r") as f:
         config = yaml.safe_load(f)
     
+    # 重複していた設定読み込みを整理
     k_values = config["evaluation"]["k_values"]
-    raw_path = config["paths"]["raw_data_dir"]
-    
-    # 1. 設定ファイルから実行するモデル名を取得する
     target_model = config["model"]["target"]
+    
+    # 1. YAMLから戦略名を取得（指定がない場合は "default" とする）
+    strategy = config["model"].get("preprocess_strategy", "default")
 
-    df, ground_truth = load_timeseries_data(dataset, fault, run, raw_path)
-
-    # 2. モデルの動的切り替え（条件分岐）
+    # 2. データローダーに戦略を渡す
+    # graph_info は次に実装するモデル（LiNGAMなど）で異常発生時刻(t_F)を参照するために使用する
+    df, ground_truth, graph_info = load_timeseries_data(dataset, fault, run, strategy)
+    
+    # 3. モデルの動的切り替え（条件分岐）
     current_seed = 42 + run 
     
     if target_model == "dummy":
@@ -35,12 +38,13 @@ def run_experiment(dataset, fault, run, batch=False):
         predicted_ranking = run_random_rca(variables, seed=current_seed)
         
     elif target_model == "lingam":
-        # LiNGAMを実装した際はこちらが実行される
-        # predicted_ranking = run_lingam_rca(df, seed=current_seed)
+        # 今後実装する際、以下のように graph_info から境界線のインデックスを取り出してモデルに渡す
+        # t_f_index = graph_info["t_f_index"]
+        # predicted_ranking = run_lingam_rca(df, t_f_index, seed=current_seed)
         pass # 現段階では未実装のため仮置き
         
     else:
-        # YAMLにタイポなどの不正な値が入力された場合は即座にエラーで停止させる
+        # YAMLに不正な値が入力された場合はエラーで停止させる
         raise ValueError(f"Unknown model target in config: {target_model}")
 
     metrics = evaluate_ranking(predicted_ranking, ground_truth, k_values)
@@ -51,7 +55,7 @@ def run_experiment(dataset, fault, run, batch=False):
     print(f" - {fault} (Run {run}) : {execution_time} sec")
     
     if not batch:
-        print(f"  [Metrics for {dataset} | Model: {target_model}]")
+        print(f"\n=== Evaluation Summary (Metrics for {dataset} | Model: {target_model}) ===")
         for k in k_values:
             print(f"    AC@{k}: {metrics[f'AC@{k}']}, Avg@{k}: {metrics[f'Avg@{k}']:.4f}")
 
