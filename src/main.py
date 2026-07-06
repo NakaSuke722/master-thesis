@@ -37,14 +37,24 @@ def run_experiment(dataset, fault, run, batch=False):
         variables = list(df.columns)
         predicted_ranking = run_random_rca(variables, seed=current_seed)
         
-    elif target_model == "lingam":
-        # 今後実装する際、以下のように graph_info から境界線のインデックスを取り出してモデルに渡す
-        # t_f_index = graph_info["t_f_index"]
-        # predicted_ranking = run_lingam_rca(df, t_f_index, seed=current_seed)
-        pass # 現段階では未実装のため仮置き
+    elif target_model == "nonlinear_anm":
+        # 提案モデルの実行
+        from models.trainer import Phase1Trainer
+        from models.inference import RCAInference
+        
+        # ターゲットとなっている実験ディレクトリの特定
+        target_dir = os.path.join("data/processed", strategy, dataset, fault, str(run))
+        
+        # A. フェーズ1: 正常データによる学習の実行
+        trainer = Phase1Trainer(data_dir=target_dir, epochs=200, lr=1e-3)
+        trained_system = trainer.train()
+        
+        # B. フェーズ2 & 3: 推論と不確実性ペナルティ付きスコアリング
+        # gammaの不確実性割引強度は必要に応じて引数やYAMLから管理可能
+        inference = RCAInference(processed_dir=target_dir, gamma=1.0, mc_samples=30)
+        predicted_ranking = inference.compute_rca_scores(trained_system)
         
     else:
-        # YAMLに不正な値が入力された場合はエラーで停止させる
         raise ValueError(f"Unknown model target in config: {target_model}")
 
     metrics = evaluate_ranking(predicted_ranking, ground_truth, k_values)

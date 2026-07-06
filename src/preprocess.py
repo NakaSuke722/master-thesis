@@ -18,23 +18,142 @@ STRATEGIES = {
 
 def get_causal_graph(dataset_name, variables):
     """
-    データセット名に応じて、既知の因果グラフ（親ノードのリスト）を返す。
-    本来は外部の topology.json 等から読み込む実装が望ましいが、ここではハードコーディングで例示する。
+    アーキテクチャ図から完全にトレースしたコールグラフとドメイン知識を用いて、
+    メトリクス間の完全な因果グラフ（隣接リスト）を動的に生成する。
     """
-    if dataset_name == "online_boutique":
-        # 例：各メトリクスの親ノードを定義（実態に合わせて修正してください）
-        return {
-            "frontend_cpu": [],
-            "cartservice_cpu": ["frontend_cpu"],
-            "checkoutservice_cpu": ["frontend_cpu", "cartservice_cpu"],
-            # ... 他の変数も同様に定義 ...
-        }
-    elif dataset_name == "sock_shop":
-        # sock_shop 用のグラフ構造
-        pass
+    causal_graph = {var: [] for var in variables}
+    call_graph = {}
     
-    # グラフ情報が定義されていない場合は、すべてのノードを独立（親なし）として扱う安全装置
-    return {var: [] for var in variables}
+    # ==========================================
+    # 1. 画像から完全トレースしたコールグラフの定義
+    # ==========================================
+    if dataset_name == "online_boutique":
+        # 画像1: Online Boutique (全サービスとRedisを網羅)
+        call_graph = {
+            "frontend-external": ["frontend"],
+            "frontend": ["adservice", "cartservice", "checkoutservice", "currencyservice", 
+                         "productcatalogservice", "recommendationservice", "shippingservice"],
+            "checkoutservice": ["cartservice", "currencyservice", "emailservice", 
+                                "paymentservice", "productcatalogservice", "shippingservice"],
+            "recommendationservice": ["productcatalogservice"],
+            "cartservice": ["redis"],
+            # 末端ノード（呼び出し先を持たないもの）も明記
+            "adservice": [], "currencyservice": [], "emailservice": [], 
+            "paymentservice": [], "productcatalogservice": [], "shippingservice": [], "redis": []
+        }
+        
+    elif dataset_name == "sock_shop":
+        # 画像2: Sock Shop (DB群およびRabbitMQの経路を完全網羅)
+        # ※データセットの命名規則（複数形など）を吸収できるよう配慮
+        call_graph = {
+            "front-end": ["orders", "payment", "user", "catalogue", "cart"],
+            "orders": ["shipping", "payment", "user", "cart", "orders-db"], # Mongoへ
+            "user": ["user-db"],             # Mongoへ
+            "catalogue": ["catalogue-db"],   # Mongoへ
+            "cart": ["carts-db"],            # MySQLへ
+            "shipping": ["rabbitmq"],        # Queue(RabbitMQ)へ
+            "rabbitmq": ["queue-master"],    # QueueからMasterへ
+            # 末端ノード
+            "payment": [], "queue-master": [], "orders-db": [], 
+            "user-db": [], "catalogue-db": [], "carts-db": []
+        }
+        
+    elif dataset_name == "train_ticket":
+        # 画像3: Train Ticket (図中の全ノードと矢印を完全トレース)
+        call_graph = {
+            "ts-ui-dashboard": ["ts-gateway-service"],
+            "ts-gateway-service": [
+                "ts-auth-service", "ts-verification-code-service", "ts-ticket-office-service",
+                "ts-avatar-service", "ts-news-service", "ts-user-service", "ts-food-service",
+                "ts-security-service", "ts-consign-service", "ts-contacts-service",
+                "ts-assurance-service", "ts-wait-order-service", "ts-preserve-service",
+                "ts-preserve-other-service", "ts-rebook-service", "ts-payment-service",
+                "ts-inside-payment-service", "ts-notification-service", "ts-delivery-service",
+                "ts-execute-service", "ts-cancel-service", "ts-order-service",
+                "ts-order-other-service", "ts-travel-service", "ts-travel2-service",
+                "ts-seat-service", "ts-basic-service", "ts-route-service", "ts-station-service",
+                "ts-train-service", "ts-admin-user-service", "ts-admin-route-service",
+                "ts-admin-travel-service", "ts-admin-basic-info-service", "ts-admin-order-service",
+                "ts-config-service", "ts-voucher-service"
+            ],
+            "ts-food-service": ["ts-station-food-service", "ts-train-food-service", "ts-food-delivery-service"],
+            "ts-consign-service": ["ts-consign-price-service"],
+            "ts-wait-order-service": ["ts-preserve-service", "ts-preserve-other-service"],
+            "ts-rebook-service": ["ts-payment-service", "ts-inside-payment-service"],
+            "ts-preserve-service": ["ts-security-service", "ts-contacts-service", "ts-assurance-service", "ts-seat-service", "ts-travel-service", "ts-station-service", "ts-user-service"],
+            "ts-preserve-other-service": ["ts-security-service", "ts-contacts-service", "ts-assurance-service", "ts-seat-service", "ts-travel2-service", "ts-station-service", "ts-user-service"],
+            "ts-execute-service": ["ts-order-service", "ts-order-other-service"],
+            "ts-cancel-service": ["ts-order-service", "ts-order-other-service"],
+            "ts-order-service": ["ts-voucher-service"],
+            "ts-order-other-service": ["ts-voucher-service"],
+            "ts-travel-service": ["ts-route-service", "ts-station-service", "ts-train-service", "ts-route-plan-service", "ts-seat-service", "ts-order-service", "ts-basic-service"],
+            "ts-travel2-service": ["ts-route-service", "ts-station-service", "ts-train-service", "ts-route-plan-service", "ts-seat-service", "ts-order-other-service", "ts-basic-service"],
+            "ts-basic-service": ["ts-route-service", "ts-station-service", "ts-train-service"],
+            "ts-travel-plan-service": ["ts-route-plan-service"],
+            "ts-admin-route-service": ["ts-route-service"],
+            "ts-admin-travel-service": ["ts-travel-service", "ts-travel2-service"],
+            "ts-admin-basic-info-service": ["ts-price-service", "ts-route-service", "ts-station-service", "ts-train-service", "ts-basic-service", "ts-route-plan-service"],
+            "ts-seat-service": ["ts-config-service"],
+            "ts-admin-order-service": ["ts-order-service", "ts-order-other-service"]
+        }
+
+    # ==========================================
+    # 2. 変数間の波及ルール適用 (ドメイン知識)
+    # ==========================================
+    for var in variables:
+        if "_" not in var and "-" not in var:
+            continue
+            
+        # "cartservice_cpu" -> svc="cartservice", metric="cpu" に分割
+        parts = var.rsplit('_', 1) 
+        if len(parts) != 2:
+            continue
+        svc, metric = parts[0], parts[1]
+
+        # 表現の揺れ（orderとorders等）を吸収するためのヘルパー
+        # サービス名が call_graph のキーや値に部分一致するかを確認する
+        matched_svc = svc
+        for defined_svc in call_graph.keys():
+            if svc in defined_svc or defined_svc in svc:
+                matched_svc = defined_svc
+                break
+
+        # --- ルールA: サービス内部の因果 (Workload -> CPU/Mem -> Latency/Error) ---
+        if metric in ["cpu", "mem"]:
+            workload_var = f"{svc}_workload"
+            if workload_var in variables:
+                causal_graph[var].append(workload_var)
+        
+        if metric.startswith("latency") or metric == "error":
+            for parent_metric in ["cpu", "mem", "workload"]:
+                parent_var = f"{svc}_{parent_metric}"
+                if parent_var in variables:
+                    causal_graph[var].append(parent_var)
+
+        # --- ルールB: サービス間の因果 ---
+        # 1. 順伝播 (CallerのWorkload -> CalleeのWorkload)
+        if metric == "workload":
+            for caller, callees in call_graph.items():
+                if matched_svc in callees:
+                    # callerの実際のメトリクス名を探す
+                    caller_workload = f"{caller}_workload"
+                    # 変数リストにあるプレフィックスと一致するものを追加
+                    for v in variables:
+                        if v.endswith("_workload") and (caller in v or v.replace("_workload", "") in caller):
+                            if v not in causal_graph[var]:
+                                causal_graph[var].append(v)
+
+        # 2. 逆流伝播 (CalleeのLatency/Error -> CallerのLatency/Error)
+        if metric.startswith("latency") or metric == "error":
+            if matched_svc in call_graph:
+                for callee in call_graph[matched_svc]:
+                    # calleeの実際のメトリクス名を探す
+                    for v in variables:
+                        if (v.endswith(metric)) and (callee in v or v.replace(f"_{metric}", "") in callee):
+                            if v not in causal_graph[var]:
+                                causal_graph[var].append(v)
+
+    return causal_graph
 
 def process_dataset(strategy_name):
     # 入力された戦略が存在するかチェック
