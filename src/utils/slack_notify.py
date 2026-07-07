@@ -7,11 +7,37 @@ import urllib.error
 import urllib.request
 from collections import defaultdict
 from datetime import datetime
+from pathlib import Path
 from typing import Dict, List, Optional, Sequence, Tuple
 
 
 DEFAULT_THRESHOLD_SECONDS = 3
 SUMMARY_KEYS = ("AC@1", "Avg@1", "AC@3", "Avg@3", "AC@5", "Avg@5")
+
+
+def _load_dotenv() -> None:
+    dotenv_path = Path(__file__).resolve().parents[2] / ".env"
+    if not dotenv_path.is_file():
+        return
+
+    with dotenv_path.open("r") as handle:
+        for raw_line in handle:
+            line = raw_line.strip()
+            if not line or line.startswith("#"):
+                continue
+            if line.startswith("export "):
+                line = line[len("export ") :].strip()
+            if "=" not in line:
+                continue
+
+            key, value = line.split("=", 1)
+            key = key.strip()
+            value = value.strip().strip('"').strip("'")
+            if key and key not in os.environ:
+                os.environ[key] = value
+
+
+_load_dotenv()
 
 
 def _format_timestamp(epoch_seconds: float) -> str:
@@ -119,13 +145,14 @@ def build_message(
         status_text = "failed"
 
     lines = ["*Simulation Report*", 
-                f"- Command: `{command}`", 
                 f"- Status: {status_text}", 
                 f"- Duration: {duration_text}", 
                 f"- Start: {start_text}", 
                 f"- End: {end_text}", 
+                f"- Model: `{model_used}`",
                 f"- Exit code: {exit_code}", 
-                f"- Model: `{model_used}`"]
+                f"- Command: `{command}`", 
+            ]
     
     if reason:
         lines.append(f"- Note: {reason}")

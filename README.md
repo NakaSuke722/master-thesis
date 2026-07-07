@@ -8,7 +8,7 @@
 
 ```text
 .
-├── .env.example          # 環境変数（APIキー等）のひな形（基本いじらなくてOK）
+├── .env                  # Slack通知などのローカル環境変数
 ├── .gitignore            # Gitの追跡対象外リスト（ログや大容量データ）
 ├── README.md             # 本ドキュメント
 ├── requirements.txt      # 実行に必要なPythonパッケージ一覧
@@ -71,11 +71,7 @@ pip install -r requirements.txt
 ```
 
 ### ステップ4: 機密情報ファイルの設定
-以下のコマンドを実行し、環境変数のひな形ファイルを複製する。作成された `.env` ファイルの中に、自身で取得したAPIキーなどを必要に応じて書き込む。
-
-```bash
-cp .env.example .env
-```
+`.env` ファイルに、Slack通知などで使う環境変数を記述する。`SLACK_WEBHOOK_URL` を設定すれば、実行時に自動で読み込まれる。
 
 ## 分析の実行ワークフロー
 
@@ -96,4 +92,6 @@ cp .env.example .env
 
 `src/runner.py` と `src/main.py` は、実行時間が3分以上になった場合のみ Slack の incoming webhook に通知を送る。通知にはコマンド名、開始・終了時刻、実行時間、異常終了や中断の有無、結果サマリを含める。
 
-既定では `SLACK_WEBHOOK_URL` と `SIMULATION_COMMAND` の環境変数を参照する。`scripts/run_all.sh` から起動する場合は、実行コマンドが自動で `./scripts/run_all.sh` として通知される。
+既定では `SLACK_WEBHOOK_URL` と `SIMULATION_COMMAND` を `.env` から自動で読み込む。`scripts/run_all.sh` から起動する場合は、実行コマンドが自動で `./scripts/run_all.sh` として通知される。
+
+通知設定は `.env` にまとめる。`SLACK_WEBHOOK_URL` を設定すれば、`src/main.py` の単独実行でも `scripts/run_all.sh` の一括実行でも同じ通知先に送られる。
