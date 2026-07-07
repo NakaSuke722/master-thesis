@@ -1,7 +1,7 @@
 # configs/default_params.yaml
 
 model:
-  target: "nonlinear_anm"  # "dummy", "lingam", "proposed" などを指定すると動作するモデルが切り替わる
+  target: "dummy"  # "dummy", "nonlinear_anm", "lingam", "proposed" などを指定すると動作するモデルが切り替わる
   preprocess_strategy: "standardized"  # "default" (そのまま) または "standardized" などを指定
 
 paths:

@@ -121,6 +121,7 @@ def main():
         end_epoch = time.time()
         maybe_notify_slack(
             webhook_url=os.environ.get("SLACK_WEBHOOK_URL", ""),
+            mention_user_id=os.environ.get("SLACK_MENTION_USER_ID", ""),
             command=command_label,
             start_epoch=start_epoch,
             end_epoch=end_epoch,

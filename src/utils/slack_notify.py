@@ -11,7 +11,7 @@ from pathlib import Path
 from typing import Dict, List, Optional, Sequence, Tuple
 
 
-DEFAULT_THRESHOLD_SECONDS = 3
+DEFAULT_THRESHOLD_SECONDS = 2
 SUMMARY_KEYS = ("AC@1", "Avg@1", "AC@3", "Avg@3", "AC@5", "Avg@5")
 
 
@@ -127,6 +127,7 @@ def build_message(
     status: str,
     reason: str,
     result_files: Sequence[str],
+    mention_user_id: str = "",
     total_time_override: Optional[float] = None,
 ) -> Tuple[str, float, Dict[str, Dict[str, float]], str]:
     records = _load_result_files(result_files)
@@ -145,11 +146,11 @@ def build_message(
         status_text = "failed"
 
     lines = ["*Simulation Report*", 
-                f"- Status: {status_text}", 
                 f"- Duration: {duration_text}", 
                 f"- Start: {start_text}", 
                 f"- End: {end_text}", 
                 f"- Model: `{model_used}`",
+                f"- Status: {status_text}", 
                 f"- Exit code: {exit_code}", 
                 f"- Command: `{command}`", 
             ]
@@ -164,7 +165,11 @@ def build_message(
     lines.append("*Result Summary*")
     lines.extend(_build_summary_lines(summary))
 
-    return "\n".join(lines), elapsed_seconds, summary, model_used
+    message_body = "\n".join(lines)
+    if mention_user_id:
+        message_body = f"<@{mention_user_id}>\n{message_body}"
+
+    return message_body, elapsed_seconds, summary, model_used
 
 
 def send_slack_notification(webhook_url: str, message: str, timeout_seconds: int = 10) -> None:
@@ -193,6 +198,7 @@ def maybe_notify_slack(
     status: str,
     reason: str,
     result_files: Sequence[str],
+    mention_user_id: str = "",
     threshold_seconds: int = DEFAULT_THRESHOLD_SECONDS,
 ) -> bool:
     resolved_webhook = webhook_url or os.environ.get("SLACK_WEBHOOK_URL", "")
@@ -216,6 +222,7 @@ def maybe_notify_slack(
         status=status,
         reason=reason,
         result_files=result_files,
+        mention_user_id=mention_user_id,
     )
 
     try:
@@ -229,6 +236,7 @@ def maybe_notify_slack(
 def _parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Send a Slack notification for long-running simulations")
     parser.add_argument("--webhook-url", default=os.environ.get("SLACK_WEBHOOK_URL", ""))
+    parser.add_argument("--mention-user-id", default=os.environ.get("SLACK_MENTION_USER_ID", ""))
     parser.add_argument("--command", required=True)
     parser.add_argument("--start-epoch", type=float, required=True)
     parser.add_argument("--end-epoch", type=float, required=True)
@@ -251,6 +259,7 @@ def main() -> int:
         status=args.status,
         reason=args.reason,
         result_files=args.result_file,
+        mention_user_id=args.mention_user_id,
         threshold_seconds=args.threshold_seconds,
     )
     return 0 if notified else 0

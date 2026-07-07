@@ -94,4 +94,4 @@ pip install -r requirements.txt
 
 既定では `SLACK_WEBHOOK_URL` と `SIMULATION_COMMAND` を `.env` から自動で読み込む。`scripts/run_all.sh` から起動する場合は、実行コマンドが自動で `./scripts/run_all.sh` として通知される。
 
-通知設定は `.env` にまとめる。`SLACK_WEBHOOK_URL` を設定すれば、`src/main.py` の単独実行でも `scripts/run_all.sh` の一括実行でも同じ通知先に送られる。
+通知設定は `.env` にまとめる。`SLACK_WEBHOOK_URL` を設定すれば、`src/main.py` の単独実行でも `scripts/run_all.sh` の一括実行でも同じ通知先に送られる。必要なら `SLACK_MENTION_USER_ID` を指定して、通知の先頭で自分にメンションできる。
