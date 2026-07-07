@@ -91,3 +91,9 @@ cp .env.example .env
    実験で試したい数値（検定の有意水準など）を `configs/` 内のYAMLファイルに記述する。その後、ターミナルからスクリプトを実行し、本格的な計算処理を開始する。
 5. **結果検証フェーズ**
    計算が完了すると `results/figures/` にグラフ等の画像が自動生成される。この結果を考察し、必要に応じて手順2や手順4に戻り、手法の改善を繰り返す。
+
+## 長時間実行時のSlack通知
+
+`src/runner.py` と `src/main.py` は、実行時間が3分以上になった場合のみ Slack の incoming webhook に通知を送る。通知にはコマンド名、開始・終了時刻、実行時間、異常終了や中断の有無、結果サマリを含める。
+
+既定では `SLACK_WEBHOOK_URL` と `SIMULATION_COMMAND` の環境変数を参照する。`scripts/run_all.sh` から起動する場合は、実行コマンドが自動で `./scripts/run_all.sh` として通知される。

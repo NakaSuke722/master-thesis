@@ -2,6 +2,7 @@
 # scripts/run_all.sh
 
 export PYTHONPATH="${PYTHONPATH}:./src"
+export SIMULATION_COMMAND="${SIMULATION_COMMAND:-./scripts/run_all.sh}"
 
 START_TIME=$(date +%s)
 

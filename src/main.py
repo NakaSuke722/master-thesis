@@ -4,6 +4,8 @@ import yaml
 import json
 import os
 import time
+import shlex
+import sys
 from data_loader import load_timeseries_data
 from evaluation import evaluate_ranking
 
@@ -11,6 +13,7 @@ from evaluation import evaluate_ranking
 from models.dummy import run_random_rca
 # 将来的に新しいモデルを追加した場合はここに追記する
 # from models.lingam_model import run_lingam_rca
+from utils.slack_notify import maybe_notify_slack
 
 def run_experiment(dataset, fault, run, batch=False):
     """1つのデータセット・障害ケースに対する推論と評価を実行する"""
@@ -87,6 +90,8 @@ def run_experiment(dataset, fault, run, batch=False):
     with open(output_file, "w") as f:
         json.dump(results, f, indent=4)
 
+    return results, output_file
+
 def main():
     """コマンドラインから単一実行された場合の入り口"""
     parser = argparse.ArgumentParser(description="Run RCA Evaluation")
@@ -96,7 +101,34 @@ def main():
     parser.add_argument("--batch", action="store_true", help="Suppress detailed metrics output")
     args = parser.parse_args()
 
-    run_experiment(args.dataset, args.fault, args.run, args.batch)
+    command_label = " ".join([shlex.quote(sys.executable), shlex.quote("src/main.py"), *(shlex.quote(arg) for arg in sys.argv[1:])])
+    start_epoch = time.time()
+    status = "completed"
+    reason = ""
+    result_file = ""
+
+    try:
+        _, result_file = run_experiment(args.dataset, args.fault, args.run, args.batch)
+    except KeyboardInterrupt:
+        status = "interrupted"
+        reason = "Interrupted by user (SIGINT)"
+        raise
+    except Exception as exc:
+        status = "failed"
+        reason = f"{type(exc).__name__}: {exc}"
+        raise
+    finally:
+        end_epoch = time.time()
+        maybe_notify_slack(
+            webhook_url=os.environ.get("SLACK_WEBHOOK_URL", ""),
+            command=command_label,
+            start_epoch=start_epoch,
+            end_epoch=end_epoch,
+            exit_code=0 if status == "completed" else (130 if status == "interrupted" else 1),
+            status=status,
+            reason=reason,
+            result_files=[result_file] if result_file else [],
+        )
 
 if __name__ == "__main__":
     main()
