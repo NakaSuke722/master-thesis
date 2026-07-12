@@ -3,12 +3,18 @@ import os
 import glob
 import json
 import argparse
+import yaml
 from collections import defaultdict
 
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--total-time", type=float, default=0.0)
     args = parser.parse_args()
+
+    # YAMLから集計対象のデータセットリストを読み込む
+    with open("configs/default_params.yaml", "r") as f:
+        config = yaml.safe_load(f)
+    target_datasets = config.get("datasets", [])
 
     results_dir = "results/metrics"
     output_file = "results/final_summary.json"
@@ -17,17 +23,21 @@ def main():
     pure_execution_time = 0.0
     model_used = "unknown"
 
-    for filepath in glob.glob(os.path.join(results_dir, "*", "*.json")):
-        with open(filepath, "r") as f:
-            data = json.load(f)
-            all_results.append(data)
-            pure_execution_time += data.get("execution_time_sec", 0.0)
-            
-            # 個別データから使用されたモデル名を取得（最初の1つで上書き）
-            if model_used == "unknown" and "model_used" in data:
-                model_used = data["model_used"]
+    # 指定されたデータセットごとに結果を探索
+    for dataset in target_datasets:
+        search_pattern = os.path.join(results_dir, dataset, "*.json")
+        for filepath in glob.glob(search_pattern):
+            with open(filepath, "r") as f:
+                data = json.load(f)
+                all_results.append(data)
+                pure_execution_time += data.get("execution_time_sec", 0.0)
+                
+                # 個別データから使用されたモデル名を取得（最初の1つで上書き）
+                if model_used == "unknown" and "model_used" in data:
+                    model_used = data["model_used"]
 
     if not all_results: 
+        print("No result files found for the specified datasets.")
         return
 
     dataset_metrics = defaultdict(lambda: defaultdict(list))

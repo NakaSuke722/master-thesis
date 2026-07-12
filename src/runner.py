@@ -8,23 +8,24 @@ from main import run_experiment
 from utils.slack_notify import maybe_notify_slack
 
 def run_all():
-    # 設定ファイルからモデル名を読み込む
+    # 設定ファイルからモデル名とデータセットリストを読み込む
     with open("configs/default_params.yaml", "r") as f:
         config = yaml.safe_load(f)
     
     target_model = config["model"]["target"]
+    datasets = config.get("datasets", [])
     
     # ターミナル出力の先頭にモデル名を記載
     print(f"=== Running experiments with model: {target_model} ===")
 
     base_data_dir = "data/raw"
-    datasets = ["online_boutique", "sock_shop", "train_ticket"]
     runs = [1, 2, 3, 4, 5]
     generated_result_files = []
 
     for dataset in datasets:
         dataset_path = os.path.join(base_data_dir, dataset)
         if not os.path.isdir(dataset_path):
+            print(f"Warning: Dataset directory not found: {dataset_path}")
             continue
 
         dataset_total = 0

@@ -16,4 +16,4 @@ evaluation:
 datasets:
   - online_boutique
   - sock_shop
-  - train_ticket
+  # - train_ticket
