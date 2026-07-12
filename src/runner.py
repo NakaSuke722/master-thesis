@@ -27,6 +27,19 @@ def run_all():
         if not os.path.isdir(dataset_path):
             continue
 
+        dataset_total = 0
+        for fault_dir in os.listdir(dataset_path):
+            fault_path = os.path.join(dataset_path, fault_dir)
+            if not os.path.isdir(fault_path):
+                continue
+
+            for run in runs:
+                file_path = os.path.join(fault_path, str(run), "simple_data.csv")
+                if os.path.isfile(file_path):
+                    dataset_total += 1
+
+        dataset_progress = 0
+
         for fault_dir in os.listdir(dataset_path):
             fault_path = os.path.join(dataset_path, fault_dir)
             if not os.path.isdir(fault_path):
@@ -36,7 +49,15 @@ def run_all():
             for run in runs:
                 file_path = os.path.join(fault_path, str(run), "simple_data.csv")
                 if os.path.isfile(file_path):
-                    _, output_file = run_experiment(dataset, fault_type, run, batch=True)
+                    dataset_progress += 1
+                    _, output_file = run_experiment(
+                        dataset,
+                        fault_type,
+                        run,
+                        batch=True,
+                        progress=dataset_progress,
+                        total_progress=dataset_total,
+                    )
                     generated_result_files.append(output_file)
 
     return generated_result_files

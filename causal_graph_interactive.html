@@ -1,0 +1,164 @@
+<html>
+    <head>
+        <meta charset="utf-8">
+        
+            <script src="lib/bindings/utils.js"></script>
+            <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/vis-network/9.1.2/dist/dist/vis-network.min.css" integrity="sha512-WgxfT5LWjfszlPHXRmBWHkV2eceiWTOBvrKCNbdgDYTHrT2AeLCGbF4sZlZw3UMN3WtL0tGUoIAKsu8mllg/XA==" crossorigin="anonymous" referrerpolicy="no-referrer" />
+            <script src="https://cdnjs.cloudflare.com/ajax/libs/vis-network/9.1.2/dist/vis-network.min.js" integrity="sha512-LnvoEWDFrqGHlHmDD2101OrLcbsfkrzoSpvtSQtxK3RMnRV0eOkhhBN2dXHKRrUU8p2DGRTk35n4O8nWSVe1mQ==" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
+            
+        
+<center>
+<h1></h1>
+</center>
+
+<!-- <link rel="stylesheet" href="../node_modules/vis/dist/vis.min.css" type="text/css" />
+<script type="text/javascript" src="../node_modules/vis/dist/vis.js"> </script>-->
+        <link
+          href="https://cdn.jsdelivr.net/npm/bootstrap@5.0.0-beta3/dist/css/bootstrap.min.css"
+          rel="stylesheet"
+          integrity="sha384-eOJMYsd53ii+scO/bJGFsiCZc+5NDVN2yr8+0RDqr0Ql0h+rP48ckxlpbzKgwra6"
+          crossorigin="anonymous"
+        />
+        <script
+          src="https://cdn.jsdelivr.net/npm/bootstrap@5.0.0-beta3/dist/js/bootstrap.bundle.min.js"
+          integrity="sha384-JEW9xMcG8R+pH31jmWH6WWP0WintQrMb4s7ZOdauHnUtxwoG2vI5DkLtS3qm9Ekf"
+          crossorigin="anonymous"
+        ></script>
+
+
+        <center>
+          <h1></h1>
+        </center>
+        <style type="text/css">
+
+             #mynetwork {
+                 width: 100%;
+                 height: 800px;
+                 background-color: #ffffff;
+                 border: 1px solid lightgray;
+                 position: relative;
+                 float: left;
+             }
+
+             
+
+             
+
+             
+        </style>
+    </head>
+
+
+    <body>
+        <div class="card" style="width: 100%">
+            
+            
+            <div id="mynetwork" class="card-body"></div>
+        </div>
+
+        
+        
+
+        <script type="text/javascript">
+
+              // initialize global variables.
+              var edges;
+              var nodes;
+              var allNodes;
+              var allEdges;
+              var nodeColors;
+              var originalNodes;
+              var network;
+              var container;
+              var options, data;
+              var filter = {
+                  item : '',
+                  property : '',
+                  value : []
+              };
+
+              
+
+              
+
+              // This method is responsible for drawing the graph, returns the drawn network
+              function drawGraph() {
+                  var container = document.getElementById('mynetwork');
+
+                  
+
+                  // parsing and collecting nodes and edges from the python
+                  nodes = new vis.DataSet([{"color": "#dcedc1", "font": {"color": "black"}, "id": "adservice_cpu", "label": "adservice_cpu", "shape": "dot", "size": 15}, {"color": "#dcedc1", "font": {"color": "black"}, "id": "cartservice_cpu", "label": "cartservice_cpu", "shape": "dot", "size": 15}, {"color": "#dcedc1", "font": {"color": "black"}, "id": "checkoutservice_cpu", "label": "checkoutservice_cpu", "shape": "dot", "size": 15}, {"color": "#dcedc1", "font": {"color": "black"}, "id": "currencyservice_cpu", "label": "currencyservice_cpu", "shape": "dot", "size": 15}, {"color": "#dcedc1", "font": {"color": "black"}, "id": "emailservice_cpu", "label": "emailservice_cpu", "shape": "dot", "size": 15}, {"color": "#dcedc1", "font": {"color": "black"}, "id": "frontend_cpu", "label": "frontend_cpu", "shape": "dot", "size": 15}, {"color": "#dcedc1", "font": {"color": "black"}, "id": "main_cpu", "label": "main_cpu", "shape": "dot", "size": 15}, {"color": "#dcedc1", "font": {"color": "black"}, "id": "paymentservice_cpu", "label": "paymentservice_cpu", "shape": "dot", "size": 15}, {"color": "#dcedc1", "font": {"color": "black"}, "id": "productcatalogservice_cpu", "label": "productcatalogservice_cpu", "shape": "dot", "size": 15}, {"color": "#dcedc1", "font": {"color": "black"}, "id": "recommendationservice_cpu", "label": "recommendationservice_cpu", "shape": "dot", "size": 15}, {"color": "#dcedc1", "font": {"color": "black"}, "id": "redis_cpu", "label": "redis_cpu", "shape": "dot", "size": 15}, {"color": "#dcedc1", "font": {"color": "black"}, "id": "shippingservice_cpu", "label": "shippingservice_cpu", "shape": "dot", "size": 15}, {"color": "#dcedc1", "font": {"color": "black"}, "id": "adservice_mem", "label": "adservice_mem", "shape": "dot", "size": 15}, {"color": "#dcedc1", "font": {"color": "black"}, "id": "cartservice_mem", "label": "cartservice_mem", "shape": "dot", "size": 15}, {"color": "#dcedc1", "font": {"color": "black"}, "id": "checkoutservice_mem", "label": "checkoutservice_mem", "shape": "dot", "size": 15}, {"color": "#dcedc1", "font": {"color": "black"}, "id": "currencyservice_mem", "label": "currencyservice_mem", "shape": "dot", "size": 15}, {"color": "#dcedc1", "font": {"color": "black"}, "id": "emailservice_mem", "label": "emailservice_mem", "shape": "dot", "size": 15}, {"color": "#dcedc1", "font": {"color": "black"}, "id": "frontend_mem", "label": "frontend_mem", "shape": "dot", "size": 15}, {"color": "#dcedc1", "font": {"color": "black"}, "id": "main_mem", "label": "main_mem", "shape": "dot", "size": 15}, {"color": "#dcedc1", "font": {"color": "black"}, "id": "paymentservice_mem", "label": "paymentservice_mem", "shape": "dot", "size": 15}, {"color": "#dcedc1", "font": {"color": "black"}, "id": "productcatalogservice_mem", "label": "productcatalogservice_mem", "shape": "dot", "size": 15}, {"color": "#dcedc1", "font": {"color": "black"}, "id": "recommendationservice_mem", "label": "recommendationservice_mem", "shape": "dot", "size": 15}, {"color": "#dcedc1", "font": {"color": "black"}, "id": "redis_mem", "label": "redis_mem", "shape": "dot", "size": 15}, {"color": "#dcedc1", "font": {"color": "black"}, "id": "shippingservice_mem", "label": "shippingservice_mem", "shape": "dot", "size": 15}, {"color": "#a8e6cf", "font": {"color": "black"}, "id": "adservice_workload", "label": "adservice_workload", "shape": "dot", "size": 15}, {"color": "#a8e6cf", "font": {"color": "black"}, "id": "cartservice_workload", "label": "cartservice_workload", "shape": "dot", "size": 15}, {"color": "#a8e6cf", "font": {"color": "black"}, "id": "checkoutservice_workload", "label": "checkoutservice_workload", "shape": "dot", "size": 15}, {"color": "#a8e6cf", "font": {"color": "black"}, "id": "currencyservice_workload", "label": "currencyservice_workload", "shape": "dot", "size": 15}, {"color": "#a8e6cf", "font": {"color": "black"}, "id": "emailservice_workload", "label": "emailservice_workload", "shape": "dot", "size": 15}, {"color": "#a8e6cf", "font": {"color": "black"}, "id": "frontend_workload", "label": "frontend_workload", "shape": "dot", "size": 15}, {"color": "#a8e6cf", "font": {"color": "black"}, "id": "frontend-external_workload", "label": "frontend-external_workload", "shape": "dot", "size": 15}, {"color": "#a8e6cf", "font": {"color": "black"}, "id": "paymentservice_workload", "label": "paymentservice_workload", "shape": "dot", "size": 15}, {"color": "#a8e6cf", "font": {"color": "black"}, "id": "productcatalogservice_workload", "label": "productcatalogservice_workload", "shape": "dot", "size": 15}, {"color": "#a8e6cf", "font": {"color": "black"}, "id": "recommendationservice_workload", "label": "recommendationservice_workload", "shape": "dot", "size": 15}, {"color": "#a8e6cf", "font": {"color": "black"}, "id": "shippingservice_workload", "label": "shippingservice_workload", "shape": "dot", "size": 15}, {"color": "#ff8b94", "font": {"color": "black"}, "id": "adservice_latency-50", "label": "adservice_latency-50", "shape": "dot", "size": 15}, {"color": "#ff8b94", "font": {"color": "black"}, "id": "cartservice_latency-50", "label": "cartservice_latency-50", "shape": "dot", "size": 15}, {"color": "#ff8b94", "font": {"color": "black"}, "id": "checkoutservice_latency-50", "label": "checkoutservice_latency-50", "shape": "dot", "size": 15}, {"color": "#ff8b94", "font": {"color": "black"}, "id": "currencyservice_latency-50", "label": "currencyservice_latency-50", "shape": "dot", "size": 15}, {"color": "#ff8b94", "font": {"color": "black"}, "id": "emailservice_latency-50", "label": "emailservice_latency-50", "shape": "dot", "size": 15}, {"color": "#ff8b94", "font": {"color": "black"}, "id": "frontend_latency-50", "label": "frontend_latency-50", "shape": "dot", "size": 15}, {"color": "#ff8b94", "font": {"color": "black"}, "id": "paymentservice_latency-50", "label": "paymentservice_latency-50", "shape": "dot", "size": 15}, {"color": "#ff8b94", "font": {"color": "black"}, "id": "productcatalogservice_latency-50", "label": "productcatalogservice_latency-50", "shape": "dot", "size": 15}, {"color": "#ff8b94", "font": {"color": "black"}, "id": "recommendationservice_latency-50", "label": "recommendationservice_latency-50", "shape": "dot", "size": 15}, {"color": "#ff8b94", "font": {"color": "black"}, "id": "shippingservice_latency-50", "label": "shippingservice_latency-50", "shape": "dot", "size": 15}, {"color": "#ff8b94", "font": {"color": "black"}, "id": "adservice_latency-90", "label": "adservice_latency-90", "shape": "dot", "size": 15}, {"color": "#ff8b94", "font": {"color": "black"}, "id": "cartservice_latency-90", "label": "cartservice_latency-90", "shape": "dot", "size": 15}, {"color": "#ff8b94", "font": {"color": "black"}, "id": "checkoutservice_latency-90", "label": "checkoutservice_latency-90", "shape": "dot", "size": 15}, {"color": "#ff8b94", "font": {"color": "black"}, "id": "currencyservice_latency-90", "label": "currencyservice_latency-90", "shape": "dot", "size": 15}, {"color": "#ff8b94", "font": {"color": "black"}, "id": "emailservice_latency-90", "label": "emailservice_latency-90", "shape": "dot", "size": 15}, {"color": "#ff8b94", "font": {"color": "black"}, "id": "frontend_latency-90", "label": "frontend_latency-90", "shape": "dot", "size": 15}, {"color": "#ff8b94", "font": {"color": "black"}, "id": "paymentservice_latency-90", "label": "paymentservice_latency-90", "shape": "dot", "size": 15}, {"color": "#ff8b94", "font": {"color": "black"}, "id": "productcatalogservice_latency-90", "label": "productcatalogservice_latency-90", "shape": "dot", "size": 15}, {"color": "#ff8b94", "font": {"color": "black"}, "id": "recommendationservice_latency-90", "label": "recommendationservice_latency-90", "shape": "dot", "size": 15}, {"color": "#ff8b94", "font": {"color": "black"}, "id": "shippingservice_latency-90", "label": "shippingservice_latency-90", "shape": "dot", "size": 15}]);
+                  edges = new vis.DataSet([{"arrows": "to", "color": "gray", "from": "adservice_workload", "to": "adservice_cpu"}, {"arrows": "to", "color": "gray", "from": "cartservice_workload", "to": "cartservice_cpu"}, {"arrows": "to", "color": "gray", "from": "checkoutservice_workload", "to": "checkoutservice_cpu"}, {"arrows": "to", "color": "gray", "from": "currencyservice_workload", "to": "currencyservice_cpu"}, {"arrows": "to", "color": "gray", "from": "emailservice_workload", "to": "emailservice_cpu"}, {"arrows": "to", "color": "gray", "from": "frontend_workload", "to": "frontend_cpu"}, {"arrows": "to", "color": "gray", "from": "paymentservice_workload", "to": "paymentservice_cpu"}, {"arrows": "to", "color": "gray", "from": "productcatalogservice_workload", "to": "productcatalogservice_cpu"}, {"arrows": "to", "color": "gray", "from": "recommendationservice_workload", "to": "recommendationservice_cpu"}, {"arrows": "to", "color": "gray", "from": "shippingservice_workload", "to": "shippingservice_cpu"}, {"arrows": "to", "color": "gray", "from": "adservice_workload", "to": "adservice_mem"}, {"arrows": "to", "color": "gray", "from": "cartservice_workload", "to": "cartservice_mem"}, {"arrows": "to", "color": "gray", "from": "checkoutservice_workload", "to": "checkoutservice_mem"}, {"arrows": "to", "color": "gray", "from": "currencyservice_workload", "to": "currencyservice_mem"}, {"arrows": "to", "color": "gray", "from": "emailservice_workload", "to": "emailservice_mem"}, {"arrows": "to", "color": "gray", "from": "frontend_workload", "to": "frontend_mem"}, {"arrows": "to", "color": "gray", "from": "paymentservice_workload", "to": "paymentservice_mem"}, {"arrows": "to", "color": "gray", "from": "productcatalogservice_workload", "to": "productcatalogservice_mem"}, {"arrows": "to", "color": "gray", "from": "recommendationservice_workload", "to": "recommendationservice_mem"}, {"arrows": "to", "color": "gray", "from": "shippingservice_workload", "to": "shippingservice_mem"}, {"arrows": "to", "color": "gray", "from": "frontend_workload", "to": "adservice_workload"}, {"arrows": "to", "color": "gray", "from": "frontend-external_workload", "to": "adservice_workload"}, {"arrows": "to", "color": "gray", "from": "frontend_workload", "to": "cartservice_workload"}, {"arrows": "to", "color": "gray", "from": "frontend-external_workload", "to": "cartservice_workload"}, {"arrows": "to", "color": "gray", "from": "checkoutservice_workload", "to": "cartservice_workload"}, {"arrows": "to", "color": "gray", "from": "frontend_workload", "to": "checkoutservice_workload"}, {"arrows": "to", "color": "gray", "from": "frontend-external_workload", "to": "checkoutservice_workload"}, {"arrows": "to", "color": "gray", "from": "frontend_workload", "to": "currencyservice_workload"}, {"arrows": "to", "color": "gray", "from": "frontend-external_workload", "to": "currencyservice_workload"}, {"arrows": "to", "color": "gray", "from": "checkoutservice_workload", "to": "currencyservice_workload"}, {"arrows": "to", "color": "gray", "from": "checkoutservice_workload", "to": "emailservice_workload"}, {"arrows": "to", "color": "gray", "from": "checkoutservice_workload", "to": "paymentservice_workload"}, {"arrows": "to", "color": "gray", "from": "frontend_workload", "to": "productcatalogservice_workload"}, {"arrows": "to", "color": "gray", "from": "frontend-external_workload", "to": "productcatalogservice_workload"}, {"arrows": "to", "color": "gray", "from": "checkoutservice_workload", "to": "productcatalogservice_workload"}, {"arrows": "to", "color": "gray", "from": "recommendationservice_workload", "to": "productcatalogservice_workload"}, {"arrows": "to", "color": "gray", "from": "frontend_workload", "to": "recommendationservice_workload"}, {"arrows": "to", "color": "gray", "from": "frontend-external_workload", "to": "recommendationservice_workload"}, {"arrows": "to", "color": "gray", "from": "frontend_workload", "to": "shippingservice_workload"}, {"arrows": "to", "color": "gray", "from": "frontend-external_workload", "to": "shippingservice_workload"}, {"arrows": "to", "color": "gray", "from": "checkoutservice_workload", "to": "shippingservice_workload"}, {"arrows": "to", "color": "gray", "from": "adservice_cpu", "to": "adservice_latency-50"}, {"arrows": "to", "color": "gray", "from": "adservice_mem", "to": "adservice_latency-50"}, {"arrows": "to", "color": "gray", "from": "adservice_workload", "to": "adservice_latency-50"}, {"arrows": "to", "color": "gray", "from": "cartservice_cpu", "to": "cartservice_latency-50"}, {"arrows": "to", "color": "gray", "from": "cartservice_mem", "to": "cartservice_latency-50"}, {"arrows": "to", "color": "gray", "from": "cartservice_workload", "to": "cartservice_latency-50"}, {"arrows": "to", "color": "gray", "from": "checkoutservice_cpu", "to": "checkoutservice_latency-50"}, {"arrows": "to", "color": "gray", "from": "checkoutservice_mem", "to": "checkoutservice_latency-50"}, {"arrows": "to", "color": "gray", "from": "checkoutservice_workload", "to": "checkoutservice_latency-50"}, {"arrows": "to", "color": "gray", "from": "cartservice_latency-50", "to": "checkoutservice_latency-50"}, {"arrows": "to", "color": "gray", "from": "currencyservice_latency-50", "to": "checkoutservice_latency-50"}, {"arrows": "to", "color": "gray", "from": "emailservice_latency-50", "to": "checkoutservice_latency-50"}, {"arrows": "to", "color": "gray", "from": "paymentservice_latency-50", "to": "checkoutservice_latency-50"}, {"arrows": "to", "color": "gray", "from": "productcatalogservice_latency-50", "to": "checkoutservice_latency-50"}, {"arrows": "to", "color": "gray", "from": "shippingservice_latency-50", "to": "checkoutservice_latency-50"}, {"arrows": "to", "color": "gray", "from": "currencyservice_cpu", "to": "currencyservice_latency-50"}, {"arrows": "to", "color": "gray", "from": "currencyservice_mem", "to": "currencyservice_latency-50"}, {"arrows": "to", "color": "gray", "from": "currencyservice_workload", "to": "currencyservice_latency-50"}, {"arrows": "to", "color": "gray", "from": "emailservice_cpu", "to": "emailservice_latency-50"}, {"arrows": "to", "color": "gray", "from": "emailservice_mem", "to": "emailservice_latency-50"}, {"arrows": "to", "color": "gray", "from": "emailservice_workload", "to": "emailservice_latency-50"}, {"arrows": "to", "color": "gray", "from": "frontend_cpu", "to": "frontend_latency-50"}, {"arrows": "to", "color": "gray", "from": "frontend_mem", "to": "frontend_latency-50"}, {"arrows": "to", "color": "gray", "from": "frontend_workload", "to": "frontend_latency-50"}, {"arrows": "to", "color": "gray", "from": "frontend_latency-50", "to": "frontend_latency-50"}, {"arrows": "to", "color": "gray", "from": "paymentservice_cpu", "to": "paymentservice_latency-50"}, {"arrows": "to", "color": "gray", "from": "paymentservice_mem", "to": "paymentservice_latency-50"}, {"arrows": "to", "color": "gray", "from": "paymentservice_workload", "to": "paymentservice_latency-50"}, {"arrows": "to", "color": "gray", "from": "productcatalogservice_cpu", "to": "productcatalogservice_latency-50"}, {"arrows": "to", "color": "gray", "from": "productcatalogservice_mem", "to": "productcatalogservice_latency-50"}, {"arrows": "to", "color": "gray", "from": "productcatalogservice_workload", "to": "productcatalogservice_latency-50"}, {"arrows": "to", "color": "gray", "from": "recommendationservice_cpu", "to": "recommendationservice_latency-50"}, {"arrows": "to", "color": "gray", "from": "recommendationservice_mem", "to": "recommendationservice_latency-50"}, {"arrows": "to", "color": "gray", "from": "recommendationservice_workload", "to": "recommendationservice_latency-50"}, {"arrows": "to", "color": "gray", "from": "productcatalogservice_latency-50", "to": "recommendationservice_latency-50"}, {"arrows": "to", "color": "gray", "from": "shippingservice_cpu", "to": "shippingservice_latency-50"}, {"arrows": "to", "color": "gray", "from": "shippingservice_mem", "to": "shippingservice_latency-50"}, {"arrows": "to", "color": "gray", "from": "shippingservice_workload", "to": "shippingservice_latency-50"}, {"arrows": "to", "color": "gray", "from": "adservice_cpu", "to": "adservice_latency-90"}, {"arrows": "to", "color": "gray", "from": "adservice_mem", "to": "adservice_latency-90"}, {"arrows": "to", "color": "gray", "from": "adservice_workload", "to": "adservice_latency-90"}, {"arrows": "to", "color": "gray", "from": "cartservice_cpu", "to": "cartservice_latency-90"}, {"arrows": "to", "color": "gray", "from": "cartservice_mem", "to": "cartservice_latency-90"}, {"arrows": "to", "color": "gray", "from": "cartservice_workload", "to": "cartservice_latency-90"}, {"arrows": "to", "color": "gray", "from": "checkoutservice_cpu", "to": "checkoutservice_latency-90"}, {"arrows": "to", "color": "gray", "from": "checkoutservice_mem", "to": "checkoutservice_latency-90"}, {"arrows": "to", "color": "gray", "from": "checkoutservice_workload", "to": "checkoutservice_latency-90"}, {"arrows": "to", "color": "gray", "from": "cartservice_latency-90", "to": "checkoutservice_latency-90"}, {"arrows": "to", "color": "gray", "from": "currencyservice_latency-90", "to": "checkoutservice_latency-90"}, {"arrows": "to", "color": "gray", "from": "emailservice_latency-90", "to": "checkoutservice_latency-90"}, {"arrows": "to", "color": "gray", "from": "paymentservice_latency-90", "to": "checkoutservice_latency-90"}, {"arrows": "to", "color": "gray", "from": "productcatalogservice_latency-90", "to": "checkoutservice_latency-90"}, {"arrows": "to", "color": "gray", "from": "shippingservice_latency-90", "to": "checkoutservice_latency-90"}, {"arrows": "to", "color": "gray", "from": "currencyservice_cpu", "to": "currencyservice_latency-90"}, {"arrows": "to", "color": "gray", "from": "currencyservice_mem", "to": "currencyservice_latency-90"}, {"arrows": "to", "color": "gray", "from": "currencyservice_workload", "to": "currencyservice_latency-90"}, {"arrows": "to", "color": "gray", "from": "emailservice_cpu", "to": "emailservice_latency-90"}, {"arrows": "to", "color": "gray", "from": "emailservice_mem", "to": "emailservice_latency-90"}, {"arrows": "to", "color": "gray", "from": "emailservice_workload", "to": "emailservice_latency-90"}, {"arrows": "to", "color": "gray", "from": "frontend_cpu", "to": "frontend_latency-90"}, {"arrows": "to", "color": "gray", "from": "frontend_mem", "to": "frontend_latency-90"}, {"arrows": "to", "color": "gray", "from": "frontend_workload", "to": "frontend_latency-90"}, {"arrows": "to", "color": "gray", "from": "frontend_latency-90", "to": "frontend_latency-90"}, {"arrows": "to", "color": "gray", "from": "paymentservice_cpu", "to": "paymentservice_latency-90"}, {"arrows": "to", "color": "gray", "from": "paymentservice_mem", "to": "paymentservice_latency-90"}, {"arrows": "to", "color": "gray", "from": "paymentservice_workload", "to": "paymentservice_latency-90"}, {"arrows": "to", "color": "gray", "from": "productcatalogservice_cpu", "to": "productcatalogservice_latency-90"}, {"arrows": "to", "color": "gray", "from": "productcatalogservice_mem", "to": "productcatalogservice_latency-90"}, {"arrows": "to", "color": "gray", "from": "productcatalogservice_workload", "to": "productcatalogservice_latency-90"}, {"arrows": "to", "color": "gray", "from": "recommendationservice_cpu", "to": "recommendationservice_latency-90"}, {"arrows": "to", "color": "gray", "from": "recommendationservice_mem", "to": "recommendationservice_latency-90"}, {"arrows": "to", "color": "gray", "from": "recommendationservice_workload", "to": "recommendationservice_latency-90"}, {"arrows": "to", "color": "gray", "from": "productcatalogservice_latency-90", "to": "recommendationservice_latency-90"}, {"arrows": "to", "color": "gray", "from": "shippingservice_cpu", "to": "shippingservice_latency-90"}, {"arrows": "to", "color": "gray", "from": "shippingservice_mem", "to": "shippingservice_latency-90"}, {"arrows": "to", "color": "gray", "from": "shippingservice_workload", "to": "shippingservice_latency-90"}]);
+
+                  nodeColors = {};
+                  allNodes = nodes.get({ returnType: "Object" });
+                  for (nodeId in allNodes) {
+                    nodeColors[nodeId] = allNodes[nodeId].color;
+                  }
+                  allEdges = edges.get({ returnType: "Object" });
+                  // adding nodes and edges to the graph
+                  data = {nodes: nodes, edges: edges};
+
+                  var options = {
+    "configure": {
+        "enabled": false
+    },
+    "edges": {
+        "color": {
+            "inherit": true
+        },
+        "smooth": {
+            "enabled": true,
+            "type": "dynamic"
+        }
+    },
+    "interaction": {
+        "dragNodes": true,
+        "hideEdgesOnDrag": false,
+        "hideNodesOnDrag": false
+    },
+    "physics": {
+        "enabled": true,
+        "forceAtlas2Based": {
+            "avoidOverlap": 0,
+            "centralGravity": 0.01,
+            "damping": 0.4,
+            "gravitationalConstant": -50,
+            "springConstant": 0.08,
+            "springLength": 100
+        },
+        "solver": "forceAtlas2Based",
+        "stabilization": {
+            "enabled": true,
+            "fit": true,
+            "iterations": 1000,
+            "onlyDynamicEdges": false,
+            "updateInterval": 50
+        }
+    }
+};
+
+                  
+
+
+                  
+
+                  network = new vis.Network(container, data, options);
+
+                  
+
+                  
+
+                  
+
+
+                  
+
+                  return network;
+
+              }
+              drawGraph();
+        </script>
+    </body>
+</html>

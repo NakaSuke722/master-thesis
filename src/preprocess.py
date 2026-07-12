@@ -18,50 +18,38 @@ STRATEGIES = {
 
 def get_causal_graph(dataset_name, variables):
     """
-    アーキテクチャ図から完全にトレースしたコールグラフとドメイン知識を用いて、
-    メトリクス間の完全な因果グラフ（隣接リスト）を動的に生成する。
+    アーキテクチャのコールグラフと動的フォールバックを用いて、
+    メトリクス間の完全な有向非巡回グラフ（DAG）を生成する。
     """
     causal_graph = {var: [] for var in variables}
     call_graph = {}
     
     # ==========================================
-    # 1. 画像から完全トレースしたコールグラフの定義
+    # 1. コールグラフの定義（main をフロントエンドの呼び出し先として追加）
     # ==========================================
     if dataset_name == "online_boutique":
-        # 画像1: Online Boutique (全サービスとRedisを網羅)
         call_graph = {
-            "frontend-external": ["frontend"],
+            "frontend-external": ["frontend", "main"], # main(物理ホスト)を全体のエントリポイントに紐付け
             "frontend": ["adservice", "cartservice", "checkoutservice", "currencyservice", 
                          "productcatalogservice", "recommendationservice", "shippingservice"],
             "checkoutservice": ["cartservice", "currencyservice", "emailservice", 
                                 "paymentservice", "productcatalogservice", "shippingservice"],
             "recommendationservice": ["productcatalogservice"],
             "cartservice": ["redis"],
-            # 末端ノード（呼び出し先を持たないもの）も明記
             "adservice": [], "currencyservice": [], "emailservice": [], 
-            "paymentservice": [], "productcatalogservice": [], "shippingservice": [], "redis": []
+            "paymentservice": [], "productcatalogservice": [], "shippingservice": [], "redis": [], "main": []
         }
-        
     elif dataset_name == "sock_shop":
-        # 画像2: Sock Shop (DB群およびRabbitMQの経路を完全網羅)
-        # ※データセットの命名規則（複数形など）を吸収できるよう配慮
         call_graph = {
-            "front-end": ["orders", "payment", "user", "catalogue", "cart"],
-            "orders": ["shipping", "payment", "user", "cart", "orders-db"], # Mongoへ
-            "user": ["user-db"],             # Mongoへ
-            "catalogue": ["catalogue-db"],   # Mongoへ
-            "cart": ["carts-db"],            # MySQLへ
-            "shipping": ["rabbitmq"],        # Queue(RabbitMQ)へ
-            "rabbitmq": ["queue-master"],    # QueueからMasterへ
-            # 末端ノード
-            "payment": [], "queue-master": [], "orders-db": [], 
-            "user-db": [], "catalogue-db": [], "carts-db": []
+            "front-end": ["orders", "payment", "user", "catalogue", "cart", "main"],
+            "orders": ["shipping", "payment", "user", "cart", "orders-db"],
+            "user": ["user-db"], "catalogue": ["catalogue-db"], "cart": ["carts-db"],
+            "shipping": ["rabbitmq"], "rabbitmq": ["queue-master"],
+            "payment": [], "queue-master": [], "orders-db": [], "user-db": [], "catalogue-db": [], "carts-db": [], "main": []
         }
-        
     elif dataset_name == "train_ticket":
-        # 画像3: Train Ticket (図中の全ノードと矢印を完全トレース)
         call_graph = {
-            "ts-ui-dashboard": ["ts-gateway-service"],
+            "ts-ui-dashboard": ["ts-gateway-service", "main"],
             "ts-gateway-service": [
                 "ts-auth-service", "ts-verification-code-service", "ts-ticket-office-service",
                 "ts-avatar-service", "ts-news-service", "ts-user-service", "ts-food-service",
@@ -94,66 +82,120 @@ def get_causal_graph(dataset_name, variables):
             "ts-admin-travel-service": ["ts-travel-service", "ts-travel2-service"],
             "ts-admin-basic-info-service": ["ts-price-service", "ts-route-service", "ts-station-service", "ts-train-service", "ts-basic-service", "ts-route-plan-service"],
             "ts-seat-service": ["ts-config-service"],
-            "ts-admin-order-service": ["ts-order-service", "ts-order-other-service"]
+            "ts-admin-order-service": ["ts-order-service", "ts-order-other-service"],
+            "main": []
         }
 
     # ==========================================
-    # 2. 変数間の波及ルール適用 (ドメイン知識)
+    # 2. 波及ルールと動的フォールバックの適用
     # ==========================================
     for var in variables:
         if "_" not in var and "-" not in var:
             continue
             
-        # "cartservice_cpu" -> svc="cartservice", metric="cpu" に分割
         parts = var.rsplit('_', 1) 
         if len(parts) != 2:
             continue
         svc, metric = parts[0], parts[1]
 
-        # 表現の揺れ（orderとorders等）を吸収するためのヘルパー
-        # サービス名が call_graph のキーや値に部分一致するかを確認する
         matched_svc = svc
         for defined_svc in call_graph.keys():
             if svc in defined_svc or defined_svc in svc:
                 matched_svc = defined_svc
                 break
 
-        # --- ルールA: サービス内部の因果 (Workload -> CPU/Mem -> Latency/Error) ---
+        # --- A. サービス内部の因果 ---
+        has_workload = False
         if metric in ["cpu", "mem"]:
             workload_var = f"{svc}_workload"
             if workload_var in variables:
                 causal_graph[var].append(workload_var)
+                has_workload = True
+            
+            # 【動的フォールバック1】自身にWorkload指標がない場合（Redis, Main等）
+            # Caller(呼び出し元)のWorkloadを直接の親とする
+            if not has_workload:
+                for caller, callees in call_graph.items():
+                    if matched_svc in callees:
+                        for v in variables:
+                            if v.endswith(f"{caller}_workload") and v not in causal_graph[var]:
+                                causal_graph[var].append(v)
         
+        has_latency = False
         if metric.startswith("latency") or metric == "error":
             for parent_metric in ["cpu", "mem", "workload"]:
                 parent_var = f"{svc}_{parent_metric}"
                 if parent_var in variables:
                     causal_graph[var].append(parent_var)
+                    has_latency = True
 
-        # --- ルールB: サービス間の因果 ---
-        # 1. 順伝播 (CallerのWorkload -> CalleeのWorkload)
+        # --- B. サービス間の因果 ---
         if metric == "workload":
             for caller, callees in call_graph.items():
                 if matched_svc in callees:
-                    # callerの実際のメトリクス名を探す
-                    caller_workload = f"{caller}_workload"
-                    # 変数リストにあるプレフィックスと一致するものを追加
                     for v in variables:
-                        if v.endswith("_workload") and (caller in v or v.replace("_workload", "") in caller):
-                            if v not in causal_graph[var]:
-                                causal_graph[var].append(v)
+                        if v.endswith(f"{caller}_workload") and v not in causal_graph[var]:
+                            causal_graph[var].append(v)
 
-        # 2. 逆流伝播 (CalleeのLatency/Error -> CallerのLatency/Error)
         if metric.startswith("latency") or metric == "error":
             if matched_svc in call_graph:
                 for callee in call_graph[matched_svc]:
-                    # calleeの実際のメトリクス名を探す
+                    callee_has_latency = False
                     for v in variables:
                         if (v.endswith(metric)) and (callee in v or v.replace(f"_{metric}", "") in callee):
                             if v not in causal_graph[var]:
                                 causal_graph[var].append(v)
+                                callee_has_latency = True
+                    
+                    # 【動的フォールバック2】CalleeにLatency指標がない場合（Redis等）
+                    # CalleeのCPU/Mem悪化が、直接CallerのLatencyに波及するとみなす
+                    if not callee_has_latency:
+                        for v in variables:
+                            if (v.endswith("_cpu") or v.endswith("_mem")) and (callee in v or v.replace("_cpu", "").replace("_mem", "") in callee):
+                                if v not in causal_graph[var]:
+                                    causal_graph[var].append(v)
 
-    return causal_graph
+    # ==========================================
+    # 3. 孤立ノードの最終救済処置 (Safety Net)
+    # ==========================================
+    # 全ルールを適用してもなお孤立しているノードは、システム全体の入り口に強制接続する
+    for var in variables:
+        is_child = len(causal_graph[var]) > 0
+        is_parent = any(var in parents for parents in causal_graph.values())
+        
+        if not is_child and not is_parent:
+            for v in variables:
+                if (v == "frontend_workload" or v == "frontend-external_workload") and v != var:
+                    causal_graph[var].append(v)
+
+    # ==========================================
+    # 4. バグフリーの強制DAG化アルゴリズム
+    # ==========================================
+    cleaned_graph = {var: [] for var in variables}
+    
+    def is_ancestor(potential_ancestor, node):
+        """nodeから親を辿ってpotential_ancestorに到達できるか（真なら閉路ができる）"""
+        visited = set()
+        stack = [node]
+        while stack:
+            curr = stack.pop()
+            if curr == potential_ancestor:
+                return True
+            if curr not in visited:
+                visited.add(curr)
+                for p in cleaned_graph.get(curr, []):
+                    stack.append(p)
+        return False
+
+    for child, parents in causal_graph.items():
+        unique_parents = list(set(parents))
+        for parent in unique_parents:
+            if child == parent:
+                continue # 自己ループの排除
+            if not is_ancestor(child, parent):
+                cleaned_graph[child].append(parent)
+
+    return cleaned_graph
 
 def process_dataset(strategy_name):
     # 入力された戦略が存在するかチェック
