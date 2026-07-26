@@ -241,7 +241,7 @@ def process_dataset(strategy_name):
                 processor_func = STRATEGIES[current_strategy]
                 processor_func(df_normal, df_abnormal, df.columns, output_dir, graph_info)
 
-    print(f"Data processing complete. (Generated strategy: {strategy_name})")
+    print(f"Data processing complete : {strategy_name}")
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Preprocess dataset with specific strategy")

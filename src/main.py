@@ -46,11 +46,11 @@ def run_experiment(dataset, fault, run, batch=False, progress=None, total_progre
     with open("configs/default_params.yaml", "r") as f:
         config = yaml.safe_load(f)
 
-    # 重複していた設定読み込みを整理
+    # default_params.yaml から評価指標の k 値とモデル名を取得
     k_values = config["evaluation"]["k_values"]
     target_model = config["model"]["target"]
 
-    # 1. YAMLから戦略名を取得（指定がない場合は "default" とする）
+    # 1. YAMLから前処理の方法を取得（指定がない場合は "default" とする）
     strategy = config["model"].get("preprocess_strategy", "default")
 
     # 2. データローダーに戦略を渡す
@@ -67,7 +67,6 @@ def run_experiment(dataset, fault, run, batch=False, progress=None, total_progre
         predicted_ranking = run_random_rca(variables, seed=current_seed)
 
     elif target_model == "nonlinear_anm":
-        # 提案モデルの実行
         from models.inference import RCAInference
         from models.trainer import Phase1Trainer
 
@@ -96,8 +95,21 @@ def run_experiment(dataset, fault, run, batch=False, progress=None, total_progre
 
         # モデルの初期化と実行 (lambda_reg や epochs は要調整パラメータ)
         rca_model = DataDrivenRCA(lambda_reg=0.1, epochs=300, lr=0.01)
-        predicted_ranking = rca_model.fit_predict(df_normal, df_abnormal)
-
+        predicted_ranking = rca_model.fit_predict(df_normal, df_abnormal, dataset_name=dataset)
+    
+    elif target_model == "bayesian_rca":
+        from models.bayesian_rca import BayesianRCA
+        import pandas as pd
+        
+        target_dir = os.path.join("data/processed", strategy, dataset, fault, str(run))
+        df_normal = pd.read_csv(os.path.join(target_dir, "normal_data.csv"))
+        df_abnormal = pd.read_csv(os.path.join(target_dir, "abnormal_data.csv"))
+        
+        # モデルの初期化と実行
+        # tau_sq は標準化済みデータ(分散1)に対して十分に大きな異常エネルギーを設定
+        rca_model = BayesianRCA(tau_sq=50.0, theta=0.99)
+        predicted_ranking = rca_model.fit_predict(df_normal, df_abnormal, dataset_name=dataset)
+        
     else:
         raise ValueError(f"Unknown model target in config: {target_model}")
 
@@ -116,7 +128,7 @@ def run_experiment(dataset, fault, run, batch=False, progress=None, total_progre
         print(f" {dataset} - {fault} (Run {run}) : {execution_time} sec")
 
     if not batch:
-        print(f"\n=== Evaluation Summary (Metrics for {dataset} | Model: {target_model}) ===")
+        print(f"\n===== Evaluation Summary (Metrics for {dataset} | Model: {target_model}) =====")
         for k in k_values:
             print(f"    AC@{k}: {metrics[f'AC@{k}']}, Avg@{k}: {metrics[f'Avg@{k}']:.4f}")
 

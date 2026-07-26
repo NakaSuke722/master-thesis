@@ -103,10 +103,10 @@ class RCAInference:
         predicted_ranking = [var for var, score in sorted_ranking]
         
         # --- デバッグ用出力（上位5件の生スコアを確認） ---
-        print("\n[Debug] Top 5 Variables and Scores:")
-        for i in range(5):
-            var_name = sorted_ranking[i][0]
-            var_score = sorted_ranking[i][1]
-            print(f"  Rank {i+1}: {var_name} (Score: {var_score:.4f})")
+        # print("\n[Debug] Top 5 Variables and Scores:")
+        # for i in range(5):
+        #     var_name = sorted_ranking[i][0]
+        #     var_score = sorted_ranking[i][1]
+        #     print(f"  Rank {i+1}: {var_name} (Score: {var_score:.4f})")
         
         return predicted_ranking

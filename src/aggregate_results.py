@@ -49,7 +49,7 @@ def main():
                for ds, metrics in dataset_metrics.items()}
 
     # ターミナルのサマリ表示にもモデル名を記載
-    print(f"\n=== Evaluation Summary (Model: {model_used}) ===")
+    print(f"\n===== Evaluation Summary (Model: {model_used}) =====")
     print(json.dumps(summary, indent=4))
     
     final_time = args.total_time if args.total_time > 0 else pure_execution_time
