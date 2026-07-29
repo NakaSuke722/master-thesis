@@ -11,7 +11,7 @@ from pathlib import Path
 from typing import Dict, List, Optional, Sequence, Tuple
 
 
-DEFAULT_THRESHOLD_SECONDS = 180
+DEFAULT_THRESHOLD_SECONDS = 30
 SUMMARY_KEYS = ("AC@1", "Avg@1", "AC@3", "Avg@3", "AC@5", "Avg@5")
 
 

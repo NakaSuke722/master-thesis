@@ -59,6 +59,7 @@ def run_experiment(dataset, fault, run, batch=False, progress=None, total_progre
 
     # 3. モデルの動的切り替え（条件分岐）
     current_seed = 42 + run
+    evaluation_ground_truth = ground_truth
 
     if target_model == "dummy":
         from models.dummy import run_random_rca
@@ -106,14 +107,62 @@ def run_experiment(dataset, fault, run, batch=False, progress=None, total_progre
         df_abnormal = pd.read_csv(os.path.join(target_dir, "abnormal_data.csv"))
         
         # モデルの初期化と実行
-        # tau_sq は標準化済みデータ(分散1)に対して十分に大きな異常エネルギーを設定
-        rca_model = BayesianRCA(tau_sq=50.0, theta=0.99)
-        predicted_ranking = rca_model.fit_predict(df_normal, df_abnormal, dataset_name=dataset)
-        
+        # 新理論（ARモデル＋経験ベイズ法）のハイパーパラメータを指定
+        rca_model = BayesianRCA(ar_lags=3, init_window=5, eta=5.0)
+        predicted_ranking = rca_model.fit_predict(df_normal, df_abnormal, dataset_name=dataset) 
+
+    elif target_model == "bayesian_residual_rca":
+        import pandas as pd
+
+        from models.bayesian_residual_rca import BayesianResidualRCA
+
+        target_dir = os.path.join(
+            "data",
+            "processed",
+            strategy,
+            dataset,
+            fault,
+            str(run),
+        )
+
+        df_normal = pd.read_csv(
+            os.path.join(target_dir, "normal_data.csv")
+        )
+        df_abnormal = pd.read_csv(
+            os.path.join(target_dir, "abnormal_data.csv")
+        )
+
+        rca_model = BayesianResidualRCA(
+            ar_order=3,
+            winsor_quantile=None,
+            aggregate="service",
+            service_aggregation="mean_top3",
+        )
+
+        predicted_ranking = rca_model.predict(
+            df_normal,
+            df_abnormal,
+        )
+
+        # 障害種別を取り除き、サービス名だけを評価対象にする
+        evaluation_ground_truth = ground_truth
+
+        for suffix in ("_cpu", "_mem", "_memory", "_loss", "_delay"):
+            if evaluation_ground_truth.endswith(suffix):
+                evaluation_ground_truth = (
+                    evaluation_ground_truth[:-len(suffix)]
+                )
+                break
+          
     else:
         raise ValueError(f"Unknown model target in config: {target_model}")
 
-    metrics = evaluate_ranking(predicted_ranking, ground_truth, k_values)
+
+    metrics = evaluate_ranking(
+        predicted_ranking,
+        evaluation_ground_truth,
+        k_values,
+    )
 
     end_time = time.time()
     execution_time = round(end_time - start_time, 2)
@@ -136,13 +185,14 @@ def run_experiment(dataset, fault, run, batch=False, progress=None, total_progre
         "dataset": dataset,
         "fault_type": fault,
         "run_id": run,
-        "model_used": target_model,  # どのモデルの結果かをJSONに記録
+        "model_used": target_model,
         "execution_time_sec": execution_time,
         "metrics": metrics,
         "predicted_top_5": predicted_ranking[:5],
         "ground_truth": ground_truth,
+        "evaluation_ground_truth": evaluation_ground_truth,
     }
-
+    
     output_dir = os.path.join(config["paths"]["results_dir"], dataset)
     os.makedirs(output_dir, exist_ok=True)
     output_file = os.path.join(output_dir, f"{fault}_run{run}.json")
