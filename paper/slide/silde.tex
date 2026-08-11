@@ -1,0 +1,103 @@
+% !TeX encoding = UTF-8
+
+\documentclass[dvipdfmx, 11pt, aspectratio=169, notheorems]{beamer} 
+
+% --- Beamer用日本語設定 ---
+\usepackage{bxdpx-beamer}
+\usepackage{pxjahyper}
+%\usepackage{minijs}
+\renewcommand{\kanjifamilydefault}{\gtdefault}
+
+% --- デザイン設定 ---
+\usetheme{Madrid}
+\usecolortheme{default}
+\setbeamertemplate{navigation symbols}{}
+\setbeamertemplate{itemize items}[circle]
+\usefonttheme[onlymath]{serif}
+\linespread{1.2}
+
+% --- 図表のキャプション設定 ---
+\setbeamertemplate{caption}[numbered] % 図表番号を表示する（デフォルトは非表示）
+\renewcommand{\figurename}{図}
+\renewcommand{\tablename}{表}
+
+% --- パッケージ読み込み ---
+\usepackage{graphicx}
+\usepackage{booktabs}
+\usepackage{color}
+\usepackage{mathtools, amssymb, bm, amsmath}
+\usepackage{newtxtext, newtxmath}
+\usepackage{setspace} 
+\usepackage{cleveref}
+\usepackage{tikz}
+
+\usetikzlibrary{bayesnet}
+\usetikzlibrary{arrows.meta}
+
+% \crefの日本語化設定
+\crefname{equation}{式}{式}
+\crefname{figure}{図}{図}
+\crefname{table}{表}{表}
+\crefname{section}{節}{節}
+\newcommand{\crefrangeconjunction}{--}
+
+% --- 数式コマンドの定義 ---
+\newcommand{\E}{\mathbb{E}}
+\newcommand{\pb}{\mathbb{P}}
+\newcommand{\R}{\mathbb{R}}
+\newcommand{\N}{\mathbb{N}}
+\newcommand{\var}{\operatorname{Var}}
+\newcommand{\cov}{\operatorname{Cov}}
+\newcommand{\corr}{\operatorname{Corr}}
+\newcommand{\ind}{\mathbf{1}} 
+\newcommand{\pto}{\xrightarrow{\ \ p\ \ }}
+\newcommand{\dto}{\xrightarrow{\ \ d\ \ }}
+\newcommand{\asto}{\xrightarrow{\ \ a.s.\ \ }}
+\newcommand{\iid}{\stackrel{\mathrm{i.i.d.}}{\sim}}
+\newcommand{\Nd}{\mathcal{N}}
+\newcommand{\pdif}[2]{\frac{\partial #1}{\partial #2}}
+\DeclareMathOperator*{\argmax}{arg\,max}
+\DeclareMathOperator*{\argmin}{arg\,min}
+
+% --- 定理環境の日本語化 ---
+\setbeamertemplate{theorems}[numbered]
+
+\newtheorem{theorem}{定理}
+\newtheorem{definition}{定義}
+\newtheorem{lemma}{補題}
+\newtheorem{proposition}{命題}
+\newtheorem{corollary}{系}
+\renewcommand{\proofname}{\textbf{証明}}
+
+% allowframebreaksによる連番（I, II...）を非表示にする設定
+\setbeamertemplate{frametitle continuation}{}
+
+% --- 表紙情報 ---
+\title[タイトル]{タイトル}
+\subtitle{サブタイトル}
+\author[氏名]{氏名}
+\institute[早稲田大学]{早稲田大学 基幹理工学研究科 数学応用数理専攻\\清水研究室}
+\date{\today}
+
+% --- 本文開始 ---
+\begin{document}
+
+% 1. タイトル
+\begin{frame}
+    \titlepage
+\end{frame}
+
+\begin{frame}{本発表の目的}
+    \begin{itemize}
+        \item 目的1
+        \item 目的2
+        \item 目的3
+    \end{itemize}
+\end{frame}
+
+\begin{frame}{背景}
+\end{frame}
+
+
+\end{document}
+

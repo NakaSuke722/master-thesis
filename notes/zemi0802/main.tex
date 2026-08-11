@@ -1,0 +1,498 @@
+% !TeX encoding = UTF-8
+
+\documentclass[dvipdfmx, 11pt, aspectratio=169, notheorems]{beamer} 
+
+% --- Beamer用日本語設定 ---
+\usepackage{bxdpx-beamer}
+\usepackage{pxjahyper}
+%\usepackage{minijs}
+\renewcommand{\kanjifamilydefault}{\gtdefault}
+
+% --- デザイン設定 ---
+\usetheme{Madrid}
+\usecolortheme{default}
+\setbeamertemplate{navigation symbols}{}
+\setbeamertemplate{itemize items}[circle]
+\usefonttheme[onlymath]{serif}
+\linespread{1.2}
+
+% --- 図表のキャプション設定 ---
+\setbeamertemplate{caption}[numbered] % 図表番号を表示する（デフォルトは非表示）
+\renewcommand{\figurename}{図}
+\renewcommand{\tablename}{表}
+
+% --- パッケージ読み込み ---
+\usepackage{graphicx}
+\usepackage{booktabs}
+\usepackage{color}
+\usepackage{mathtools, amssymb, bm, amsmath}
+\usepackage{newtxtext, newtxmath}
+\usepackage{setspace} 
+\usepackage{cleveref}
+\usepackage{tikz}
+
+\usetikzlibrary{bayesnet}
+\usetikzlibrary{arrows.meta}
+
+% \crefの日本語化設定
+\crefname{equation}{式}{式}
+\crefname{figure}{図}{図}
+\crefname{table}{表}{表}
+\crefname{section}{節}{節}
+\newcommand{\crefrangeconjunction}{--}
+
+% --- 数式コマンドの定義 ---
+\newcommand{\E}{\mathbb{E}}
+\newcommand{\pb}{\mathbb{P}}
+\newcommand{\R}{\mathbb{R}}
+\newcommand{\N}{\mathbb{N}}
+\newcommand{\var}{\operatorname{Var}}
+\newcommand{\cov}{\operatorname{Cov}}
+\newcommand{\corr}{\operatorname{Corr}}
+\newcommand{\ind}{\mathbf{1}} 
+\newcommand{\pto}{\xrightarrow{\ \ p\ \ }}
+\newcommand{\dto}{\xrightarrow{\ \ d\ \ }}
+\newcommand{\asto}{\xrightarrow{\ \ a.s.\ \ }}
+\newcommand{\iid}{\stackrel{\mathrm{i.i.d.}}{\sim}}
+\newcommand{\Nd}{\mathcal{N}}
+\newcommand{\pdif}[2]{\frac{\partial #1}{\partial #2}}
+\DeclareMathOperator*{\argmax}{arg\,max}
+\DeclareMathOperator*{\argmin}{arg\,min}
+
+% --- 定理環境の日本語化 ---
+\setbeamertemplate{theorems}[numbered]
+
+\newtheorem{theorem}{定理}
+\newtheorem{definition}{定義}
+\newtheorem{lemma}{補題}
+\newtheorem{proposition}{命題}
+\newtheorem{corollary}{系}
+\renewcommand{\proofname}{\textbf{証明}}
+
+% allowframebreaksによる連番（I, II...）を非表示にする設定
+\setbeamertemplate{frametitle continuation}{}
+
+% --- 表紙情報 ---
+\title[タイトル]{タイトル}
+\subtitle{サブタイトル}
+\author[氏名]{氏名}
+\institute[早稲田大学]{早稲田大学 基幹理工学研究科 数学応用数理専攻\\清水研究室}
+\date{\today}
+
+% --- 本文開始 ---
+\begin{document}
+
+% 1. タイトル
+\begin{frame}
+    \titlepage
+\end{frame}
+
+\begin{frame}{この発表の要約}
+    \begin{block}{手法をひとことで}
+        正常時に学習した自己回帰モデルの残差について、正常期間と異常期間で分布が同じか、
+        障害時刻で新しい分布に切り替わったかを、正規-逆ガンマ事前分布を用いた周辺尤度で比較する
+    \end{block}
+    keywords: ベイズ統計, 自己回帰モデル, 検定論
+\end{frame}
+
+\begin{frame}{問題設定 - 観測対象}
+    各メトリクスを
+    \begin{align}
+        X_i(t),\quad i\in\{1,\ldots,M\}, \quad t\in\{1,\ldots,T\}
+    \end{align}
+    と表す。ここで、
+    \begin{itemize}
+        \item \(i\)：メトリクス番号
+        \item \(M\) : 観測されるメトリクスの総数
+        \item \(t\)：観測時刻
+        \item \(T\)：最終観測時刻
+        \item  \(X_i(t)\)：時刻 \(t\) における第 \(i\) メトリクスの値
+    \end{itemize}
+\end{frame}
+
+\begin{frame}{問題設定 - サービスとメトリクスの対応}
+    システム内のサービス数を \(G\) とする。
+    メトリクス \(i\) が属するサービスを\[g(i)\in\{1,\ldots,G\}\]で表す。例えば、
+\[g(\texttt{cartservice\_cpu})
+=g(\texttt{cartservice\_mem})
+=\texttt{cartservice}\]
+この対応により、
+メトリクス単位の細粒度RCAと
+サービス単位の粗粒度RCA
+を同じメトリクススコアから構成できる。
+\end{frame}
+
+\begin{frame}{問題設定 - 障害時刻}
+    障害発生時刻を$t_F$とする。とりあえず今は$t_F$は既知とする。\\
+    したがって、観測期間$\mathcal{T} = \{1, \ldots, T\}$を以下のように2分割する。\\
+    正常期間: $\mathcal{T}_0 = \{1, \ldots, t_F-1\} $ \\
+    障害期間: $\mathcal{T}_1 = \{t_F, \ldots, T\} $ \\
+    \vspace{12pt}
+    観測データ行列Xは、
+    \begin{align}
+        X = \begin{pmatrix}
+            X_1(1) & \cdots & X_1(t_F -1) & X_1(t_F) & \cdots & X_1(T)\\
+            \vdots & \ddots & \vdots & \vdots & \ddots & \vdots\\
+            X_M(1) & \cdots & X_M(t_F -1) & X_M(t_F) & \cdots & X_M(T)
+        \end{pmatrix}
+    \end{align}
+\end{frame}
+
+\begin{frame}{提案手法の考え方（直感的）}
+    提案手法が直接調べたいのは、\\
+    "正常時の時間的規則性で説明した後にも、予測できない変化が残っているか"\\
+    例えばCPU使用率が、
+    \[40,\ 42,\ 45,\ 48,\ 51\] と滑らかに増加していたとする。
+    \(X(t)\) の値が \(51\) であっても、直前の推移から十分に予測可能なら、必ずしも異常じゃない。
+    一方、\[40,\ 41,\ 40,\ 42,\ 90\]
+    のように突然 \(90\) になった場合は、正常時の時間的規則性から大きく外れている。\\
+    そこで、\(X_i(t)\) ではなく、"$\text{観測値} - \text{正常モデルによる予測値}$"
+    である予測残差を分析する。
+\end{frame}
+
+\begin{frame}{正常時の自己回帰モデル - ARモデル}
+    各メトリクス$i$について正常時はAR(P)モデルに従うと仮定。
+    \begin{align}
+        X_i(t) = c_i + \sum_{p=1}^{P} \phi_{i,p}X_i(t-p) + \varepsilon_i(t)
+    \end{align}
+    ラグベクトル$\boldsymbol{\ell}_i(t)$、係数ベクトル$\boldsymbol{\theta}_i$を用いると、
+    \begin{align}
+        X_i(t) = \boldsymbol{\theta}_i^\top \boldsymbol{\ell}_i(t) + \varepsilon_i(t) , \qquad
+        \boldsymbol{\ell}_i(t) =
+        \begin{pmatrix}
+            1\\
+            X_i(t-1)\\
+            \vdots\\
+            X_i(t-P)
+        \end{pmatrix}
+        \qquad \boldsymbol{\theta}_i =
+        \begin{pmatrix}
+            c_i\\
+            \phi_{i,1}\\
+            \vdots\\
+            \phi_{i,P}
+        \end{pmatrix}
+    \end{align}
+\end{frame}
+
+\begin{frame}{正常時の自己回帰モデル - なぜARモデルか}
+    マイクロサービスのメトリクスには強い自己相関が存在し得る。例えば、
+    \begin{itemize}
+        \item CPU使用率は直前のCPU使用率に依存する
+        \item メモリ使用量は急にゼロへ戻らず、直前の水準を引き継ぐ
+        \item レイテンシは負荷の持続により数時刻連続して高くなる
+    \end{itemize}
+    という特徴がある。\\
+    ARモデルを使う目的は、$X_i(t)$を直接評価するのではなく、
+    $ X_i(t) \mid X_i(t-1),\ldots,X_i(t-P) $を評価すること。
+    すなわち「過去がこの状態だったなら、現在の値はどれほど不自然か」を測る。\\
+    これは因果グラフを用いた条件付けではない。各メトリクスを自身の過去だけで条件付ける、時間方向の局所的な条件付きモデル。
+\end{frame}
+
+\begin{frame}{正常時の自己回帰モデル - リッジ回帰による推定}
+    % 正常期間だけを用いて係数を推定する。
+    正常期間のうち、ARのラグを作れる時刻集合を
+        $ \mathcal T_0^{(P)} = \{P+1,\ldots,t_F-1\} $
+    とする。\\
+    リッジ係数を$\lambda\geq 0$とすると、
+    \begin{align}
+        \widehat{\boldsymbol{\theta}}_i 
+        = \arg\min_{\boldsymbol{\theta}} \left[ \sum_{t\in\mathcal T_0^{(P)}} \left\{
+            X_i(t) - \boldsymbol{\theta}^{\top} \boldsymbol{\ell}_i(t) \right\}^{2}
+            + \lambda \boldsymbol{\theta}^{\top} D \boldsymbol{\theta} \right]
+    \end{align}
+    として推定。 ここで \(D\) は通常、$ D = \operatorname{diag}(0,1,\ldots,1) $とし、
+    定数項にはペナルティを与えず、AR係数だけを縮小する。{\scriptsize (最初の0は、定数項にペナルティを与えない)}\\
+    例えば、
+    $ X_i(t-1)\quad\text{と}\quad X_i(t-2) $は通常かなり似ている。
+    最小二乗法では、説明変数間の多重共線性によって係数が不安定になる。リッジ回帰は係数を縮小し、予測値を安定させる。
+\end{frame}
+
+\begin{frame}{イノベーション残差}
+    推定された正常モデルを用いて、各時刻の予測残差を以下で定義する
+\begin{align}
+    r_i(t) &:=X_i(t) - \widehat{X_i}(t) =  X_i(t) - \widehat{\boldsymbol{\theta}}_i^\top \boldsymbol{\ell}_i(t) \\
+    &= \text{実際の観測値} - \text{正常時の規則から予測された値}
+\end{align}
+
+正常期間の残差集合を
+$\mathcal R_i^{(0)} := \{r_i(t):t\in\mathcal T_0^{(P)}\} $\\
+異常期間の残差集合を
+$\mathcal R_i^{(1)} := \{r_i(t):t\in\mathcal T_1\} $とする。\\
+\vspace{12pt}
+\alert{$\mathcal R_i^{(0)}$と$\mathcal R_i^{(1)}$は同じ分布か？}
+
+% 理論上、異常期間の最初の残差 \(r_i(t_F)\) を計算する際には、
+% $ X_i(t_F-1),\ldots,X_i(t_F-P) $ という正常期間末尾の値をラグとして使用する。
+% したがって、正常時から異常時への境界を連続した時系列として扱う。
+\end{frame}
+
+\begin{frame}{残差のロバスト標準化}
+    メトリクスごとに単位とスケールが異なる。例えば、
+    \begin{itemize}
+        \item CPU使用率：0～100程度
+        \item memory：数百万～数十億
+        \item latency：数ミリ秒～数千ミリ秒
+        \item error：0または小数
+    \end{itemize}
+    そのまま周辺尤度を比較すると、数値スケールの大きいメトリクスが有利になり得る。\\
+    そこで、正常残差を基準に各メトリクスを標準化する。
+\end{frame}
+
+\begin{frame}{残差のロバスト標準化 - 正常残差の中心}
+    正常残差のロバストな中心を
+\begin{align}
+    a_i = \operatorname{median} \left( \mathcal R_i^{(0)} \right)
+\end{align}
+とする。
+平均ではなく中央値を使うのは、正常期間に少数の外れ値が含まれていても推定が大きく動かないようにするため。
+\end{frame}
+
+\begin{frame}{残差のロバスト標準化 - MAD}
+    Median Absolute Deviationを
+    \begin{align}
+        \operatorname{MAD}_i = \operatorname{median}_{t\in\mathcal T_0^{(P)}} \left| r_i(t)-a_i \right|
+    \end{align}
+    と定義する。正規分布の標準偏差と対応させるため、
+    \begin{align}
+        s_{i,\mathrm{MAD}} = 1.4826\operatorname{MAD}_i
+    \end{align}
+    とする。 定数 \(1.4826\) は、正規分布の下でMADを標準偏差と整合させる補正係数。
+\end{frame}
+
+\begin{frame}{残差のロバスト標準化 - スケールフロア}
+    正常残差がほぼ一定なら、
+    $ \operatorname{MAD}_i\approx 0 $となる。
+    その状態で単純に割り算すると、ごく小さな誤差でも非常に大きな標準化値になる。\\
+    そこで、正常残差の標準偏差を
+    $ s_{i,\mathrm{SD}} = \operatorname{SD} \left( \mathcal R_i^{(0)} \right)$
+    とし、\\
+    元のメトリクス水準を
+    $ L_i = \operatorname{median}_{t<t_F} |X_i(t)|$ \\
+    と定義する。最終的なスケールを
+    \begin{align}
+        b_i = \max \left\{ 1.4826\operatorname{MAD}_i,\, 0.1s_{i,\mathrm{SD}},\, \delta_{\mathrm{rel}}L_i,\, \delta_{\min}
+    \right\}
+    \end{align}とする。ここで、\\
+    \(\delta_{\mathrm{rel}}>0\)：元の水準に対する相対的な下限\\
+    \(\delta_{\min}>0\)：絶対的な最小下限
+\end{frame}
+
+\begin{frame}{残差のロバスト標準化 - 標準化残差}
+    正常期間と異常期間の標準化残差を、それぞれ
+    \begin{align}
+        z_i^{(0)}(t) &:= \frac{r_i(t)-a_i}{b_i}, \qquad t\in\mathcal T_0^{(P)} \\
+        z_i^{(1)}(t) &:= \frac{r_i(t)-a_i}{b_i}, \qquad t\in\mathcal T_1
+    \end{align}
+    と定義する。ベクトルとして、
+    \begin{align}
+        \boldsymbol z_i^{(0)} = \left( z_i^{(0)}(t) \right)_{t\in\mathcal T_0^{(P)}} , \qquad
+        \boldsymbol z_i^{(1)} = \left( z_i^{(1)}(t) \right)_{t\in\mathcal T_1}
+    \end{align}
+    と書きます。
+    これにより、各メトリクスはおおむね同じスケールで比較可能に。
+\end{frame}
+
+\begin{frame}{ベイズモデルの仮説 - 帰無仮説$H_{0,i}$}
+    \[H_{0,i}:\text{正常期間と異常期間の残差分布}(\boldsymbol z_i^{(0)}, \boldsymbol z_i^{(1)})\text{は同じ}\]
+    より具体的には、未知の平均$\mu_i\in\mathbb R$と分散$\sigma_i^2>0$とし、
+    \begin{align}
+        z_i^{(0)}(t) &\mid \mu_i,\sigma_i^2 \overset{\mathrm{iid}}{\sim} \mathcal N(\mu_i,\sigma_i^2) \\
+        z_i^{(1)}(t) &\mid \mu_i,\sigma_i^2 \overset{\mathrm{iid}}{\sim} \mathcal N(\mu_i,\sigma_i^2) 
+    \end{align}
+    と仮定する。
+    同じ $(\mu_i,\sigma_i^2)$ が正常・異常の両期間で共有される。\\
+    意味としては、
+    障害発生後も、その変数の予測誤差の生成機構は変わっていない
+\end{frame}
+
+\begin{frame}{ベイズモデルの仮説 - 対立仮説$H_{1,i}$}
+    \[ H_{1,i}: \text{障害時刻 }t_F\text{ で残差分布}(\boldsymbol z_i^{(0)}, \boldsymbol z_i^{(1)})\text{が切り替わった} \]
+    \begin{align}
+        \text{正常期間:\ } z_i^{(0)}(t) &\mid \mu_{i,0},\sigma_{i,0}^2 \overset{\mathrm{iid}}{\sim} \mathcal N(\mu_{i,0},\sigma_{i,0}^2) \\
+        \text{異常期間:\ } z_i^{(1)}(t) &\mid \mu_{i,1},\sigma_{i,1}^2 \overset{\mathrm{iid}}{\sim} \mathcal N(\mu_{i,1},\sigma_{i,1}^2)
+    \end{align}
+    ここで、$(\mu_{i,0},\sigma_{i,0}^2)$と$(\mu_{i,1},\sigma_{i,1}^2)$は別のパラメータ。
+    したがって、\(H_{1,i}\) は、
+    \begin{itemize}
+        \item 残差平均の変化
+        \item 残差分散の変化
+        \item 平均と分散の両方の変化
+    \end{itemize}
+    をすべて検出可能。
+\end{frame}
+
+\begin{frame}{ベイズモデルの仮説 - 対立仮説$H_{1,i}$}
+    例えば、CPU hogによってCPU系列が常に正常予測を上回るなら、
+    \[
+    \mu_{i,1}\neq\mu_{i,0}
+    \]となる。
+    変動が不安定になっただけなら、
+    \[
+    \sigma_{i,1}^2\neq\sigma_{i,0}^2
+    \]
+    となる。
+\end{frame}
+
+\begin{frame}{Normal-Inverse-Gamma事前分布 - 事前分布の定義}
+    平均と分散に対し、Normal-Inverse-Gamma事前分布を設定する。
+    まず分散について、
+    \begin{align}
+        \sigma^2 \sim \operatorname{InvGamma}(\alpha_0,\beta_0)
+    \end{align}
+    次に、分散を条件として平均について、
+    \begin{align}
+        \mu\mid\sigma^2 \sim \mathcal N \left( m_0,\frac{\sigma^2}{\kappa_0} \right)
+    \end{align}
+    \(m_0\)：平均の事前中心, \qquad \(\kappa_0>0\)：平均の事前精度 \\
+    \(\alpha_0>0\)：分散事前分布の形状パラメータ, \qquad \(\beta_0>0\)：分散事前分布の尺度パラメータ \\
+    {\scriptsize 現在のコードでは、
+    $m_0=0, \quad \kappa_0=10^{-3}, \quad \alpha_0=2, \quad \beta_0=1$}
+\end{frame}
+
+\begin{frame}{NIG事後分布の導出}
+    事後分布のパラメータは次になる。
+    \begin{align}
+        \kappa_n &= \kappa_0+n \\
+        m_n &= \frac{\kappa_0m_0+n\bar{x}}{\kappa_n} \\
+        \alpha_n &= \alpha_0+\frac{n}{2} \\
+        \beta_n &= \beta_0 + \frac{1}{2}Q + \frac{\kappa_0n}{2\kappa_n}(\bar{x}-m_0)^2, \quad Q = \sum_{j=1}^{n} (x_j-\bar{x})^2 \\
+        \therefore \sigma^2 &\mid\boldsymbol x \sim \operatorname{InvGamma} (\alpha_n,\beta_n) , \qquad 
+        \mu\mid\sigma^2,\boldsymbol x \sim \mathcal N \left( m_n,\frac{\sigma^2}{\kappa_n} \right)
+    \end{align}
+\end{frame}
+
+\begin{frame}{周辺尤度}
+    周辺尤度とは、未知パラメータ \(\mu,\sigma^2\) を積分消去したデータの確率。
+    \begin{align}
+        m(\boldsymbol x) = p(\boldsymbol x) = \int p(\boldsymbol x\mid\mu,\sigma^2) \, p(\mu,\sigma^2) \, d\mu\,d\sigma^2
+    \end{align}
+    NIG事前分布を用いると、これは解析的に計算できる。
+    \begin{align}
+        m(\boldsymbol x) = \pi^{-n/2} \left( \frac{\kappa_0}{\kappa_n} \right)^{1/2} \frac{ \beta_0^{\alpha_0}}{\beta_n^{\alpha_n}}
+        \frac{ \Gamma(\alpha_n)}{\Gamma(\alpha_0)}
+    \end{align}
+    対数を取ると、
+    \begin{align}
+        \log m(\boldsymbol x) &= \log\Gamma(\alpha_n) - \log\Gamma(\alpha_0) \\
+        &+ \alpha_0\log\beta_0 - \alpha_n\log\beta_n
+        + \frac{1}{2}
+    \left( \log\kappa_0-\log\kappa_n \right) - \frac{n}{2}\log\pi
+    \end{align}
+\end{frame}
+
+\begin{frame}{なぜ最尤値ではなく周辺尤度なのか}
+    対立仮説 \(H_1\) は、正常期間と異常期間に別々の平均・分散を持たせるため、\(H_0\) より柔軟。\\
+    最尤法だけで比較すると、柔軟な \(H_1\) はほぼ必ず \(H_0\) 以上の尤度を持つ。
+    周辺尤度では、
+    \[
+    \int
+    \text{尤度}
+    \times
+    \text{事前分布}
+    \]を計算する。
+    よって、広いパラメータ空間を持つ複雑なモデルは、データが明確にそれを支持しない限り高く評価されない。
+    つまり、
+    異常期間に別の分布を用意すれば少し当てはまりが良くなるだけでは不十分で、
+    別分布を導入する複雑性を補って余りあるほど分布が変化した
+    場合にのみ \(H_1\) が支持される。
+\end{frame}
+
+\begin{frame}{Bayes Factor}
+    第$i$メトリクスの正常残差データを$D_{i,0} = \boldsymbol z_i^{(0)}$、
+    異常残差データを$ D_{i,1} = \boldsymbol z_i^{(1)}$とする。\\
+    \(H_{0,i}\) では、正常・異常の両データが同じパラメータを共有する。
+    したがって、
+    \begin{align}
+    p(D_{i,0},D_{i,1}\mid H_{0,i}) = m(D_{i,0}\cup D_{i,1})
+    \end{align}
+    \(H_{1,i}\) では、正常期間と異常期間でパラメータが独立にリセットされる。
+    したがって、
+    \begin{align}
+    p(D_{i,0},D_{i,1}\mid H_{1,i}) = m(D_{i,0})m(D_{i,1})
+    \end{align}
+\end{frame}
+
+\begin{frame}{Bayes Factor}
+    \(H_1\) を \(H_0\) と比較するBayes Factorを、
+    \begin{align}
+    BF_i := \frac{p(D_{i,0},D_{i,1}\mid H_{1,i})}{p(D_{i,0},D_{i,1}\mid H_{0,i})}
+    \end{align}と定義する。よって、
+    \begin{align}
+        BF_i = \frac{m(D_{i,0})m(D_{i,1})}{m(D_{i,0}\cup D_{i,1})}
+    \end{align}
+    対数スコアを$ S_i = \log BF_i$は、
+    \begin{align}
+        S_i = \log m(D_{i,0}) + \log m(D_{i,1}) - \log m(D_{i,0}\cup D_{i,1})
+    \end{align}
+\end{frame}
+
+\begin{frame}{Bayes Factor}
+    同値な事後予測形式では、
+    \begin{align}
+        BF_i = \frac{m(D_{i,1})}{p(D_{i,1}\mid D_{i,0},H_{0,i})}
+    \end{align}
+    ここで、
+    \begin{align}
+        p(D_{i,1}\mid D_{i,0},H_{0,i}) = \frac{ m(D_{i,0}\cup D_{i,1})}{m(D_{i,0})}
+    \end{align}
+    分子：障害時刻で新しい分布が始まったと考えたとき、異常残差はどれほど自然か \\
+    分母：正常時に学習した同じ分布が続いていると考えたとき、異常残差はどれほど自然か \\
+    したがって、$S_i>0$なら分布変化仮説が優勢で、$S_i<0$なら同一分布仮説が優勢。
+\end{frame}
+
+\begin{frame}{なぜこのスコアがRCAになるのか}
+    この方法は数学的に直接「因果」を同定しているわけではない。
+    次の識別仮定を置いている。\\
+    \vspace{12pt}
+    根本原因変数は、障害による介入を直接受けるため、正常時の自己回帰生成機構から大きく逸脱する。
+    一方、伝播先変数の変化の一部は、自身の過去の推移で説明可能であり、残差分布の変化は相対的に小さい。\\
+    \vspace{12pt}
+    すなわち、真の根本原因メトリクスを \(i^\star\) とすると、
+    \begin{align}
+    S_{i^\star} > S_i \qquad \text{for most }i\neq i^\star
+    \end{align}を期待する。
+    これは定理ではなく、RCAを可能にする識別仮定。
+\end{frame}
+
+\begin{frame}{サービス単位の集約}
+    サービス $g$ に属するメトリクス集合を
+    \begin{align}
+        I_g = \{i:g(i)=g\}
+    \end{align}とする。
+    サービススコアは、メトリクススコア$\{S_i:i\in I_g\}$
+    を集約して作る。
+\end{frame}
+
+\begin{frame}{サービス単位の集約 - 最大値集約}
+    \begin{align}
+        S_g^{\max} = \max_{i\in I_g}S_i
+    \end{align}意味は、
+    「そのサービスに一つでも強い根本原因変数があれば、サービス全体を高く評価する」\\
+    利点は、CPUなど一つの指標だけが直接変化した場合に強いこと。\\
+    欠点は、単一の外れ値メトリクスに左右されやすいこと。
+\end{frame}
+
+\begin{frame}{サービス単位の集約 - 上位3メトリクス平均}
+    サービス $g$ のスコアを降順に並べ、
+    \begin{align}
+       S_{g,(1)} \ge S_{g,(2)} \ge \cdots
+    \end{align}
+    とする。サービス内のメトリクス数を$m_g=|I_g|$とし、
+    \begin{align}
+        K_g = \min(3,m_g)
+    \end{align}とする。
+    \begin{align}
+        S_g^{\mathrm{top3}} = \frac{1}{K_g} \sum_{k=1}^{K_g} S_{g,(k)}
+    \end{align}
+\end{frame}
+
+\begin{frame}{サービス単位の集約 - Log-Sum-Exp集約}
+    \begin{align}
+        S_g^{\mathrm{LSE}} = \log \sum_{i\in I_g} \exp(S_i)
+    \end{align}
+    これは大きなスコアを重視しつつ、複数のメトリクスからの証拠も加算する。\\
+    ただし、同一サービス内のメトリクスは強く相関しているため、単純に証拠を足すと二重計上になる可能性がある。
+\end{frame}
+
+\end{document}

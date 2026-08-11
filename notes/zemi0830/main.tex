@@ -1,0 +1,466 @@
+% !TeX encoding = UTF-8
+
+\documentclass[dvipdfmx, 11pt, aspectratio=169, notheorems]{beamer} 
+
+% --- Beamer用日本語設定 ---
+\usepackage{bxdpx-beamer}
+\usepackage{pxjahyper}
+%\usepackage{minijs}
+\renewcommand{\kanjifamilydefault}{\gtdefault}
+
+% --- デザイン設定 ---
+\usetheme{Madrid}
+\usecolortheme{default}
+\setbeamertemplate{navigation symbols}{}
+\setbeamertemplate{itemize items}[circle]
+\usefonttheme[onlymath]{serif}
+\linespread{1.2}
+
+% --- 図表のキャプション設定 ---
+\setbeamertemplate{caption}[numbered] % 図表番号を表示する（デフォルトは非表示）
+\renewcommand{\figurename}{図}
+\renewcommand{\tablename}{表}
+
+% --- パッケージ読み込み ---
+\usepackage{graphicx}
+\usepackage{booktabs}
+\usepackage{color}
+\usepackage{mathtools, amssymb, bm, amsmath}
+\usepackage{newtxtext, newtxmath}
+\usepackage{setspace} 
+\usepackage{cleveref}
+\usepackage{tikz}
+\usepackage{algorithm}
+\usepackage{algpseudocode}
+
+
+\usetikzlibrary{bayesnet}
+\usetikzlibrary{arrows.meta}
+
+% \crefの日本語化設定
+\crefname{equation}{式}{式}
+\crefname{figure}{図}{図}
+\crefname{table}{表}{表}
+\crefname{section}{節}{節}
+\newcommand{\crefrangeconjunction}{--}
+
+% --- 数式コマンドの定義 ---
+\newcommand{\E}{\mathbb{E}}
+\newcommand{\pb}{\mathbb{P}}
+\newcommand{\R}{\mathbb{R}}
+\newcommand{\N}{\mathbb{N}}
+\newcommand{\var}{\operatorname{Var}}
+\newcommand{\cov}{\operatorname{Cov}}
+\newcommand{\corr}{\operatorname{Corr}}
+\newcommand{\ind}{\mathbf{1}} 
+\newcommand{\pto}{\xrightarrow{\ \ p\ \ }}
+\newcommand{\dto}{\xrightarrow{\ \ d\ \ }}
+\newcommand{\asto}{\xrightarrow{\ \ a.s.\ \ }}
+\newcommand{\iid}{\stackrel{\mathrm{i.i.d.}}{\sim}}
+\newcommand{\Nd}{\mathcal{N}}
+\newcommand{\pdif}[2]{\frac{\partial #1}{\partial #2}}
+\DeclareMathOperator*{\argmax}{arg\,max}
+\DeclareMathOperator*{\argmin}{arg\,min}
+
+% --- 定理環境の日本語化 ---
+\setbeamertemplate{theorems}[numbered]
+
+\newtheorem{theorem}{定理}
+\newtheorem{definition}{定義}
+\newtheorem{lemma}{補題}
+\newtheorem{proposition}{命題}
+\newtheorem{corollary}{系}
+\renewcommand{\proofname}{\textbf{証明}}
+
+% allowframebreaksによる連番（I, II...）を非表示にする設定
+\setbeamertemplate{frametitle continuation}{}
+
+% --- 表紙情報 ---
+\title[タイトル]{タイトル}
+\subtitle{サブタイトル}
+\author[氏名]{氏名}
+\institute[早稲田大学]{早稲田大学 基幹理工学研究科 数学応用数理専攻\\清水研究室}
+\date{\today}
+
+% --- 本文開始 ---
+\begin{document}
+
+% 1. タイトル
+\begin{frame}
+    \titlepage
+\end{frame}
+
+\begin{frame}{この発表の要約}
+    \begin{block}{手法をひとことで}
+        正常時に学習した自己回帰モデルの残差について、正常期間と異常期間で分布が同じか、
+        障害時刻で新しい分布に切り替わったかを、正規-逆ガンマ事前分布を用いた周辺尤度で比較する
+    \end{block}
+    keywords: ベイズ統計, 自己回帰モデル, 検定論
+\end{frame}
+
+\begin{frame}
+    \begin{block}{このモデルのデータ生成過程}
+        \begin{align}
+            \underbrace{M}_{\text{モデル}} \rightarrow \underbrace{\Theta_M}_{\text{パラメータ}} \rightarrow \underbrace{D}_{\text{観測データ}} 
+        \end{align}
+    \end{block}
+    \begin{enumerate}
+        \item $M_i \sim Bernoulli(1/2)$
+        \begin{itemize}
+            \item if \; $M=0:\; \Theta_{i,0}=(\mu, \sigma^2)\sim NIG(m_0, \kappa_0, \alpha_0, \beta_0)$
+            \item if \; $M=1:\; \Theta_{i,1}=(\mu_0, \sigma_0^2, \mu_1, \sigma_1^2)\sim NIG(m_0, \kappa_0, \alpha_0, \beta_0) \times NIG(m_1, \kappa_1, \alpha_1, \beta_1)$
+        \end{itemize}
+        \item $D_i\mid \Theta_{i,M_i}, M_i$をの分布を構成し、データ$D_i$を観測する
+        \item 周辺尤度 $p(D_i \mid M_i = m) = \int p(D_i \mid \theta) p(\theta) d\theta$ を計算
+        \item $BF_{10,i} = \frac{p(D_i \mid M_i = 1)}{p(D_i \mid M_i = 0)}$を得る
+        \item スコア$S_i=\log{BF_{10,i}}$ でRCAランキングを作る
+    \end{enumerate}
+\end{frame}
+
+\begin{frame}{まず「尤度」とは何か}
+    データを$D=(x_1, \ldots, x_n)$とし、確率モデルの未知パラメータを$\theta$とする。\\
+    たとえば、モデルを$x_j \mid \mu, \sigma^2 \iid \mathcal{N}(\mu, \sigma^2)$とすると、
+    $D$が観測される確率密度は
+    \begin{align}
+        p(D|\theta) = p(x_1, \ldots, x_n|\theta) = \prod_{i=1}^n p(x_i|\theta)
+    \end{align}
+    このとき、$D$を固定し、$\theta$の関数と見たものを尤度という。
+    \begin{align}
+        L(\theta|D) := p(D|\theta)
+    \end{align}
+    「もしパラメータが$\theta = \theta^*$だったら、今観測したデータ$D$はどの程度もっともらしいか」\\
+    を測っている。
+\end{frame}
+
+\begin{frame}{確率密度と同じ式を「\(\theta\) の関数」として見ると尤度になる}
+    確率変数$X$が、密度関数$f(x\mid\theta)$をもつとし、観測値$X=x$を得たとする。\\
+    このとき$f(x\mid\theta)$は、パラメータを$\theta$としたモデルが、観測点$x$の位置にどれだけ高い確率密度の値を割り当てるかを表す。
+    ここまではただの密度関数。\\
+    \vspace{12pt}
+    観測した$x$を固定して、$L(\theta|x):=f(x\mid\theta)$とすると尤度。
+    \vspace{12pt}
+
+    \begin{alertblock}{密度$f(x\mid\theta)$と尤度$L(\theta\mid x)$は数値的に同じ}
+        \begin{itemize}
+            \item 密度関数：$\theta$を固定して$x$を動かす
+            \item 尤度関数：$x$を固定して$\theta$を動かす
+        \end{itemize}
+    \end{alertblock}
+\end{frame}
+
+\begin{frame}{なぜ尤度がパラメータ比較に使えるのか}
+    たとえば$X\mid\mu\sim\mathcal{N}(\mu, 1)$とし、観測値$x=3$を得たとすると、尤度は
+    \begin{align}
+        L(\mu\mid x=3) = \frac{1}{\sqrt{2\pi}} \exp\left(-\frac{(3-\mu)^2}{2}\right)
+    \end{align}
+    よって、$L(3\mid x=3)=\frac{1}{\sqrt{2\pi}} > L(0\mid x=3)=\frac{1}{\sqrt{2\pi}} e^{-\frac{9}{2}}$のようになる。\\
+    つまり、\alert{観測された$x=3$の位置に、}\\
+    \alert{$\mu=3$と仮定した正規分布は、$\mu=0$の正規分布より高い密度を割り当てている。}
+    \begin{alertblock}{$\theta_1$の下では、観測データ点の近傍に、$\theta_2$より高い確率密度が置かれている}
+        \begin{align}
+            L(\theta_1\mid x) > L(\theta_2\mid x) \quad \Longleftrightarrow \quad f(x\mid \theta_1) > f(x\mid \theta_2)
+        \end{align}
+    \end{alertblock}
+\end{frame}
+
+\begin{frame}{最大尤度法は何をしているのか}
+    最尤推定(MLE)は、
+    \begin{align}
+        \hat{\theta}_{\text{MLE}} := \argmax_{\theta} L(\theta\mid D) , \quad {\scriptsize (\text{厳密には}\sup)}
+    \end{align}
+    を求める。つまり\alert{そのモデル族の中で観測データに最も高い密度を割り当てる$\theta$を選ぶ}。\\
+    \vspace{12pt}
+    たとえば、正規分布族$\left\{\mathcal{N}(\mu, 1) \mid \mu \in \mathbb{R}\right\}$の中から、\\
+    観測データの位置に最も高い密度を与える正規分布を探す。\\
+    \vspace{12pt}
+    この意味で、「データに最もよく適合する」「データを最もよく説明する」パラメータを選ぶと言われる。
+\end{frame}
+
+\begin{frame}{周辺尤度の例}
+    $\theta$が離散的に3候補だけだとし、$\theta \in \left\{\theta_A, \theta_B, \theta_C\right\}$とする。\\
+    事前確率を$P(\theta_A) = 0.2, P(\theta_B) = 0.5, P(\theta_C) = 0.3$とすると、周辺尤度は、
+    \begin{align}
+        p(D) = L(\theta_A\mid D)\times 0.2 + L(\theta_B\mid D) \times 0.5 + L(\theta_C\mid D) \times 0.3
+    \end{align}
+    \vspace{12pt}
+    \alert{各パラメータでの密度を、事前確率で加重平均している}。\\
+    連続パラメータになると、和が積分に変わるだけ。
+\end{frame}
+
+\begin{frame}{周辺尤度とは何か}
+    事前分布$\pi(\theta)$を与えたとき、観測データ$D$の周辺尤度は以下で定義する。
+    \begin{align}
+        p(D) := \int L(D\mid\theta)\pi(\theta)d\theta = \E_\pi[L(D\mid\theta)]
+    \end{align}
+    これは、\alert{尤度に事前分布の重みをつけて平均したもの}。\\
+    \vspace{12pt}
+    最大尤度は、そのモデルが最高にうまく説明できる場合を評価したが、\\
+    周辺尤度は、そのモデルが全体としてどれだけデータを説明できるかを評価する。
+\end{frame}
+
+\begin{frame}{最大尤度の例}
+    $\theta$が離散的に3候補だけだとし、$\theta \in \left\{\theta_A, \theta_B, \theta_C\right\}$とすると、最大尤度は、
+    \begin{align}
+        \hat{\theta}_{\text{MLE}} = \argmax_{\theta \in \left\{\theta_A, \theta_B, \theta_C\right\}} L(\theta\mid D) = \argmax_{\theta \in \left\{\theta_A, \theta_B, \theta_C\right\}}\left\{p(D\mid\theta_A), p(D\mid\theta_B), p(D\mid\theta_C)\right\}
+    \end{align}
+    \vspace{12pt}
+    \alert{一番都合のよいパラメータを一つ採用する}。\\
+    連続パラメータになると、和が積分に変わるだけ。
+\end{frame}
+
+\begin{frame}{周辺尤度の例}
+    $\theta$が離散的に3候補だけだとし、$\theta \in \left\{\theta_A, \theta_B, \theta_C\right\}$とする。\\
+    事前確率を$P(\theta_A) = 0.2, P(\theta_B) = 0.5, P(\theta_C) = 0.3$とすると、周辺尤度は、
+    \begin{align}
+        p(D) = L(\theta_A\mid D)\times 0.2 + L(\theta_B\mid D) \times 0.5 + L(\theta_C\mid D) \times 0.3
+    \end{align}
+    \vspace{12pt}
+    \alert{各パラメータでの密度を、事前確率で加重平均している}。\\
+    連続パラメータになると、和が積分に変わるだけ。
+\end{frame}
+
+\begin{frame}{パラメータ推定とモデル比較を分けて考える}
+    ベイズ統計では、大きく二つの不確実性を扱える。\\
+    \vspace{12pt}
+    \begin{enumerate}
+        \item モデル比較の不確実性：そもそも、どのモデルが正しいか分からない\\
+            {\scriptsize e.g. $H_0: \text{正常データと異常データは同じ分布}, \quad H_1: \text{正常データと異常データは別分布}$}
+        \item パラメータ推定の不確実性：モデルが決まったうえで、パラメータ$\theta$が未知\\
+            {\scriptsize e.g. 正規分布において、$\mu=?, \quad \sigma^2=?$}
+    \end{enumerate}
+\end{frame}
+
+\begin{frame}{モデル比較}
+    モデルを表す離散確率変数を、$M\in\left\{0, 1\right\}$とする。
+    \begin{align}
+        M=0 &\Longleftrightarrow H_0: \text{正常データと異常データは同じ分布} \\
+        M=1 &\Longleftrightarrow H_1: \text{正常データと異常データは別分布}
+    \end{align}
+    モデル自体に確率変数を与える必要がある。たとえば、
+    \begin{align}
+        P(M=0) = \frac{1}{2}, \quad P(M=1) = \frac{1}{2}
+    \end{align}
+    また、以下のように略記する。
+    \begin{align}
+        p(\theta \mid H_0) := p(\theta \mid M=0) , \quad  p(\theta \mid H_1) := p(\theta \mid M=1)
+    \end{align}
+\end{frame}
+
+\begin{frame}{各モデル内にパラメータがある}
+    $M=0$、すなわち$H_0$の下では、$\Theta_0=(\mu, \sigma^2)$というパラメータがある。\\
+    したがって$M=0$の事前分布を$\pi_0$とすると、
+    \begin{align}
+        \Theta_0 \mid H_0 \sim \pi_0
+    \end{align}
+    提案手法では、
+    \begin{align}
+        (\mu, \sigma^2) \sim \pi_0 = NIG(m_0, \kappa_0, \alpha_0, \beta_0)   
+    \end{align}
+    としている。
+\end{frame}
+
+\begin{frame}{各モデル内にパラメータがある}
+    $M=1$、すなわち$H_1$の下では、$\Theta_1=(\mu_0, \sigma_0^2, \mu_1, \sigma_1^2)$というパラメータがある。\\
+    したがって$M=1$の事前分布を$\pi_1$とすると、
+    \begin{align}
+        \Theta_1 \mid H_1 \sim \pi_1
+    \end{align}
+    提案手法では、
+    \begin{align}
+        (\mu_0, \sigma_0^2) &\sim NIG(m_0, \kappa_0, \alpha_0, \beta_0) \\
+        (\mu_1, \sigma_1^2) &\sim NIG(m_1, \kappa_1, \alpha_1, \beta_1)
+    \end{align}
+    としている。
+\end{frame}
+
+\begin{frame}{「モデル」と「仮説」の違い}
+    ここでの$H_0$は単なる文章ではなく、確率モデルの集合を指定している。たとえば、
+    \begin{align}
+        H_0: z_1, \ldots, z_n \iid \mathcal{N}(\mu, \sigma^2), \quad (\mu, \sigma^2) \in \mathbb{R} \times (0, \infty)
+    \end{align}
+    つまり、このような確率分布族として考える。
+    \begin{align}
+        H_0 = \left\{ \mathcal{N}(\mu, \sigma^2) \mid (\mu, \sigma^2) \in \mathbb{R} \times (0, \infty) \right\}    
+    \end{align}
+    $P(H_0)$という記法は、「真のデータ生成機構がモデル族$H_0$に属するという事象への確率」
+\end{frame}
+
+\begin{frame}{パラメータ推定とは}
+    $H_0$が正しいと仮定したうえで、$\Theta_0=(\mu, \sigma^2)$について知りたい(事後分布を得たい)とする。\\
+    Bayesの定理から、事後分布$p(\theta_0 \mid D, H_0)$は、
+    \begin{align}
+        p(\theta_0 \mid D, H_0) = \frac{p(D\mid \theta_0, H_0)p(\theta_0\mid H_0)}{p(D\mid H_0)} \propto L(\theta_0\mid D, H_0)\pi_0(\theta_0)
+    \end{align}
+    要するに、「\alert{モデルを$H_0$に固定したうえで、その中の$\mu, \sigma^2$が何か推定する}」問題。
+\end{frame}
+
+\begin{frame}{モデル比較とは}
+    $M\in\{0, 1\}$のどちらか($H_0$か$H_1$か)を知りたい。つまり、\\
+    \begin{center}
+        \alert{$P(M=0\mid D)$と$P(M=1\mid D)$を大小比較したい。}\\
+        {\scriptsize (\alert{$P(H_0\mid D)$と$P(H_1\mid D)$を大小比較したい。})}
+    \end{center}
+    Bayesの定理から、事後確率$P(M=0\mid D)$は、
+    \begin{align}
+        P(M=m\mid D) = \frac{p(D\mid M=m)P(M=m)}{p(D)} \propto p(D\mid M=m)P(M=m)
+    \end{align}
+    ここで必要になるのが、$p(D\mid M=m)$、すなわち$\Theta_m$について積分消去した周辺尤度。
+\end{frame}
+
+\begin{frame}{なぜモデル比較では周辺尤度が自然に出てくるのか}
+    モデル$M=m$の中には未知パラメータ$\Theta_m$がある。\\
+    しかしモデル比較で知りたいのはあくまで$M$なので、不要な中間変数$\Theta_m$を積分消去する。\\
+    全確率の公式より、
+    \begin{align}
+        p(D\mid M=m) = \int p(D\mid \theta_m, M=m)p(\theta_m\mid M=m)d\theta_m
+    \end{align}
+\end{frame}
+
+\begin{frame}{周辺尤度も密度なので、絶対値自体に意味はない}
+    たとえば、$p(D\mid H_0)=10^{-100}$だったから、\\
+    「このモデルは確率$10^{-100}$でしか正しくない」という意味ではない。\\
+    特に連続データの密度は、「次元」「単位」「サンプルサイズ」によって大きく変化する。\\
+    したがってモデル比較では、
+    \begin{align}
+        \frac{p(D\mid H_1)}{p(D\mid H_0)}
+    \end{align}
+    という、同じデータに対する密度比を用いる（尤度比と同じ発想）。\\
+    これを\alert{Bayes Factor}（ベイズ因子）という。
+\end{frame}
+
+\begin{frame}{Bayes Factorも自然に出る}
+    Bayesの定理から、
+    \begin{align}
+        \underbrace{\frac{P(M=1\mid D)}{P(M=0\mid D)}}_{\text{事後オッズ}} = \underbrace{\frac{p(D\mid M=1)}{p(D\mid M=0)}}_{\text{Bayes Factor}} \times \underbrace{\frac{P(M=1)}{P(M=0)}}_{\text{事前オッズ}}
+    \end{align}
+    となる。
+    \begin{align}
+        BF_{10} := \frac{p(D\mid M=1)}{p(D\mid M=0)}
+    \end{align}
+    つまりBayes Factorは「$D$を観測したことで、$H_1$と$H_0$の相対的な支持が何倍変化したか」
+\end{frame}
+
+\begin{frame}{Bayes Factorとモデルの事後確率は別}
+    提案手法では、$BF_{10}$（もしくは$\log{BF_{10}}$）をスコアにしている。\\
+    しかし、もともと比較したいのは$P(M=1\mid D)$と$P(M=0\mid D)$であったはず。\\
+    \vspace{12pt}
+    事前確率を$P(M=0)=P(M=1)=1/2$とすると、Bayesの定理より、
+    \begin{align}
+        P(M=1\mid D) &= \frac{p(D \mid M=1)P(M=1)}{p(D \mid M=0)P(M=0)+ p(D \mid M=1)P(M=1)} \\
+        &= \frac{p(D \mid M=1)}{p(D \mid M=0) + p(D \mid M=1)} = \frac{BF_{10}}{1 + BF_{10}} = 1 - \frac{1}{1 + BF_{10}}
+    \end{align}
+    つまり、$BF_{10}$について単調増加なので、$BF_{10}$の大小と$P(M=1\mid D)$は同じ。\\
+    よって「正常・異常が別分布」である度合いを表すスコアには$BF_{10}$を使えば十分。
+\end{frame}
+
+\begin{frame}{では等確率事前$P(M=0)=P(M=1)=1/2$は妥当か？}
+    \begin{align}
+        P(M=0)=P(M=1)=\frac{1}{2}
+    \end{align}    
+    とすると、「各メトリクスについて、変化あり・変化なしを事前に同等とみなす」という意味。\\
+    \vspace{12pt}
+    一方、大部分のメトリクスは直接変化しないと考え、
+    \begin{align}
+        P(M=1) < P(M=0), \quad e.g. \; P(M=1) = 0.1, \ P(M=0) = 0.9
+    \end{align}
+    とすることもできる。
+\end{frame}
+
+\begin{frame}{最尤法だけで比較するとダメな理由}
+    $H_0:D_0, D_1\sim \mathcal{N}(\mu, \sigma^2)$の未知パラメータは$(\mu, \sigma^2)$の2つ。\\
+    $H_1:D_0\sim \mathcal{N}(\mu_0, \sigma_0^2),\; D_1\sim \mathcal{N}(\mu_1, \sigma_1^2)$の未知パラメータは$(\mu_0, \sigma_0^2, \mu_1, \sigma_1^2)$の4つ。\\
+    それぞれの最大尤度を
+    \begin{align}
+        L_0^* &= \max_{\mu, \sigma^2} L(\mu, \sigma^2\mid D_0, D_1),\\
+        L_1^* &= \max_{\mu_0, \sigma_0^2, \mu_1, \sigma_1^2} L(\mu_0, \sigma_0^2, \mu_1, \sigma_1^2\mid D_0, D_1)
+    \end{align}
+    とすると、$H_0$は$H_1$に含まれる（$\mu_0=\mu_1=\mu, \sigma_0^2=\sigma_1^2=\sigma^2$）ため、つねに
+    \begin{align}
+        L_0^* \leq L_1^*
+    \end{align}
+    となってしまう。{\scriptsize （$\max f(x, y, z, w)$と、$\max f(x, y, z, w)\mid_{z=x, w=y}$の比較と同じ。）}
+\end{frame}
+
+\begin{frame}{回帰の過学習と同じ問題}
+    たとえば、訓練データへの残差平方和だけ見るなら、2次式より20次式のほうがよくなる。\\
+    しかし、\; よくフィットするモデル$=$良いモデル \;とは限らない。\\
+    \vspace{12pt}
+    今回も同じで、$H_0:2$パラメータに対して、$H_1:4$パラメータ。\\
+    したがって、「$H_1$がどれだけ当てはまりを改善したか」ではなく、\\
+    「\alert{その改善は、パラメータを2つ増やす価値があるほど大きいか}」\\
+    まで考える必要がある。そこで、ベイズモデルが登場する。\\
+    {\scriptsize 尤度を使うには、AICやBIC、尤度比検定で、パラメータ数のペナルティをつける必要がある。}
+\end{frame}
+
+
+% \begin{frame}{提案手法：Bayesian Residual RCA}
+% \small
+
+% \begin{algorithm}[H]
+% \caption{Bayes Factor に基づく根本原因ランキング}
+% \begin{algorithmic}[1]
+
+% \Require
+% $D_i=(D_{i,0},D_{i,1})$：
+% メトリクス $i$ の正常・異常標準化残差，
+% $i=1,\ldots,N$
+
+% \Ensure
+% 根本原因メトリクスランキング
+
+% \For{$i=1,\ldots,N$}
+
+%     \State $H_{0,i}$：
+%     障害前後で同一分布
+%     \[
+%     \Theta_{i,0}=(\mu_i,\sigma_i^2)
+%     \sim \operatorname{NIG}
+%     \]
+
+%     \State $H_{1,i}$：
+%     障害前後で異なる分布
+%     \[
+%     \Theta_{i,1}
+%     =
+%     (\mu_{i,0},\sigma_{i,0}^2,
+%      \mu_{i,1},\sigma_{i,1}^2)
+%     \sim
+%     \operatorname{NIG}\times\operatorname{NIG}
+%     \]
+
+%     \State 周辺尤度を計算
+%     \[
+%     p(D_i\mid H_{0,i})
+%     =
+%     m(D_{i,0}\cup D_{i,1}),
+%     \qquad
+%     p(D_i\mid H_{1,i})
+%     =
+%     m(D_{i,0})m(D_{i,1})
+%     \]
+
+%     \State
+%     \[
+%     S_i
+%     =
+%     \log BF_i
+%     =
+%     \log
+%     \frac{
+%         p(D_i\mid H_{1,i})
+%     }{
+%         p(D_i\mid H_{0,i})
+%     }
+%     \]
+
+% \EndFor
+
+% \State $S_i$ の降順で根本原因候補をランキング
+
+% \end{algorithmic}
+% \end{algorithm}
+
+% \end{frame}
+
+
+\end{document}
