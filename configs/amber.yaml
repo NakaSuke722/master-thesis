@@ -1,12 +1,12 @@
 # configs/default_params.yaml
 model:
-  target: "bayesian_residual_rca"
+  target: "amber"
   preprocess_strategy: "default"
 
 paths:
   raw_data_dir: "data/raw"
   processed_data_dir: "data/processed"
-  results_dir: "results/metrics"
+  results_dir: "results/main/amber/"
 
 evaluation:
   k_values: [1, 3, 5]

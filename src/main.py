@@ -215,10 +215,10 @@ def run_experiment(dataset, fault, run, batch=False, progress=None, total_progre
         rca_model = BayesianRCA(ar_lags=3, init_window=5, eta=5.0)
         predicted_ranking = rca_model.fit_predict(df_normal, df_abnormal, dataset_name=dataset) 
 
-    elif target_model == "bayesian_residual_rca":
+    elif target_model == "amber":
         import pandas as pd
 
-        from models.bayesian_residual_rca import BayesianResidualRCA
+        from models.amber import AMBER
 
         target_dir = os.path.join(
             "data", "processed", strategy, dataset, fault, str(run)
@@ -239,7 +239,7 @@ def run_experiment(dataset, fault, run, batch=False, progress=None, total_progre
         model_aggregate = (
             "service" if granularity == "service" else "metric"
         )
-        rca_model = BayesianResidualRCA(
+        rca_model = AMBER(
             ar_order=3,
             winsor_quantile=None,
             aggregate=model_aggregate,

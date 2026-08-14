@@ -112,11 +112,11 @@ def _service_name(metric: str) -> str:
     return metric.rsplit("_", 1)[0] if "_" in metric else metric
 
 
-class BayesianResidualRCA:
+class AMBER:
     """RCA using Bayesian model selection on standardized AR residuals.
 
-    H0: abnormal residuals follow the normal residual distribution.
-    H1: abnormal residuals have a new mean and/or variance.
+    H0: normal and abnormal residuals share the same Gaussian parameters.
+    H1: normal and abnormal residuals have independent Gaussian parameters.
 
     The score is log BF = log p(r_abn | H1) - log p(r_abn | H0).
     """
