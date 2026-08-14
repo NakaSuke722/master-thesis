@@ -145,6 +145,21 @@ class AMBER:
     ) -> None:
         if ar_order < 0:
             raise ValueError("ar_order must be non-negative")
+        if ridge < 0:
+            raise ValueError("ridge must be non-negative")
+
+        if min_scale <= 0:
+            raise ValueError("min_scale must be positive")
+
+        if relative_scale_floor < 0:
+            raise ValueError("relative_scale_floor must be non-negative")
+
+        if aggregate not in {"metric", "service"}:
+            raise ValueError(f"Unknown aggregate={aggregate}")
+
+        if service_aggregation not in {"max","mean_top3","logsumexp",}:
+            raise ValueError("Unknown service_aggregation=" f"{service_aggregation}")
+        
         self.ar_order = ar_order
         self.ridge = ridge
         self.min_scale = min_scale
@@ -170,21 +185,61 @@ class AMBER:
             and pd.api.types.is_numeric_dtype(abnormal[c])
         ]
 
-    def _clean(self, x: np.ndarray) -> np.ndarray:
+    @staticmethod
+    def _finite(x: np.ndarray) -> np.ndarray:
         x = np.asarray(x, dtype=float)
-        x = x[np.isfinite(x)]
-        if x.size and self.winsor_quantile is not None:
-            q = self.winsor_quantile
-            if not 0 <= q < 0.5:
-                raise ValueError("winsor_quantile must be in [0, 0.5)")
-            lo, hi = np.quantile(x, [q, 1 - q])
-            x = np.clip(x, lo, hi)
-        return x
+        return x[np.isfinite(x)]
 
+
+    def _prepare_series(
+        self,
+        normal_y: np.ndarray,
+        abnormal_y: np.ndarray,
+    ) -> tuple[np.ndarray, np.ndarray]:
+        normal_y = self._finite(normal_y)
+        abnormal_y = self._finite(abnormal_y)
+
+        if (
+            normal_y.size
+            and self.winsor_quantile is not None
+        ):
+            q = self.winsor_quantile
+
+            if not 0 <= q < 0.5:
+                raise ValueError(
+                    "winsor_quantile must be in [0, 0.5)"
+                )
+
+            # Learn clipping thresholds from the normal period only.
+            lo, hi = np.quantile(
+                normal_y,
+                [q, 1 - q],
+            )
+
+            normal_y = np.clip(
+                normal_y,
+                lo,
+                hi,
+            )
+
+            abnormal_y = np.clip(
+                abnormal_y,
+                lo,
+                hi,
+            )
+
+        return normal_y, abnormal_y
+    
     def _score_metric(self, normal_y: np.ndarray, abnormal_y: np.ndarray) -> dict[str, float]:
-        normal_y = self._clean(normal_y)
-        abnormal_y = self._clean(abnormal_y)
-        if normal_y.size <= self.ar_order + 3 or abnormal_y.size <= self.ar_order:
+        normal_y, abnormal_y = self._prepare_series(
+            normal_y,
+            abnormal_y,
+        )
+
+        if (
+            normal_y.size <= self.ar_order + 3
+            or abnormal_y.size <= self.ar_order
+        ):
             return {
                 "score": -np.inf,
                 "evidence_weight": 0.0,
@@ -192,12 +247,20 @@ class AMBER:
                 "abnormal_mean_z": np.nan,
                 "abnormal_sd_z": np.nan,
             }
-
+        
         coef = _ridge_ar_fit(normal_y, self.ar_order, self.ridge)
         r_n = _ar_residuals(normal_y, coef, self.ar_order)
 
+        if self.ar_order > 0:
+            history = normal_y[-self.ar_order:]
+        else:
+            history = np.empty(
+                0,
+                dtype=float,
+            )
+
         history_and_abnormal = np.concatenate([
-            normal_y[-self.ar_order:],
+            history,
             abnormal_y,
         ])
 
@@ -257,13 +320,25 @@ class AMBER:
             records.append({"metric": col, "service": _service_name(col), **out})
 
         metric_df = pd.DataFrame(records).replace([np.inf, -np.inf], np.nan)
+
+        metric_df["evidence_weight"] = 0.0
+
         finite = metric_df["score"].notna()
+
         if finite.any():
-            values = metric_df.loc[finite, "score"].to_numpy()
+            values = metric_df.loc[
+                finite,
+                "score",
+            ].to_numpy()
+
             shifted = values - np.max(values)
-            probs = np.exp(shifted)
-            metric_df.loc[finite, "evidence_weight"] = probs / probs.sum()
-        metric_df["evidence_weight"] = metric_df["evidence_weight"].fillna(0.0)
+            weights = np.exp(shifted)
+
+            metric_df.loc[
+                finite,
+                "evidence_weight",
+            ] = weights / weights.sum()
+
         metric_df = metric_df.sort_values("score", ascending=False, na_position="last").reset_index(drop=True)
         metric_df.insert(0, "rank", np.arange(1, len(metric_df) + 1))
         self.metric_result_ = metric_df

@@ -8,7 +8,11 @@ import time
 from functools import lru_cache
 from experiments.config import load_config, resolve_granularity
 from experiments.paths import case_result_dir
-from data_loader import load_timeseries_data
+from data_loader import (
+    get_processed_case_dir,
+    load_processed_case,
+    load_timeseries_data,
+)
 from evaluation import (
     aggregate_canonical_metrics,
     evaluate_ranking,
@@ -62,10 +66,20 @@ def run_experiment(
     target_model = config["model"]["target"]
 
     # 1. YAMLから前処理の方法を取得（指定がない場合は "default" とする）
-    strategy = config["model"].get("preprocess_strategy", "default")
+    strategy = config["model"].get(
+        "preprocess_strategy",
+        "default",
+    )
+
+    processed_root = config["paths"].get(
+        "processed_data_dir",
+        "data/processed",
+    )
+
+    ground_truth = fault
 
     # 2. データローダーに戦略を渡す
-    # graph_info は次に実装するモデル（LiNGAMなど）で異常発生時刻(t_F)を参照するために使用する
+    # graph_info は次に実装するモデルで異常発生時刻(t_F)を参照するために使用する
     df, ground_truth, graph_info = load_timeseries_data(dataset, fault, run, strategy)
 
     # 3. モデルの動的切り替え（条件分岐）
@@ -83,7 +97,14 @@ def run_experiment(
         from models.trainer import Phase1Trainer
 
         # ターゲットとなっている実験ディレクトリの特定
-        target_dir = os.path.join("data/processed", strategy, dataset, fault, str(run))
+        df_normal, df_abnormal, _ = load_processed_case(
+            dataset=dataset,
+            fault_type=fault,
+            run_id=run,
+            strategy=strategy,
+            processed_root=processed_root,
+            load_graph_info=False,
+        )
 
         # A. フェーズ1: 正常データによる学習の実行
         trainer = Phase1Trainer(data_dir=target_dir, epochs=200, lr=1e-3)
@@ -99,8 +120,15 @@ def run_experiment(
 
         from models.data_driven_rca import DataDrivenRCA
 
-        target_dir = os.path.join("data/processed", strategy, dataset, fault, str(run))
-
+        df_normal, df_abnormal, _ = load_processed_case(
+            dataset=dataset,
+            fault_type=fault,
+            run_id=run,
+            strategy=strategy,
+            processed_root=processed_root,
+            load_graph_info=False,
+        )
+        
         # グラフメタデータ(graph_info.json)は読み込まず、データのみを抽出
         df_normal = pd.read_csv(os.path.join(target_dir, "normal_data.csv"))
         df_abnormal = pd.read_csv(os.path.join(target_dir, "abnormal_data.csv"))
@@ -127,16 +155,15 @@ def run_experiment(
 
         from models.amber import AMBER, NIG
 
-        target_dir = os.path.join(
-            "data", "processed", strategy, dataset, fault, str(run)
+        df_normal, df_abnormal, _ = load_processed_case(
+            dataset=dataset,
+            fault_type=fault,
+            run_id=run,
+            strategy=strategy,
+            processed_root=processed_root,
+            load_graph_info=False,
         )
-        df_normal = pd.read_csv(
-            os.path.join(target_dir, "normal_data.csv")
-        )
-        df_abnormal = pd.read_csv(
-            os.path.join(target_dir, "abnormal_data.csv")
-        )
-
+        
         service_method = config["evaluation"].get(
             "service_aggregation", {}
         ).get("method", "mean_top3")
