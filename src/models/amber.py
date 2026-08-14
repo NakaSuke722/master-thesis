@@ -28,6 +28,14 @@ class NIG:
     alpha: float
     beta: float
 
+    def __post_init__(self) -> None:
+        if self.kappa <= 0:
+            raise ValueError("kappa must be positive")
+        if self.alpha <= 0:
+            raise ValueError("alpha must be positive")
+        if self.beta <= 0:
+            raise ValueError("beta must be positive")
+
 
 def _nig_update(prior: NIG, x: np.ndarray) -> NIG:
     x = np.asarray(x, dtype=float)
@@ -115,10 +123,13 @@ def _service_name(metric: str) -> str:
 class AMBER:
     """RCA using Bayesian model selection on standardized AR residuals.
 
-    H0: normal and abnormal residuals share the same Gaussian parameters.
-    H1: normal and abnormal residuals have independent Gaussian parameters.
+    H0: Normal and abnormal residuals share the same Gaussian parameters.
+    H1: Normal and abnormal residuals have independent Gaussian parameters.
 
-    The score is log BF = log p(r_abn | H1) - log p(r_abn | H0).
+    The RCA score is
+        log BF= log m(z_normal) + log m(z_abnormal) - log m(z_normal and z_abnormal),
+
+    where m(.) is the NIG-integrated marginal likelihood.
     """
 
     def __init__(
@@ -127,24 +138,25 @@ class AMBER:
         ridge: float = 1e-3,
         min_scale: float = 1e-6,
         relative_scale_floor: float = 1e-3,
-        change_prior_strength: float = 1.0,
-        change_variance_scale: float = 4.0,
         winsor_quantile: float | None = 0.01,
         aggregate: Literal["metric", "service"] = "metric",
         service_aggregation: Literal["max", "mean_top3", "logsumexp"] = "max",
+        prior: NIG | None = None,
     ) -> None:
         if ar_order < 0:
             raise ValueError("ar_order must be non-negative")
-        if change_prior_strength <= 0 or change_variance_scale <= 0:
-            raise ValueError("prior parameters must be positive")
         self.ar_order = ar_order
         self.ridge = ridge
         self.min_scale = min_scale
         self.relative_scale_floor = relative_scale_floor
-        self.change_prior_strength = change_prior_strength
-        self.change_variance_scale = change_variance_scale
         self.winsor_quantile = winsor_quantile
         self.aggregate = aggregate
+        self.prior = prior or NIG(
+            m=0.0,
+            kappa=1e-3,
+            alpha=2.0,
+            beta=1.0,
+        )
         self.service_aggregation = service_aggregation
         self.metric_result_: pd.DataFrame | None = None
         self.result_: pd.DataFrame | None = None
@@ -201,21 +213,23 @@ class AMBER:
         z_n = (r_n - center) / scale
         z_a = (r_a - center) / scale
 
-        # H0 is learned from normal standardized residuals.
-        weak = NIG(m=0.0, kappa=1e-3, alpha=2.0, beta=1.0)
-        h0_prior = _nig_update(weak, z_n)
-        log_h0 = _nig_log_marginal(z_a, h0_prior)
+        pooled = np.concatenate([z_n, z_a])
 
-        # H1 is centered at the normal regime but deliberately more diffuse.
-        normal_var_mean = h0_prior.beta / max(h0_prior.alpha - 1.0, 1e-6)
-        h1_prior = NIG(
-            m=h0_prior.m,
-            kappa=self.change_prior_strength,
-            alpha=2.0,
-            beta=max(normal_var_mean * self.change_variance_scale, 1e-6),
+        # H0: normal and abnormal residuals share one Gaussian distribution.
+        log_h0 = _nig_log_marginal(
+            pooled,
+            self.prior,
         )
-        log_h1 = _nig_log_marginal(z_a, h1_prior)
+
+        # H1: normal and abnormal residuals have independent Gaussian parameters,
+        # both governed by the same weak-information NIG prior.
+        log_h1 = (
+            _nig_log_marginal(z_n, self.prior)
+            + _nig_log_marginal(z_a, self.prior)
+        )
+
         score = float(log_h1 - log_h0)
+
         return {
             "score": score,
             "normal_scale": scale,
@@ -303,5 +317,5 @@ if __name__ == "__main__":
 
     normal_df = pd.read_csv(args.normal_csv)
     abnormal_df = pd.read_csv(args.abnormal_csv)
-    model = BayesianResidualRCA(ar_order=args.ar_order, aggregate=args.aggregate)
+    model = AMBER(ar_order=args.ar_order, aggregate=args.aggregate)
     print(model.fit_predict(normal_df, abnormal_df).head(args.top).to_string(index=False))

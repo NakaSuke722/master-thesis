@@ -1,29 +1,42 @@
-# configs/default_params.yaml
+# configs/amber.yaml
+
+experiment:
+  category: "main"
+  name: "amber"
+
 model:
   target: "amber"
   preprocess_strategy: "default"
 
+  params:
+    ar_order: 3
+    ridge: 1.0e-3
+    min_scale: 1.0e-6
+    relative_scale_floor: 1.0e-3
+    winsor_quantile: null
+
+    prior:
+      m: 0.0
+      kappa: 1.0e-3
+      alpha: 2.0
+      beta: 1.0
+
 paths:
   raw_data_dir: "data/raw"
   processed_data_dir: "data/processed"
-  results_dir: "results/main/amber/"
+  results_root: "results"
 
 evaluation:
   k_values: [1, 3, 5]
 
-  # service: サービス単位（粗粒度）
-  # metric:  サービス＋メトリクス種別単位（細粒度）
   granularity: "metric"
 
   service_aggregation:
-    method: "mean_top3"  # max / mean_top3 / logsumexp
+    method: "mean_top3"
 
-  # latency-50, latency-90 などを latency に統合する際の集約
   metric_aggregation:
-    method: "max"  # max / mean / logsumexp
+    method: "max"
 
-  # 障害ディレクトリ名の末尾から、細粒度の正解メトリクス種別へ対応付ける。
-  # loss はデータセットによって error 列がないため、error または latency を正解候補とする。
   fine_grained_fault_to_metric:
     cpu: ["cpu"]
     mem: ["mem"]

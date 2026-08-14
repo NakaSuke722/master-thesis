@@ -10,102 +10,12 @@ from functools import lru_cache
 import yaml
 
 from data_loader import load_timeseries_data
-from evaluation import evaluate_ranking
+from evaluation import (
+    aggregate_canonical_metrics,
+    evaluate_ranking,
+    make_evaluation_ground_truth,
+)
 from utils.slack_notify import maybe_notify_slack
-
-
-FAULT_SUFFIXES = ("cpu", "mem", "memory", "loss", "delay")
-
-
-def split_fault_label(fault: str) -> tuple[str, str]:
-    """例: catalogue_delay -> (catalogue, delay)。"""
-    for suffix in FAULT_SUFFIXES:
-        token = f"_{suffix}"
-        if fault.endswith(token):
-            return fault[:-len(token)], suffix
-    raise ValueError(
-        f"Cannot infer fault type from '{fault}'. "
-        f"Expected one of: {FAULT_SUFFIXES}"
-    )
-
-
-def canonical_metric_name(metric: str) -> str:
-    """パーセンタイル等を除き、service_metric_type へ正規化する。"""
-    latency_suffixes = (
-        "_latency-50", "_latency-90", "_latency-95", "_latency-99",
-        "_latency",
-    )
-    for suffix in latency_suffixes:
-        if metric.endswith(suffix):
-            return metric[:-len(suffix)] + "_latency"
-
-    if metric.endswith("_memory"):
-        return metric[:-len("_memory")] + "_mem"
-
-    return metric
-
-
-def aggregate_canonical_metrics(
-    metric_result,
-    method: str = "max",
-) -> list[str]:
-    """raw metric scoresをcanonical metric単位に集約してランキングする。"""
-    import numpy as np
-    import pandas as pd
-
-    if "metric" not in metric_result or "score" not in metric_result:
-        raise ValueError("metric_result must contain metric and score columns")
-
-    work = metric_result[["metric", "score"]].copy()
-    work["canonical_metric"] = work["metric"].map(canonical_metric_name)
-
-    rows = []
-    for name, group in work.groupby("canonical_metric", sort=False):
-        values = group["score"].dropna().to_numpy(dtype=float)
-        if values.size == 0:
-            score = float("-inf")
-        elif method == "max":
-            score = float(np.max(values))
-        elif method == "mean":
-            score = float(np.mean(values))
-        elif method == "logsumexp":
-            m = float(np.max(values))
-            score = m + float(np.log(np.sum(np.exp(values - m))))
-        else:
-            raise ValueError(f"Unknown metric aggregation method: {method}")
-        rows.append((name, score))
-
-    rows.sort(key=lambda x: x[1], reverse=True)
-    return [name for name, _ in rows]
-
-
-def make_evaluation_ground_truth(
-    fault: str,
-    granularity: str,
-    mapping: dict,
-) -> str | list[str]:
-    service, fault_type = split_fault_label(fault)
-
-    if granularity == "service":
-        return service
-
-    if granularity != "metric":
-        raise ValueError(
-            f"evaluation.granularity must be service or metric, got {granularity}"
-        )
-
-    metric_types = mapping.get(fault_type)
-    if not metric_types:
-        raise ValueError(
-            f"No fine-grained mapping for fault type '{fault_type}'"
-        )
-    if isinstance(metric_types, str):
-        metric_types = [metric_types]
-
-    return [
-        canonical_metric_name(f"{service}_{metric_type}")
-        for metric_type in metric_types
-    ]
 
 
 @lru_cache(maxsize=None)
@@ -133,12 +43,21 @@ def get_dataset_progress_info(dataset):
     return progress_map, progress
 
 
-def run_experiment(dataset, fault, run, batch=False, progress=None, total_progress=None):
+def run_experiment(
+    dataset: str,
+    fault: str,
+    run: int,
+    *,
+    config: dict,
+    config_path: str,
+    granularity: str,
+    batch: bool = False,
+    progress: int | None = None,
+    total_progress: int | None = None,
+    ):    
     """1つのデータセット・障害ケースに対する推論と評価を実行する"""
-    start_time = time.time()
 
-    with open("configs/default_params.yaml", "r") as f:
-        config = yaml.safe_load(f)
+    start_time = time.time()
 
     # default_params.yaml から評価設定とモデル名を取得
     k_values = config["evaluation"]["k_values"]
@@ -217,8 +136,9 @@ def run_experiment(dataset, fault, run, batch=False, progress=None, total_progre
 
     elif target_model == "amber":
         import pandas as pd
+        from experiments.paths import case_result_dir
 
-        from models.amber import AMBER
+        from models.amber import AMBER, NIG
 
         target_dir = os.path.join(
             "data", "processed", strategy, dataset, fault, str(run)
@@ -239,9 +159,25 @@ def run_experiment(dataset, fault, run, batch=False, progress=None, total_progre
         model_aggregate = (
             "service" if granularity == "service" else "metric"
         )
+        params = config["model"].get("params", {})
+        prior_params = params.get("prior", {})
+
+        prior = NIG(
+            m=float(prior_params.get("m", 0.0)),
+            kappa=float(prior_params.get("kappa", 1e-3)),
+            alpha=float(prior_params.get("alpha", 2.0)),
+            beta=float(prior_params.get("beta", 1.0)),
+        )
+
         rca_model = AMBER(
-            ar_order=3,
-            winsor_quantile=None,
+            ar_order=int(params.get("ar_order", 3)),
+            ridge=float(params.get("ridge", 1e-3)),
+            min_scale=float(params.get("min_scale", 1e-6)),
+            relative_scale_floor=float(
+                params.get("relative_scale_floor", 1e-3)
+            ),
+            winsor_quantile=params.get("winsor_quantile"),
+            prior=prior,
             aggregate=model_aggregate,
             service_aggregation=service_method,
         )
@@ -297,33 +233,48 @@ def run_experiment(dataset, fault, run, batch=False, progress=None, total_progre
         for k in k_values:
             print(f"    AC@{k}: {metrics[f'AC@{k}']}, Avg@{k}: {metrics[f'Avg@{k}']:.4f}")
 
+    experiment = config.get("experiment", {})
+
     results = {
         "dataset": dataset,
         "fault_type": fault,
         "run_id": run,
+
+        "experiment_category": experiment.get("category", "main"),
+        "experiment_name": experiment.get("name", target_model),
+
         "model_used": target_model,
+        "model_parameters": config["model"].get("params", {}),
+
+        "config_path": config_path,
         "evaluation_granularity": granularity,
+
         "execution_time_sec": execution_time,
         "metrics": metrics,
         "predicted_top_5": predicted_ranking[:5],
         "ground_truth": ground_truth,
         "evaluation_ground_truth": evaluation_ground_truth,
     }
-    
-    output_dir = os.path.join(
-        config["paths"]["results_dir"],
-        target_model,
+
+    output_dir = case_result_dir(
+        config,
         granularity,
         dataset,
     )
+    output_dir.mkdir(parents=True, exist_ok=True)
+
+    output_file = output_dir / f"{fault}_run{run}.json"
+
+    with output_file.open("w", encoding="utf-8") as f:
+        json.dump(results, f, indent=4, ensure_ascii=False)
+
     os.makedirs(output_dir, exist_ok=True)
     output_file = os.path.join(output_dir, f"{fault}_run{run}.json")
 
     with open(output_file, "w") as f:
         json.dump(results, f, indent=4)
 
-    return results, output_file
-
+    return results, str(output_file)
 
 def main():
     """コマンドラインから単一実行された場合の入り口"""
@@ -332,6 +283,8 @@ def main():
     parser.add_argument("--fault", type=str, required=True)
     parser.add_argument("--run", type=int, required=True)
     parser.add_argument("--batch", action="store_true", help="Suppress detailed metrics output")
+    parser.add_argument("--config", default="configs/amber.yaml",)
+    parser.add_argument("--granularity", choices=["service", "metric"], default=None,)
     args = parser.parse_args()
 
     command_label = " ".join(

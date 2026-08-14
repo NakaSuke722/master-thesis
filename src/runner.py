@@ -8,9 +8,9 @@ from main import run_experiment
 from utils.slack_notify import maybe_notify_slack
 
 def run_all():
-    # 設定ファイルからモデル名とデータセットリストを読み込む
-    with open("configs/default_params.yaml", "r") as f:
-        config = yaml.safe_load(f)
+
+    config = load_config(args.config)
+    granularity = resolve_granularity(config, args.granularity)
     
     target_model = config["model"]["target"]
     datasets = config.get("datasets", [])
@@ -18,7 +18,10 @@ def run_all():
     # ターミナル出力の先頭にモデル名を記載
     print(f"=== Running experiments with model: {target_model} ===")
 
-    base_data_dir = "data/raw"
+    base_data_dir = config["paths"].get(
+        "raw_data_dir",
+        "data/raw",
+    )
     runs = [1, 2, 3, 4, 5]
     generated_result_files = []
 

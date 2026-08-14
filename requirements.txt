@@ -11,3 +11,6 @@ PyYAML>=6.0
 # Visualization
 matplotlib>=3.8
 seaborn>=0.13
+
+# Testing
+pytest>=8.0
