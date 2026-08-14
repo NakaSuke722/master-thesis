@@ -78,10 +78,6 @@ def run_experiment(
 
     ground_truth = fault
 
-    # 2. データローダーに戦略を渡す
-    # graph_info は次に実装するモデルで異常発生時刻(t_F)を参照するために使用する
-    df, ground_truth, graph_info = load_timeseries_data(dataset, fault, run, strategy)
-
     # 3. モデルの動的切り替え（条件分岐）
     current_seed = 42 + run
     evaluation_ground_truth = ground_truth
@@ -89,66 +85,49 @@ def run_experiment(
     if target_model == "dummy":
         from models.dummy import run_random_rca
 
+        df, _, _ = load_timeseries_data(
+            dataset=dataset,
+            fault_type=fault,
+            run_id=run,
+            strategy=strategy,
+            processed_root=processed_root,
+        )
+
         variables = list(df.columns)
-        predicted_ranking = run_random_rca(variables, seed=current_seed)
+        predicted_ranking = run_random_rca(
+            variables,
+            seed=current_seed,
+        )
 
     elif target_model == "nonlinear_anm":
         from models.inference import RCAInference
         from models.trainer import Phase1Trainer
 
-        # ターゲットとなっている実験ディレクトリの特定
-        df_normal, df_abnormal, _ = load_processed_case(
-            dataset=dataset,
-            fault_type=fault,
-            run_id=run,
-            strategy=strategy,
-            processed_root=processed_root,
-            load_graph_info=False,
-        )
+        target_dir = get_processed_case_dir(dataset=dataset, fault_type=fault, run_id=run, strategy=strategy, processed_root=processed_root,)
 
-        # A. フェーズ1: 正常データによる学習の実行
-        trainer = Phase1Trainer(data_dir=target_dir, epochs=200, lr=1e-3)
+        trainer = Phase1Trainer(data_dir=str(target_dir), epochs=200, lr=1e-3,)
         trained_system = trainer.train()
 
-        # B. フェーズ2 & 3: 推論と不確実性ペナルティ付きスコアリング
-        # gammaの不確実性割引強度は必要に応じて引数やYAMLから管理可能
-        inference = RCAInference(processed_dir=target_dir, gamma=1.0, mc_samples=30)
+        inference = RCAInference(processed_dir=str(target_dir), gamma=1.0, mc_samples=30,)
         predicted_ranking = inference.compute_rca_scores(trained_system)
 
     elif target_model == "data_driven_rca":
-        import pandas as pd
-
         from models.data_driven_rca import DataDrivenRCA
 
-        df_normal, df_abnormal, _ = load_processed_case(
-            dataset=dataset,
-            fault_type=fault,
-            run_id=run,
-            strategy=strategy,
-            processed_root=processed_root,
-            load_graph_info=False,
-        )
-        
-        # グラフメタデータ(graph_info.json)は読み込まず、データのみを抽出
-        df_normal = pd.read_csv(os.path.join(target_dir, "normal_data.csv"))
-        df_abnormal = pd.read_csv(os.path.join(target_dir, "abnormal_data.csv"))
+        df_normal, df_abnormal, _ = load_processed_case(dataset=dataset, fault_type=fault, run_id=run, strategy=strategy, processed_root=processed_root, load_graph_info=False,)
 
-        # モデルの初期化と実行 (lambda_reg や epochs は要調整パラメータ)
-        rca_model = DataDrivenRCA(lambda_reg=0.1, epochs=300, lr=0.01)
-        predicted_ranking = rca_model.fit_predict(df_normal, df_abnormal, dataset_name=dataset)
+        rca_model = DataDrivenRCA(lambda_reg=0.1, epochs=300, lr=0.01,)
+
+        predicted_ranking = rca_model.fit_predict(df_normal, df_abnormal, dataset_name=dataset,)
     
     elif target_model == "bayesian_rca":
         from models.bayesian_rca import BayesianRCA
-        import pandas as pd
-        
-        target_dir = os.path.join("data/processed", strategy, dataset, fault, str(run))
-        df_normal = pd.read_csv(os.path.join(target_dir, "normal_data.csv"))
-        df_abnormal = pd.read_csv(os.path.join(target_dir, "abnormal_data.csv"))
-        
-        # モデルの初期化と実行
-        # 新理論（ARモデル＋経験ベイズ法）のハイパーパラメータを指定
-        rca_model = BayesianRCA(ar_lags=3, init_window=5, eta=5.0)
-        predicted_ranking = rca_model.fit_predict(df_normal, df_abnormal, dataset_name=dataset) 
+
+        df_normal, df_abnormal, _ = load_processed_case(dataset=dataset, fault_type=fault, run_id=run, strategy=strategy, processed_root=processed_root, load_graph_info=False,)
+
+        rca_model = BayesianRCA(ar_lags=3, init_window=5, eta=5.0,)
+
+        predicted_ranking = rca_model.fit_predict(df_normal, df_abnormal, dataset_name=dataset,)
 
     elif target_model == "amber":
         import pandas as pd

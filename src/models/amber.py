@@ -370,11 +370,25 @@ class AMBER:
 
         service_df = pd.DataFrame(grouped).sort_values("score", ascending=False).reset_index(drop=True)
         service_df.insert(0, "rank", np.arange(1, len(service_df) + 1))
-        vals = service_df["score"].to_numpy()
-        vals = vals - np.nanmax(vals)
-        p = np.exp(vals)
-        service_df["evidence_weight"] = p / np.nansum(p)
+        service_df["evidence_weight"] = 0.0
+
+        finite = service_df["score"].notna()
+
+        if finite.any():
+            values = service_df.loc[
+                finite,
+                "score",
+            ].to_numpy()
+
+            shifted = values - np.max(values)
+            weights = np.exp(shifted)
+
+            service_df.loc[
+                finite,
+                "evidence_weight",
+            ] = weights / weights.sum()
         self.result_ = service_df
+        
         return service_df.copy()
 
     def predict(self, normal: pd.DataFrame, abnormal: pd.DataFrame) -> list[str]:
