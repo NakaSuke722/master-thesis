@@ -1,7 +1,7 @@
 # macOS specific
 .DS_Store
 
-# Data files (Do not commit large datasets)
+# Data files
 data/raw/*
 data/processed/*
 !data/**/.gitkeep
@@ -39,10 +39,25 @@ notes/*.fdb_latexmk
 notes/*.synctex.gz
 notes/*.pdf
 
-# 実験結果の出力ファイルを除外（**を使用しサブディレクトリ内も適用）
+# Experimental outputs
+results/main/**/*.json
+results/ablation/**/*.json
+results/baselines/**/*.json
+results/sensitivity/**/*.json
+results/analysis/**/*.json
+results/debug/**
+
+# Legacy result structure
 results/metrics/**/*.json
 results/final_summary.json
+results/final_summary_*.json
 
-# ただし、空ディレクトリ維持用の.gitkeepは追跡対象として残す
-!results/metrics/**/.gitkeep
-!results/figures/**/.gitkeep
+# Generated figures (修論用にGit管理したいならignoreしない)
+results/figures/**/*.png
+results/figures/**/*.jpg
+results/figures/**/*.jpeg
+results/figures/**/*.pdf
+results/figures/**/*.svg
+
+# Keep directory structure
+!results/**/.gitkeep
