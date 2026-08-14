@@ -257,8 +257,8 @@ class AMBER:
             values = metric_df.loc[finite, "score"].to_numpy()
             shifted = values - np.max(values)
             probs = np.exp(shifted)
-            metric_df.loc[finite, "posterior"] = probs / probs.sum()
-        metric_df["posterior"] = metric_df["posterior"].fillna(0.0)
+            metric_df.loc[finite, "evidence_weight"] = probs / probs.sum()
+        metric_df["evidence_weight"] = metric_df["evidence_weight"].fillna(0.0)
         metric_df = metric_df.sort_values("score", ascending=False, na_position="last").reset_index(drop=True)
         metric_df.insert(0, "rank", np.arange(1, len(metric_df) + 1))
         self.metric_result_ = metric_df
@@ -293,7 +293,7 @@ class AMBER:
         vals = service_df["score"].to_numpy()
         vals = vals - np.nanmax(vals)
         p = np.exp(vals)
-        service_df["posterior"] = p / np.nansum(p)
+        service_df["evidence_weight"] = p / np.nansum(p)
         self.result_ = service_df
         return service_df.copy()
 

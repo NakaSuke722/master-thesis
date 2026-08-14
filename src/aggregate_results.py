@@ -1,104 +1,211 @@
 # src/aggregate_results.py
+
 from __future__ import annotations
 
 import argparse
-import glob
 import json
-import os
 from collections import defaultdict
 
-import yaml
+from experiments.config import (
+    load_config,
+    resolve_granularity,
+)
+from experiments.paths import (
+    experiment_dir,
+    summary_path,
+)
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser()
-    parser.add_argument("--total-time", type=float, default=0.0)
+    parser = argparse.ArgumentParser(
+        description="Aggregate RCA experiment results"
+    )
+
+    parser.add_argument(
+        "--config",
+        default="configs/amber.yaml",
+    )
+
+    parser.add_argument(
+        "--granularity",
+        choices=["service", "metric"],
+        default=None,
+    )
+
+    parser.add_argument(
+        "--total-time",
+        type=float,
+        default=0.0,
+    )
+
     args = parser.parse_args()
 
-    with open("configs/default_params.yaml", "r") as f:
-        config = yaml.safe_load(f)
+    config = load_config(args.config)
+
+    granularity = resolve_granularity(
+        config,
+        args.granularity,
+    )
 
     target_datasets = config.get("datasets", [])
     model_used = config["model"]["target"]
-    granularity = os.environ.get(
-        "RCA_GRANULARITY",
-        config.get("evaluation", {}).get("granularity", "service"),
-    ).lower()
 
-    results_root = os.path.join(
-        config["paths"]["results_dir"],
-        model_used,
-        granularity,
+    experiment = config.get("experiment", {})
+    experiment_category = experiment.get(
+        "category",
+        "main",
     )
-    output_file = os.path.join(
-        "results",
-        f"final_summary_{model_used}_{granularity}.json",
+    experiment_name = experiment.get(
+        "name",
+        model_used,
+    )
+
+    results_root = (
+        experiment_dir(config)
+        / granularity
+    )
+
+    output_file = summary_path(
+        config,
+        granularity,
     )
 
     all_results = []
     pure_execution_time = 0.0
 
     for dataset in target_datasets:
-        pattern = os.path.join(results_root, dataset, "*.json")
-        for filepath in sorted(glob.glob(pattern)):
-            with open(filepath, "r") as f:
+        dataset_dir = results_root / dataset
+
+        if not dataset_dir.is_dir():
+            continue
+
+        for filepath in sorted(
+            dataset_dir.glob("*.json")
+        ):
+            with filepath.open(
+                "r",
+                encoding="utf-8",
+            ) as f:
                 data = json.load(f)
 
-            # 異なる粒度の古い結果を混ぜない。
-            if data.get("evaluation_granularity") != granularity:
+            if (
+                data.get("evaluation_granularity")
+                != granularity
+            ):
                 continue
+
             if data.get("model_used") != model_used:
                 continue
 
+            if (
+                data.get("experiment_category")
+                != experiment_category
+            ):
+                continue
+
+            if (
+                data.get("experiment_name")
+                != experiment_name
+            ):
+                continue
+
             all_results.append(data)
-            pure_execution_time += data.get("execution_time_sec", 0.0)
+
+            pure_execution_time += data.get(
+                "execution_time_sec",
+                0.0,
+            )
 
     if not all_results:
         raise FileNotFoundError(
-            f"No result files found under {results_root}"
+            f"No result files found under "
+            f"{results_root}"
         )
 
-    dataset_metrics = defaultdict(lambda: defaultdict(list))
+    dataset_metrics = defaultdict(
+        lambda: defaultdict(list)
+    )
+
     for result in all_results:
-        for metric_name, value in result["metrics"].items():
-            dataset_metrics[result["dataset"]][metric_name].append(value)
+        for metric_name, value in (
+            result["metrics"].items()
+        ):
+            dataset_metrics[
+                result["dataset"]
+            ][metric_name].append(value)
 
     summary = {
         dataset: {
-            metric_name: round(sum(values) / len(values), 4)
-            for metric_name, values in metrics.items()
+            metric_name: round(
+                sum(values) / len(values),
+                4,
+            )
+            for metric_name, values
+            in metrics.items()
         }
-        for dataset, metrics in dataset_metrics.items()
+        for dataset, metrics
+        in dataset_metrics.items()
     }
 
     print(
-        f"\n===== Evaluation Summary "
-        f"(Model: {model_used}, Granularity: {granularity}) ====="
+        "\n===== Evaluation Summary "
+        f"(Model: {model_used}, "
+        f"Granularity: {granularity}) ====="
     )
-    print(json.dumps(summary, indent=4))
+
+    print(
+        json.dumps(
+            summary,
+            indent=4,
+            ensure_ascii=False,
+        )
+    )
 
     final_time = (
         args.total_time
         if args.total_time > 0
         else pure_execution_time
     )
-    print(f"\nTotal Execution Time: {round(final_time, 1)} seconds")
 
-    os.makedirs(os.path.dirname(output_file), exist_ok=True)
-    with open(output_file, "w") as f:
+    print(
+        "\nTotal Execution Time: "
+        f"{round(final_time, 1)} seconds"
+    )
+
+    output_file.parent.mkdir(
+        parents=True,
+        exist_ok=True,
+    )
+
+    with output_file.open(
+        "w",
+        encoding="utf-8",
+    ) as f:
         json.dump(
             {
-                "model_used": model_used,
-                "evaluation_granularity": granularity,
-                "total_execution_time_sec": round(final_time, 1),
-                "pure_python_execution_time_sec": round(
-                    pure_execution_time, 2
-                ),
-                "summary": summary,
-                "details": all_results,
+                "experiment_category":
+                    experiment_category,
+                "experiment_name":
+                    experiment_name,
+                "model_used":
+                    model_used,
+                "evaluation_granularity":
+                    granularity,
+                "total_execution_time_sec":
+                    round(final_time, 1),
+                "pure_python_execution_time_sec":
+                    round(
+                        pure_execution_time,
+                        2,
+                    ),
+                "summary":
+                    summary,
+                "details":
+                    all_results,
             },
             f,
             indent=4,
+            ensure_ascii=False,
         )
 
 

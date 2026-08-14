@@ -6,9 +6,8 @@ import shlex
 import sys
 import time
 from functools import lru_cache
-
-import yaml
-
+from experiments.config import load_config, resolve_granularity
+from experiments.paths import case_result_dir
 from data_loader import load_timeseries_data
 from evaluation import (
     aggregate_canonical_metrics,
@@ -62,16 +61,6 @@ def run_experiment(
     # default_params.yaml から評価設定とモデル名を取得
     k_values = config["evaluation"]["k_values"]
     target_model = config["model"]["target"]
-
-    # run_all.sh の第1引数は RCA_GRANULARITY 経由で上書きする。
-    granularity = os.environ.get(
-        "RCA_GRANULARITY",
-        config["evaluation"].get("granularity", "service"),
-    ).lower()
-    if granularity not in {"service", "metric"}:
-        raise ValueError(
-            f"RCA_GRANULARITY must be service or metric, got {granularity}"
-        )
 
     # 1. YAMLから前処理の方法を取得（指定がない場合は "default" とする）
     strategy = config["model"].get("preprocess_strategy", "default")
@@ -268,12 +257,6 @@ def run_experiment(
     with output_file.open("w", encoding="utf-8") as f:
         json.dump(results, f, indent=4, ensure_ascii=False)
 
-    os.makedirs(output_dir, exist_ok=True)
-    output_file = os.path.join(output_dir, f"{fault}_run{run}.json")
-
-    with open(output_file, "w") as f:
-        json.dump(results, f, indent=4)
-
     return results, str(output_file)
 
 def main():
@@ -287,6 +270,12 @@ def main():
     parser.add_argument("--granularity", choices=["service", "metric"], default=None,)
     args = parser.parse_args()
 
+    config = load_config(args.config)
+    granularity = resolve_granularity(
+        config,
+        args.granularity,
+    )
+
     command_label = " ".join(
         [shlex.quote(sys.executable), shlex.quote("src/main.py"), *(shlex.quote(arg) for arg in sys.argv[1:])]
     )
@@ -296,7 +285,15 @@ def main():
     result_file = ""
 
     try:
-        _, result_file = run_experiment(args.dataset, args.fault, args.run, args.batch)
+        _, result_file = run_experiment(
+            args.dataset,
+            args.fault,
+            args.run,
+            config=config,
+            config_path=args.config,
+            granularity=granularity,
+            batch=args.batch,
+        )    
     except KeyboardInterrupt:
         status = "interrupted"
         reason = "Interrupted by user (SIGINT)"
