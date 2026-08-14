@@ -185,8 +185,13 @@ class AMBER:
         normal_y = self._clean(normal_y)
         abnormal_y = self._clean(abnormal_y)
         if normal_y.size <= self.ar_order + 3 or abnormal_y.size <= self.ar_order:
-            return {"score": -np.inf, "posterior": 0.0, "normal_scale": np.nan,
-                    "abnormal_mean_z": np.nan, "abnormal_sd_z": np.nan}
+            return {
+                "score": -np.inf,
+                "evidence_weight": 0.0,
+                "normal_scale": np.nan,
+                "abnormal_mean_z": np.nan,
+                "abnormal_sd_z": np.nan,
+            }
 
         coef = _ridge_ar_fit(normal_y, self.ar_order, self.ridge)
         r_n = _ar_residuals(normal_y, coef, self.ar_order)

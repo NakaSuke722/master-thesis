@@ -58,7 +58,6 @@ def run_experiment(
 
     start_time = time.time()
 
-    # default_params.yaml から評価設定とモデル名を取得
     k_values = config["evaluation"]["k_values"]
     target_model = config["model"]["target"]
 
@@ -125,7 +124,6 @@ def run_experiment(
 
     elif target_model == "amber":
         import pandas as pd
-        from experiments.paths import case_result_dir
 
         from models.amber import AMBER, NIG
 
@@ -255,7 +253,7 @@ def run_experiment(
     output_file = output_dir / f"{fault}_run{run}.json"
 
     with output_file.open("w", encoding="utf-8") as f:
-        json.dump(results, f, indent=4, ensure_ascii=False)
+        json.dump(results, f, indent=4, ensure_ascii=False, )
 
     return results, str(output_file)
 
