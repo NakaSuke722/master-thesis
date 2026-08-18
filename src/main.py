@@ -257,6 +257,11 @@ def run_experiment(
         "evaluation_ground_truth": evaluation_ground_truth,
     }
 
+    # This is observational output only: AMBER's scoring and ranking are
+    # completed above before diagnostics are copied into the result artifact.
+    if target_model == "amber":
+        results["amber_diagnostics"] = rca_model.diagnostics_
+
     output_dir = case_result_dir(
         config,
         granularity,

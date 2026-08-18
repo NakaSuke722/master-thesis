@@ -243,6 +243,10 @@ class AMBER:
         self.residualization = residualization
         self.scoring = scoring
         self.result_: pd.DataFrame | None = None
+        # JSON-serializable, per-metric observations for post-hoc analysis.
+        # Populated by fit_predict; deliberately separate from metric_result_
+        # so the ranking algorithm is not affected by diagnostic collection.
+        self.diagnostics_: dict[str, object] | None = None
 
     @staticmethod
     def _numeric_common_columns(normal: pd.DataFrame, abnormal: pd.DataFrame) -> list[str]:
@@ -298,7 +302,7 @@ class AMBER:
 
         return normal_y, abnormal_y
     
-    def _score_metric(self, normal_y: np.ndarray, abnormal_y: np.ndarray) -> dict[str, float]:
+    def _score_metric(self, normal_y: np.ndarray, abnormal_y: np.ndarray) -> dict[str, object]:
         normal_y, abnormal_y = self._prepare_series(
             normal_y,
             abnormal_y,
@@ -313,6 +317,15 @@ class AMBER:
                 "normal_scale": np.nan,
                 "abnormal_mean_z": np.nan,
                 "abnormal_sd_z": np.nan,
+                "ar_coefficients": [],
+                "raw_normal": normal_y.tolist(),
+                "raw_abnormal": abnormal_y.tolist(),
+                "ar_prediction_normal": [],
+                "ar_prediction_abnormal": [],
+                "ar_residual_normal": [],
+                "ar_residual_abnormal": [],
+                "standardized_residual_normal": [],
+                "standardized_residual_abnormal": [],
             }
         
         if self.residualization == "ar":
@@ -346,10 +359,17 @@ class AMBER:
                 coef,
                 self.ar_order,
             )
+            _, normal_target = _build_ar(normal_y, self.ar_order)
+            _, abnormal_target = _build_ar(history_and_abnormal, self.ar_order)
+            normal_prediction = normal_target - r_n
+            abnormal_prediction = abnormal_target - r_a
 
         elif self.residualization == "raw":
             r_n = normal_y.copy()
             r_a = abnormal_y.copy()
+            coef = np.empty(0, dtype=float)
+            normal_prediction = np.empty(0, dtype=float)
+            abnormal_prediction = np.empty(0, dtype=float)
 
         center = float(np.median(r_n))
         mad = float(np.median(np.abs(r_n - center)))
@@ -404,6 +424,19 @@ class AMBER:
             "abnormal_sd_z": float(np.std(z_a, ddof=1)) if z_a.size > 1 else 0.0,
             "log_marginal_h0": float(log_h0),
             "log_marginal_h1": float(log_h1),
+            # Keep the observations required to recreate an individual case
+            # plot without reloading preprocessed input data.  For AR, the
+            # prediction/residual series begin at ar_order; for raw they align
+            # one-to-one with the raw series and predictions are unavailable.
+            "ar_coefficients": coef.astype(float).tolist(),
+            "raw_normal": normal_y.astype(float).tolist(),
+            "raw_abnormal": abnormal_y.astype(float).tolist(),
+            "ar_prediction_normal": normal_prediction.astype(float).tolist(),
+            "ar_prediction_abnormal": abnormal_prediction.astype(float).tolist(),
+            "ar_residual_normal": r_n.astype(float).tolist(),
+            "ar_residual_abnormal": r_a.astype(float).tolist(),
+            "standardized_residual_normal": z_n.astype(float).tolist(),
+            "standardized_residual_abnormal": z_a.astype(float).tolist(),
         }
 
     def fit_predict(
@@ -413,10 +446,20 @@ class AMBER:
         columns: Iterable[str] | None = None,
     ) -> pd.DataFrame:
         cols = list(columns) if columns is not None else self._numeric_common_columns(normal, abnormal)
-        records: list[dict[str, float | str]] = []
+        records: list[dict[str, object]] = []
+        diagnostic_records: list[dict[str, object]] = []
         for col in cols:
             out = self._score_metric(normal[col].to_numpy(), abnormal[col].to_numpy())
-            records.append({"metric": col, "service": _service_name(col), **out})
+            ranking_fields = {
+                key: value for key, value in out.items()
+                if not isinstance(value, list)
+            }
+            records.append({"metric": col, "service": _service_name(col), **ranking_fields})
+            diagnostic_records.append({
+                "metric": col,
+                "service": _service_name(col),
+                **out,
+            })
 
         metric_df = pd.DataFrame(records).replace([np.inf, -np.inf], np.nan)
 
@@ -442,7 +485,21 @@ class AMBER:
         metric_df.insert(0, "rank", np.arange(1, len(metric_df) + 1))
         self.metric_result_ = metric_df
 
+        metric_ranks = metric_df.set_index("metric")["rank"].to_dict()
+        metric_scores = metric_df.set_index("metric")["score"].to_dict()
+        for record in diagnostic_records:
+            record["rank"] = int(metric_ranks[record["metric"]])
+            score = metric_scores[record["metric"]]
+            record["score"] = float(score) if pd.notna(score) else None
+
         if self.aggregate == "metric":
+            self.diagnostics_ = {
+                "schema_version": 1,
+                "residualization": self.residualization,
+                "scoring": self.scoring,
+                "ar_order": self.ar_order,
+                "metrics": diagnostic_records,
+            }
             self.result_ = metric_df
             return metric_df.copy()
 
@@ -487,6 +544,14 @@ class AMBER:
                 "evidence_weight",
             ] = weights / weights.sum()
         self.result_ = service_df
+        self.diagnostics_ = {
+            "schema_version": 1,
+            "residualization": self.residualization,
+            "scoring": self.scoring,
+            "ar_order": self.ar_order,
+            "metrics": diagnostic_records,
+            "services": service_df.to_dict(orient="records"),
+        }
         
         return service_df.copy()
 
