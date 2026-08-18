@@ -158,6 +158,27 @@ def write_summary(output_file, summary: dict) -> None:
         )
 
 
+def recorded_total_time(
+    config: dict,
+    granularity: str,
+) -> float:
+    """Read the wall-clock time written by the preceding single run."""
+    filepath = summary_path(config, granularity)
+
+    if not filepath.is_file():
+        return 0.0
+
+    with filepath.open("r", encoding="utf-8") as f:
+        previous_summary = json.load(f)
+
+    return float(
+        previous_summary.get(
+            "total_execution_time_sec",
+            0.0,
+        )
+    )
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(
         description="Aggregate RCA experiment results"
@@ -199,14 +220,23 @@ def main() -> None:
         raise ValueError("All configs must use the same granularity.")
 
     granularity = granularities[0]
-    per_config_time = args.total_time if len(configs) == 1 else 0.0
-    summaries = {
-        summary["experiment_name"]: summary
-        for config in configs
-        for summary in [
-            aggregate_config(config, granularity, per_config_time)
-        ]
-    }
+    summaries = {}
+
+    for config in configs:
+        total_time = (
+            args.total_time
+            if len(configs) == 1
+            else recorded_total_time(
+                config,
+                granularity,
+            )
+        )
+        summary = aggregate_config(
+            config,
+            granularity,
+            total_time,
+        )
+        summaries[summary["experiment_name"]] = summary
 
     if len(configs) == 1:
         output_file = summary_path(configs[0], granularity)
@@ -230,19 +260,43 @@ def main() -> None:
             / category
             / f"summary_{granularity}.json"
         )
+        table_summary = {
+            name: {
+                "total_execution_time_sec": summary[
+                    "total_execution_time_sec"
+                ],
+                "pure_python_execution_time_sec": summary[
+                    "pure_python_execution_time_sec"
+                ],
+                "datasets": summary["summary"],
+            }
+            for name, summary in summaries.items()
+        }
         output = {
             "experiment_category": category,
             "evaluation_granularity": granularity,
+            "total_execution_time_sec": round(
+                sum(
+                    summary["total_execution_time_sec"]
+                    for summary in summaries.values()
+                ),
+                1,
+            ),
+            "pure_python_execution_time_sec": round(
+                sum(
+                    summary["pure_python_execution_time_sec"]
+                    for summary in summaries.values()
+                ),
+                2,
+            ),
+            "summary": table_summary,
             "variants": summaries,
         }
         print(
             "\n===== Ablation Evaluation Summary "
             f"(Granularity: {granularity}) ====="
         )
-        print(json.dumps({
-            name: summary["summary"]
-            for name, summary in summaries.items()
-        }, indent=4, ensure_ascii=False))
+        print(json.dumps(table_summary, indent=4, ensure_ascii=False))
 
     write_summary(output_file, output)
 

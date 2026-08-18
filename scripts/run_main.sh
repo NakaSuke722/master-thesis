@@ -5,8 +5,24 @@ SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 PROJECT_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
 cd "${PROJECT_ROOT}"
 
-GRANULARITY="${1:-}"
+GRANULARITY_ARG="${1:-}"
 CONFIG="${2:-configs/amber.yaml}"
+
+case "${GRANULARITY_ARG}" in
+    "" )
+        GRANULARITY=""
+        ;;
+    service|-service|--service)
+        GRANULARITY="service"
+        ;;
+    metric|-metric|--metric)
+        GRANULARITY="metric"
+        ;;
+    *)
+        echo "Usage: $0 [service|-service|--service|metric|-metric|--metric] [config]" >&2
+        exit 2
+        ;;
+esac
 
 export PYTHONPATH="${PROJECT_ROOT}/src${PYTHONPATH:+:${PYTHONPATH}}"
 
