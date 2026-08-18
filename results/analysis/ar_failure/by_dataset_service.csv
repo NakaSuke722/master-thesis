@@ -1,0 +1,4 @@
+dataset,mean_delta_AC@1,mean_delta_AC@3,mean_delta_AC@5,mean_delta_Avg@1,mean_delta_Avg@3,mean_delta_Avg@5,mean_delta_root_rank,mean_delta_root_score,n_cases,n_delta_AC@1,n_delta_AC@3,n_delta_AC@5,n_delta_Avg@1,n_delta_Avg@3,n_delta_Avg@5,n_delta_root_rank,n_delta_root_score
+online_boutique,0.01,0.0,-0.03,0.01,0.006666666666666667,-0.004,0.06,-145.7096994589601,100,100,100,100,100,100,100,100,100
+sock_shop,0.02,0.0,0.0,0.02,0.013333333333333334,0.008,-0.04,-90.7258045853458,100,100,100,100,100,100,100,100,100
+train_ticket,-0.05,-0.06,-0.05,-0.05,-0.06666666666666667,-0.06,0.97,-479.97409690178915,100,100,100,100,100,100,100,100,100
