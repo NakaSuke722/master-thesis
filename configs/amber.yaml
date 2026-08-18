@@ -9,6 +9,9 @@ model:
   preprocess_strategy: "default"
 
   params:
+    residualization: "ar"
+    scoring: "bayes_factor"
+
     ar_order: 3
     ridge: 1.0e-3
     min_scale: 1.0e-6
@@ -20,7 +23,7 @@ model:
       kappa: 1.0e-3
       alpha: 2.0
       beta: 1.0
-
+      
 paths:
   raw_data_dir: "data/raw"
   processed_data_dir: "data/processed"

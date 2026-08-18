@@ -2,14 +2,14 @@
 
 experiment:
   category: "ablation"
-  name: "no_bayes"
+  name: "no_ar_no_bayes"
 
 model:
   target: "amber"
   preprocess_strategy: "default"
 
   params:
-    residualization: "ar"
+    residualization: "raw"
     scoring: "glrt"
 
     ar_order: 3

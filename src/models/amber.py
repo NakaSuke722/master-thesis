@@ -119,6 +119,64 @@ def _service_name(metric: str) -> str:
             return metric[: -len(suffix)]
     return metric.rsplit("_", 1)[0] if "_" in metric else metric
 
+def _gaussian_mle_loglik(
+    x: np.ndarray,
+    variance_floor: float = 1e-12,
+) -> float:
+    """Gaussian maximized log-likelihood."""
+
+    x = np.asarray(x, dtype=float)
+    x = x[np.isfinite(x)]
+
+    n = x.size
+    if n == 0:
+        return 0.0
+
+    mean = float(np.mean(x))
+
+    variance = float(
+        np.mean((x - mean) ** 2)
+    )
+
+    variance = max(
+        variance,
+        variance_floor,
+    )
+
+    return float(
+        -0.5
+        * n
+        * (
+            np.log(2.0 * np.pi * variance)
+            + 1.0
+        )
+    )
+
+
+def _gaussian_glrt_score(
+    z_normal: np.ndarray,
+    z_abnormal: np.ndarray,
+) -> float:
+    """GLRT statistic for pooled vs separate Gaussian distributions."""
+
+    pooled = np.concatenate([
+        z_normal,
+        z_abnormal,
+    ])
+
+    log_h0 = _gaussian_mle_loglik(
+        pooled
+    )
+
+    log_h1 = (
+        _gaussian_mle_loglik(z_normal)
+        + _gaussian_mle_loglik(z_abnormal)
+    )
+
+    return float(
+        2.0 * (log_h1 - log_h0)
+    )
+
 
 class AMBER:
     """RCA using Bayesian model selection on standardized AR residuals.
@@ -142,6 +200,8 @@ class AMBER:
         aggregate: Literal["metric", "service"] = "metric",
         service_aggregation: Literal["max", "mean_top3", "logsumexp"] = "max",
         prior: NIG | None = None,
+        residualization: Literal["ar", "raw",] = "ar",
+        scoring: Literal["bayes_factor", "glrt",] = "bayes_factor",
     ) -> None:
         if ar_order < 0:
             raise ValueError("ar_order must be non-negative")
@@ -159,6 +219,12 @@ class AMBER:
 
         if service_aggregation not in {"max","mean_top3","logsumexp",}:
             raise ValueError("Unknown service_aggregation=" f"{service_aggregation}")
+
+        if residualization not in {"ar", "raw"}:
+            raise ValueError(f"Unknown residualization={residualization}")
+
+        if scoring not in {"bayes_factor", "glrt",}:
+            raise ValueError(f"Unknown scoring={scoring}")
         
         self.ar_order = ar_order
         self.ridge = ridge
@@ -174,6 +240,8 @@ class AMBER:
         )
         self.service_aggregation = service_aggregation
         self.metric_result_: pd.DataFrame | None = None
+        self.residualization = residualization
+        self.scoring = scoring
         self.result_: pd.DataFrame | None = None
 
     @staticmethod
@@ -236,8 +304,7 @@ class AMBER:
             abnormal_y,
         )
 
-        if (
-            normal_y.size <= self.ar_order + 3
+        if (normal_y.size <= self.ar_order + 3
             or abnormal_y.size <= self.ar_order
         ):
             return {
@@ -248,27 +315,41 @@ class AMBER:
                 "abnormal_sd_z": np.nan,
             }
         
-        coef = _ridge_ar_fit(normal_y, self.ar_order, self.ridge)
-        r_n = _ar_residuals(normal_y, coef, self.ar_order)
-
-        if self.ar_order > 0:
-            history = normal_y[-self.ar_order:]
-        else:
-            history = np.empty(
-                0,
-                dtype=float,
+        if self.residualization == "ar":
+            coef = _ridge_ar_fit(
+                normal_y,
+                self.ar_order,
+                self.ridge,
             )
 
-        history_and_abnormal = np.concatenate([
-            history,
-            abnormal_y,
-        ])
+            r_n = _ar_residuals(
+                normal_y,
+                coef,
+                self.ar_order,
+            )
 
-        r_a = _ar_residuals(
-            history_and_abnormal,
-            coef,
-            self.ar_order,
-        )
+            if self.ar_order > 0:
+                history = normal_y[-self.ar_order:]
+            else:
+                history = np.empty(
+                    0,
+                    dtype=float,
+                )
+
+            history_and_abnormal = np.concatenate([
+                history,
+                abnormal_y,
+            ])
+
+            r_a = _ar_residuals(
+                history_and_abnormal,
+                coef,
+                self.ar_order,
+            )
+
+        elif self.residualization == "raw":
+            r_n = normal_y.copy()
+            r_a = abnormal_y.copy()
 
         center = float(np.median(r_n))
         mad = float(np.median(np.abs(r_n - center)))
@@ -281,22 +362,37 @@ class AMBER:
         z_n = (r_n - center) / scale
         z_a = (r_a - center) / scale
 
-        pooled = np.concatenate([z_n, z_a])
+        if self.scoring == "bayes_factor":
+            pooled = np.concatenate([
+                z_n,
+                z_a,
+            ])
 
-        # H0: normal and abnormal residuals share one Gaussian distribution.
-        log_h0 = _nig_log_marginal(
-            pooled,
-            self.prior,
-        )
+            log_h0 = _nig_log_marginal(
+                pooled,
+                self.prior,
+            )
 
-        # H1: normal and abnormal residuals have independent Gaussian parameters,
-        # both governed by the same weak-information NIG prior.
-        log_h1 = (
-            _nig_log_marginal(z_n, self.prior)
-            + _nig_log_marginal(z_a, self.prior)
-        )
+            log_h1 = (
+                _nig_log_marginal(
+                    z_n,
+                    self.prior,
+                )
+                + _nig_log_marginal(
+                    z_a,
+                    self.prior,
+                )
+            )
 
-        score = float(log_h1 - log_h0)
+            score = float(
+                log_h1 - log_h0
+            )
+
+        elif self.scoring == "glrt":
+            score = _gaussian_glrt_score(
+                z_n,
+                z_a,
+            )
 
         return {
             "score": score,

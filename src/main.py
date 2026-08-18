@@ -175,6 +175,16 @@ def run_experiment(
             service_aggregation=service_method,
         )
 
+        residualization=params.get(
+            "residualization",
+            "ar",
+        ),
+
+        scoring=params.get(
+            "scoring",
+            "bayes_factor",
+        ),
+
         if granularity == "service":
             predicted_ranking = rca_model.predict(
                 df_normal, df_abnormal
