@@ -21,3 +21,9 @@ for CONFIG in "${CONFIGS[@]}"; do
     zsh scripts/run_main.sh service "${CONFIG}"
     zsh scripts/run_main.sh metric "${CONFIG}"
 done
+
+for GRANULARITY in service metric; do
+    python3 src/aggregate_results.py \
+        --configs "${CONFIGS[@]}" \
+        --granularity "${GRANULARITY}"
+done

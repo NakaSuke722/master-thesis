@@ -362,6 +362,9 @@ class AMBER:
         z_n = (r_n - center) / scale
         z_a = (r_a - center) / scale
 
+        log_h0 = np.nan
+        log_h1 = np.nan
+
         if self.scoring == "bayes_factor":
             pooled = np.concatenate([
                 z_n,

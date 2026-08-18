@@ -173,17 +173,15 @@ def run_experiment(
             prior=prior,
             aggregate=model_aggregate,
             service_aggregation=service_method,
+            residualization=params.get(
+                "residualization",
+                "ar",
+            ),
+            scoring=params.get(
+                "scoring",
+                "bayes_factor",
+            ),
         )
-
-        residualization=params.get(
-            "residualization",
-            "ar",
-        ),
-
-        scoring=params.get(
-            "scoring",
-            "bayes_factor",
-        ),
 
         if granularity == "service":
             predicted_ranking = rca_model.predict(
@@ -333,6 +331,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-
-# online_boutiqueのcartservice_cpu (Run 1) のみを検証する場合
-# python3 src/main.py --dataset online_boutique --fault cartservice_cpu --run 1
