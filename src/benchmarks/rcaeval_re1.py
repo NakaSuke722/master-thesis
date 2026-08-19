@@ -2,78 +2,30 @@ from __future__ import annotations
 
 from pathlib import Path
 
-import pandas as pd
-import warnings
-
 from benchmarks.base import BenchmarkCase
 
 
 BENCHMARK_NAME = "rcaeval_re1"
 
-DATASET_NAME_MAP = {
-    "RE1-OB": "re1_ob",
-    "RE1-SS": "re1_ss",
-    "RE1-TT": "re1_tt",
+DATASET_DIRECTORIES = {
+    "re1_ob": "RE1-OB",
+    "re1_ss": "RE1-SS",
+    "re1_tt": "RE1-TT",
 }
 
-REQUIRED_INDEX_COLUMNS = {
-    "case",
-    "dataset",
-    "root_cause_service",
-    "fault",
-    "repetition",
-    "inject_time",
+EXPECTED_FAULTS = {
+    "cpu",
+    "mem",
+    "disk",
+    "delay",
+    "loss",
 }
 
-
-def load_case_index(
-    raw_root: str | Path,
-) -> pd.DataFrame:
-    """RCAEval cases.parquetからRE1のみを読み込む。"""
-
-    raw_root = Path(raw_root)
-    index_path = raw_root / "cases.parquet"
-
-    if not index_path.is_file():
-        raise FileNotFoundError(
-            f"RCAEval case index not found: {index_path}"
-        )
-
-    df = pd.read_parquet(index_path)
-
-    missing = (
-        REQUIRED_INDEX_COLUMNS
-        - set(df.columns)
-    )
-
-    if missing:
-        raise ValueError(
-            "RCAEval case index is missing columns: "
-            f"{sorted(missing)}"
-        )
-
-    df = df[
-        df["dataset"].isin(
-            DATASET_NAME_MAP.keys()
-        )
-    ].copy()
-
-    df["dataset_internal"] = (
-        df["dataset"].map(DATASET_NAME_MAP)
-    )
-
-    return df.reset_index(drop=True)
 
 def load_inject_time(
     source_path: Path,
-    index_inject_time: int,
 ) -> int:
-    """各ケースのinject_time.txtから障害注入時刻を取得する。
-
-    cases.parquetのinject_timeは索引用metadataとして扱い、
-    実際の実験ではRCAEval公式コードと同様に
-    case-localなinject_time.txtをsource of truthとする。
-    """
+    """case-localなinject_time.txtを読み込む。"""
 
     inject_path = (
         source_path / "inject_time.txt"
@@ -86,7 +38,7 @@ def load_inject_time(
         )
 
     try:
-        inject_time = int(
+        return int(
             inject_path
             .read_text(encoding="utf-8")
             .strip()
@@ -97,74 +49,157 @@ def load_inject_time(
             f"{inject_path}"
         ) from exc
 
-    if inject_time != int(index_inject_time):
-        warnings.warn(
-            "RCAEval inject-time mismatch: "
-            f"{source_path.name}: "
-            f"cases.parquet={index_inject_time}, "
-            f"inject_time.txt={inject_time}. "
-            "Using inject_time.txt.",
-            RuntimeWarning,
-            stacklevel=2,
+
+def parse_fault_directory(
+    directory_name: str,
+) -> tuple[str, str]:
+    """service_fault形式を分割する。"""
+
+    if "_" not in directory_name:
+        raise ValueError(
+            "Invalid RCAEval fault directory: "
+            f"{directory_name}"
         )
 
-    return inject_time
+    root_cause_service, fault_type = (
+        directory_name.rsplit("_", 1)
+    )
+
+    if not root_cause_service:
+        raise ValueError(
+            "Root cause service is empty: "
+            f"{directory_name}"
+        )
+
+    fault_type = fault_type.lower()
+
+    if fault_type not in EXPECTED_FAULTS:
+        raise ValueError(
+            "Unexpected RE1 fault type: "
+            f"{directory_name}"
+        )
+
+    return (
+        root_cause_service,
+        fault_type,
+    )
 
 
 def discover_cases(
     raw_root: str | Path,
     datasets: list[str] | None = None,
 ) -> list[BenchmarkCase]:
-    """RCAEval RE1の全ケースをBenchmarkCaseとして返す。"""
+    """Zenodo v2 RCAEval RE1を走査する。"""
 
     raw_root = Path(raw_root)
 
-    df = load_case_index(raw_root)
+    selected_datasets = (
+        datasets
+        if datasets is not None
+        else list(DATASET_DIRECTORIES)
+    )
 
-    if datasets is not None:
-        df = df[
-            df["dataset_internal"].isin(datasets)
-        ]
+    unknown = (
+        set(selected_datasets)
+        - set(DATASET_DIRECTORIES)
+    )
+
+    if unknown:
+        raise ValueError(
+            "Unknown RCAEval RE1 datasets: "
+            f"{sorted(unknown)}"
+        )
 
     cases: list[BenchmarkCase] = []
 
-    for row in df.sort_values(
-        ["dataset_internal", "case"]
-    ).itertuples(index=False):
-
-        source_path = raw_root / row.case
-
-        metrics_path = (
-            source_path / "metrics.parquet"
+    for dataset in selected_datasets:
+        dataset_root = (
+            raw_root
+            / dataset
+            / DATASET_DIRECTORIES[dataset]
         )
 
-        if not metrics_path.is_file():
+        if not dataset_root.is_dir():
             raise FileNotFoundError(
-                f"metrics.parquet not found: "
-                f"{metrics_path}"
+                "RCAEval dataset directory "
+                f"not found: {dataset_root}"
             )
 
-        inject_time = load_inject_time(
-            source_path=source_path,
-            index_inject_time=int(
-                row.inject_time
-            ),
-        )
+        for fault_dir in sorted(
+            dataset_root.iterdir()
+        ):
+            if not fault_dir.is_dir():
+                continue
 
-        cases.append(
-            BenchmarkCase(
-                benchmark=BENCHMARK_NAME,
-                dataset=row.dataset_internal,
-                case_id=row.case,
-                root_cause_service=(
-                    row.root_cause_service
+            (
+                root_cause_service,
+                fault_type,
+            ) = parse_fault_directory(
+                fault_dir.name
+            )
+
+            run_dirs = sorted(
+                (
+                    path
+                    for path in fault_dir.iterdir()
+                    if (
+                        path.is_dir()
+                        and path.name.isdigit()
+                    )
                 ),
-                fault_type=row.fault,
-                inject_time=inject_time,
-                repetition=int(row.repetition),
-                root_cause_metrics=None,
-                source_path=source_path,
+                key=lambda path: int(path.name),
             )
-        )
 
-    return cases
+            for run_dir in run_dirs:
+                data_path = (
+                    run_dir / "data.csv"
+                )
+
+                if not data_path.is_file():
+                    raise FileNotFoundError(
+                        "data.csv not found: "
+                        f"{data_path}"
+                    )
+
+                inject_time = (
+                    load_inject_time(run_dir)
+                )
+
+                repetition = int(
+                    run_dir.name
+                )
+
+                # パス区切りを含まない一意なIDにする。
+                case_id = (
+                    f"{dataset}__"
+                    f"{fault_dir.name}__"
+                    f"{repetition}"
+                )
+
+                cases.append(
+                    BenchmarkCase(
+                        benchmark=(
+                            BENCHMARK_NAME
+                        ),
+                        dataset=dataset,
+                        case_id=case_id,
+                        root_cause_service=(
+                            root_cause_service
+                        ),
+                        fault_type=(
+                            fault_type
+                        ),
+                        inject_time=inject_time,
+                        repetition=repetition,
+                        root_cause_metrics=None,
+                        source_path=run_dir,
+                    )
+                )
+
+    return sorted(
+        cases,
+        key=lambda case: (
+            case.dataset,
+            case.case_id,
+        ),
+    )

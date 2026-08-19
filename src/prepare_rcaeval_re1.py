@@ -126,12 +126,14 @@ def split_normal_abnormal(
 
 def prepare_case(
     case,
+    raw_root: str | Path,
     processed_root: str | Path,
     strategy: str,
     normal_window_points: int | None,
     abnormal_window_points: int | None,
+    data_source: dict,
 ) -> Path:
-
+    
     if case.source_path is None:
         raise ValueError(
             f"No source path for {case.case_id}"
@@ -139,11 +141,16 @@ def prepare_case(
 
     metrics_path = (
         case.source_path
-        / "metrics.parquet"
+        / "data.csv"
     )
 
-    df = pd.read_parquet(metrics_path)
+    if not metrics_path.is_file():
+        raise FileNotFoundError(
+            f"data.csv not found: "
+            f"{metrics_path}"
+        )
 
+    df = pd.read_csv(metrics_path)
     df = preprocess_metrics(df)
 
     time_min = int(df["time"].min())
@@ -201,13 +208,36 @@ def prepare_case(
 
     case_info = case.to_dict()
 
+    try:
+        source_case_path = (
+            case.source_path
+            .relative_to(Path(raw_root))
+            .as_posix()
+        )
+    except ValueError:
+        source_case_path = (
+            case.source_path.as_posix()
+        )
+
     case_info.update(
         {
+            "data_source": data_source,
+            "source_case_path": (
+                source_case_path
+            ),
             "normal_samples": len(normal),
             "abnormal_samples": len(abnormal),
             "n_metrics": len(normal.columns),
             "preprocessing": {
                 "strategy": strategy,
+                "split_rule": {
+                    "normal": (
+                        "time < inject_time"
+                    ),
+                    "abnormal": (
+                        "time >= inject_time"
+                    ),
+                },
                 "drop_latency_50": True,
                 "rename_latency_90": True,
                 "normal_window_points": (
@@ -297,6 +327,11 @@ def main() -> None:
         {},
     )
 
+    data_source = data_config.get(
+    "source",
+    {},
+    )
+
     normal_window_points = (
         data_config.get(
             "normal_window_points"
@@ -327,6 +362,7 @@ def main() -> None:
     ):
         output_dir = prepare_case(
             case=case,
+            raw_root=raw_root,
             processed_root=processed_root,
             strategy=strategy,
             normal_window_points=(
@@ -335,8 +371,9 @@ def main() -> None:
             abnormal_window_points=(
                 abnormal_window_points
             ),
+            data_source=data_source,
         )
-
+        
         print(
             f"[{index}/{total}] "
             f"{case.case_id} -> "

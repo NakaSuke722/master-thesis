@@ -70,3 +70,76 @@ def test_rcaeval_preprocessing():
         list(normal.columns)
         == list(abnormal.columns)
     )
+
+def test_rcaeval_window_is_maximum():
+
+    df = pd.DataFrame(
+        {
+            "time": list(
+                range(1400)
+            ),
+            "svc_cpu": list(
+                range(1400)
+            ),
+        }
+    )
+
+    normal, abnormal = (
+        split_normal_abnormal(
+            df,
+            inject_time=700,
+            normal_window_points=600,
+            abnormal_window_points=600,
+        )
+    )
+
+    assert len(normal) == 600
+    assert len(abnormal) == 600
+
+    # 障害前の末尾600点
+    assert (
+        normal["svc_cpu"].iloc[0]
+        == 100
+    )
+
+    assert (
+        normal["svc_cpu"].iloc[-1]
+        == 699
+    )
+
+    # 障害後の先頭600点
+    assert (
+        abnormal["svc_cpu"].iloc[0]
+        == 700
+    )
+
+    assert (
+        abnormal["svc_cpu"].iloc[-1]
+        == 1299
+    )
+
+
+def test_short_case_is_not_padded():
+
+    df = pd.DataFrame(
+        {
+            "time": list(
+                range(721)
+            ),
+            "svc_cpu": list(
+                range(721)
+            ),
+        }
+    )
+
+    normal, abnormal = (
+        split_normal_abnormal(
+            df,
+            inject_time=360,
+            normal_window_points=600,
+            abnormal_window_points=600,
+        )
+    )
+
+    assert len(normal) == 360
+    assert len(abnormal) == 361

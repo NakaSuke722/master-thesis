@@ -57,6 +57,7 @@ def run_experiment(
     config_path: str,
     granularity: str,
     benchmark_case: BenchmarkCase | None = None,
+    benchmark_case_info = None,
     batch: bool = False,
     progress: int | None = None,
     total_progress: int | None = None,
@@ -142,20 +143,22 @@ def run_experiment(
         from models.amber import AMBER, NIG
 
         if benchmark_case is not None:
-            df_normal, df_abnormal, _ = (
-                load_benchmark_processed_case(
-                    benchmark=(
-                        benchmark_case.benchmark
-                    ),
-                    dataset=(
-                        benchmark_case.dataset
-                    ),
-                    case_id=(
-                        benchmark_case.case_id
-                    ),
-                    strategy=strategy,
-                    processed_root=processed_root,
-                )
+            (
+                df_normal,
+                df_abnormal,
+                benchmark_case_info,
+            ) = load_benchmark_processed_case(
+                benchmark=(
+                    benchmark_case.benchmark
+                ),
+                dataset=(
+                    benchmark_case.dataset
+                ),
+                case_id=(
+                    benchmark_case.case_id
+                ),
+                strategy=strategy,
+                processed_root=processed_root,
             )
         else:
             df_normal, df_abnormal, _ = (
@@ -330,6 +333,43 @@ def run_experiment(
             else None
         ),
     }
+
+    if benchmark_case_info is not None:
+        results["data_source"] = (
+            benchmark_case_info.get(
+                "data_source"
+            )
+        )
+
+        results["source_case_path"] = (
+            benchmark_case_info.get(
+                "source_case_path"
+            )
+        )
+
+        results["preprocessing"] = (
+            benchmark_case_info.get(
+                "preprocessing"
+            )
+        )
+
+        results["input_samples"] = {
+            "normal": (
+                benchmark_case_info.get(
+                    "normal_samples"
+                )
+            ),
+            "abnormal": (
+                benchmark_case_info.get(
+                    "abnormal_samples"
+                )
+            ),
+            "metrics": (
+                benchmark_case_info.get(
+                    "n_metrics"
+                )
+            ),
+        }
 
     # This is observational output only: AMBER's scoring and ranking are
     # completed above before diagnostics are copied into the result artifact.

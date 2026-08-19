@@ -1,81 +1,94 @@
+from pathlib import Path
+
 import pandas as pd
-import pytest
 
 from benchmarks.rcaeval_re1 import (
     discover_cases,
-    load_case_index,
+    parse_fault_directory,
 )
 
 
-def test_rcaeval_case_index(tmp_path):
-
-    raw_root = tmp_path / "raw"
-    raw_root.mkdir()
-
-    case_id = (
-        "re1ob_adservice_cpu_1"
-    )
-
+def make_case(
+    raw_root: Path,
+    *,
+    dataset_internal: str,
+    dataset_original: str,
+    fault_directory: str,
+    repetition: int,
+    inject_time: int,
+) -> Path:
     case_dir = (
-        raw_root / case_id
+        raw_root
+        / dataset_internal
+        / dataset_original
+        / fault_directory
+        / str(repetition)
     )
 
-    # 先にディレクトリを作る
-    case_dir.mkdir()
-
-    # case-localなinject time
-    (
-        case_dir / "inject_time.txt"
-    ).write_text(
-        "2",
-        encoding="utf-8",
+    case_dir.mkdir(
+        parents=True
     )
 
     pd.DataFrame(
         {
-            "time": [1, 2, 3],
+            "time": [
+                inject_time - 1,
+                inject_time,
+                inject_time + 1,
+            ],
             "adservice_cpu": [
                 1.0,
-                2.0,
-                3.0,
+                5.0,
+                6.0,
             ],
         }
-    ).to_parquet(
-        case_dir / "metrics.parquet"
+    ).to_csv(
+        case_dir / "data.csv",
+        index=False,
     )
 
-    index = pd.DataFrame(
-        {
-            "case": [case_id],
-            "dataset": ["RE1-OB"],
-            "root_cause_service": [
-                "adservice"
-            ],
-            "fault": ["cpu"],
-            "repetition": [1],
-            "inject_time": [2],
-        }
+    (
+        case_dir / "inject_time.txt"
+    ).write_text(
+        str(inject_time),
+        encoding="utf-8",
     )
 
-    index.to_parquet(
-        raw_root / "cases.parquet"
+    return case_dir
+
+
+def test_parse_fault_directory():
+
+    service, fault = (
+        parse_fault_directory(
+            "currencyservice_loss"
+        )
     )
 
-    df = load_case_index(
-        raw_root
-    )
+    assert service == "currencyservice"
+    assert fault == "loss"
 
-    assert len(df) == 1
 
-    assert (
-        df.iloc[0][
-            "dataset_internal"
-        ]
-        == "re1_ob"
+def test_discover_zenodo_case(
+    tmp_path,
+):
+
+    raw_root = tmp_path / "raw"
+
+    make_case(
+        raw_root,
+        dataset_internal="re1_ob",
+        dataset_original="RE1-OB",
+        fault_directory=(
+            "adservice_cpu"
+        ),
+        repetition=1,
+        inject_time=100,
     )
 
     cases = discover_cases(
-        raw_root
+        raw_root,
+        datasets=["re1_ob"],
     )
 
     assert len(cases) == 1
@@ -83,90 +96,31 @@ def test_rcaeval_case_index(tmp_path):
     case = cases[0]
 
     assert (
+        case.dataset
+        == "re1_ob"
+    )
+
+    assert (
+        case.case_id
+        == "re1_ob__adservice_cpu__1"
+    )
+
+    assert (
         case.root_cause_service
         == "adservice"
     )
 
     assert case.fault_type == "cpu"
+    assert case.repetition == 1
+    assert case.inject_time == 100
 
-    # inject_time.txtの値が使われることも確認
-    assert case.inject_time == 2
-
-
-def test_inject_time_file_overrides_index(
-    tmp_path,
-):
-
-    raw_root = tmp_path / "raw"
-    raw_root.mkdir()
-
-    case_id = (
-        "re1ob_adservice_cpu_1"
-    )
-
-    case_dir = (
-        raw_root / case_id
-    )
-
-    case_dir.mkdir()
-
-    pd.DataFrame(
-        {
-            "time": [
-                100,
-                101,
-                102,
-                103,
-            ],
-            "adservice_cpu": [
-                1.0,
-                1.0,
-                5.0,
-                5.0,
-            ],
-        }
-    ).to_parquet(
-        case_dir / "metrics.parquet"
-    )
-
-    # こちらが正しい値
-    (
-        case_dir / "inject_time.txt"
-    ).write_text(
-        "102",
-        encoding="utf-8",
-    )
-
-    # cases.parquetは故意に壊す
-    pd.DataFrame(
-        {
-            "case": [case_id],
-            "dataset": ["RE1-OB"],
-            "root_cause_service": [
-                "adservice"
-            ],
-            "fault": ["cpu"],
-            "repetition": [1],
-            "inject_time": [1],
-        }
-    ).to_parquet(
-        raw_root / "cases.parquet"
-    )
-
-    # mismatch warningが出ること自体も仕様として検証
-    with pytest.warns(
-        RuntimeWarning,
-        match="inject-time mismatch",
-    ):
-        cases = discover_cases(
-            raw_root
-        )
-
-    assert len(cases) == 1
-
-    # cases.parquet=1ではなく
-    # inject_time.txt=102が採用される
     assert (
-        cases[0].inject_time
-        == 102
+        case.source_path
+        == (
+            raw_root
+            / "re1_ob"
+            / "RE1-OB"
+            / "adservice_cpu"
+            / "1"
+        )
     )
