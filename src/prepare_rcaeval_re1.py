@@ -146,6 +146,23 @@ def prepare_case(
 
     df = preprocess_metrics(df)
 
+    time_min = int(df["time"].min())
+    time_max = int(df["time"].max())
+
+    if not (
+        time_min
+        < case.inject_time
+        <= time_max
+    ):
+        raise ValueError(
+            "Inject time is outside "
+            "the valid split range: "
+            f"case={case.case_id}, "
+            f"inject_time={case.inject_time}, "
+            f"time_min={time_min}, "
+            f"time_max={time_max}"
+        )
+
     normal, abnormal = (
         split_normal_abnormal(
             df=df,

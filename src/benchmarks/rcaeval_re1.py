@@ -3,6 +3,7 @@ from __future__ import annotations
 from pathlib import Path
 
 import pandas as pd
+import warnings
 
 from benchmarks.base import BenchmarkCase
 
@@ -63,6 +64,52 @@ def load_case_index(
 
     return df.reset_index(drop=True)
 
+def load_inject_time(
+    source_path: Path,
+    index_inject_time: int,
+) -> int:
+    """各ケースのinject_time.txtから障害注入時刻を取得する。
+
+    cases.parquetのinject_timeは索引用metadataとして扱い、
+    実際の実験ではRCAEval公式コードと同様に
+    case-localなinject_time.txtをsource of truthとする。
+    """
+
+    inject_path = (
+        source_path / "inject_time.txt"
+    )
+
+    if not inject_path.is_file():
+        raise FileNotFoundError(
+            "inject_time.txt not found: "
+            f"{inject_path}"
+        )
+
+    try:
+        inject_time = int(
+            inject_path
+            .read_text(encoding="utf-8")
+            .strip()
+        )
+    except ValueError as exc:
+        raise ValueError(
+            "Invalid inject_time.txt: "
+            f"{inject_path}"
+        ) from exc
+
+    if inject_time != int(index_inject_time):
+        warnings.warn(
+            "RCAEval inject-time mismatch: "
+            f"{source_path.name}: "
+            f"cases.parquet={index_inject_time}, "
+            f"inject_time.txt={inject_time}. "
+            "Using inject_time.txt.",
+            RuntimeWarning,
+            stacklevel=2,
+        )
+
+    return inject_time
+
 
 def discover_cases(
     raw_root: str | Path,
@@ -97,6 +144,13 @@ def discover_cases(
                 f"{metrics_path}"
             )
 
+        inject_time = load_inject_time(
+            source_path=source_path,
+            index_inject_time=int(
+                row.inject_time
+            ),
+        )
+
         cases.append(
             BenchmarkCase(
                 benchmark=BENCHMARK_NAME,
@@ -106,7 +160,7 @@ def discover_cases(
                     row.root_cause_service
                 ),
                 fault_type=row.fault,
-                inject_time=int(row.inject_time),
+                inject_time=inject_time,
                 repetition=int(row.repetition),
                 root_cause_metrics=None,
                 source_path=source_path,
