@@ -8,10 +8,12 @@ import time
 from functools import lru_cache
 from experiments.config import load_config, resolve_granularity
 from experiments.paths import case_result_dir
+from benchmarks.base import BenchmarkCase
 from data_loader import (
     get_processed_case_dir,
     load_processed_case,
     load_timeseries_data,
+    load_benchmark_processed_case,
 )
 from evaluation import (
     aggregate_canonical_metrics,
@@ -54,6 +56,7 @@ def run_experiment(
     config: dict,
     config_path: str,
     granularity: str,
+    benchmark_case: BenchmarkCase | None = None,
     batch: bool = False,
     progress: int | None = None,
     total_progress: int | None = None,
@@ -76,7 +79,11 @@ def run_experiment(
         "data/processed",
     )
 
-    ground_truth = fault
+    ground_truth = (
+        benchmark_case.root_cause_service
+        if benchmark_case is not None
+        else fault
+    )
 
     # 3. モデルの動的切り替え（条件分岐）
     current_seed = 42 + run
@@ -134,15 +141,34 @@ def run_experiment(
 
         from models.amber import AMBER, NIG
 
-        df_normal, df_abnormal, _ = load_processed_case(
-            dataset=dataset,
-            fault_type=fault,
-            run_id=run,
-            strategy=strategy,
-            processed_root=processed_root,
-            load_graph_info=False,
-        )
-        
+        if benchmark_case is not None:
+            df_normal, df_abnormal, _ = (
+                load_benchmark_processed_case(
+                    benchmark=(
+                        benchmark_case.benchmark
+                    ),
+                    dataset=(
+                        benchmark_case.dataset
+                    ),
+                    case_id=(
+                        benchmark_case.case_id
+                    ),
+                    strategy=strategy,
+                    processed_root=processed_root,
+                )
+            )
+        else:
+            df_normal, df_abnormal, _ = (
+                load_processed_case(
+                    dataset=dataset,
+                    fault_type=fault,
+                    run_id=run,
+                    strategy=strategy,
+                    processed_root=processed_root,
+                    load_graph_info=False,
+                )
+            )
+
         service_method = config["evaluation"].get(
             "service_aggregation", {}
         ).get("method", "mean_top3")
@@ -199,13 +225,42 @@ def run_experiment(
                 method=metric_method,
             )
 
-        evaluation_ground_truth = make_evaluation_ground_truth(
-            ground_truth,
-            granularity,
-            config["evaluation"].get(
-                "fine_grained_fault_to_metric", {}
-            ),
-        )
+        if benchmark_case is not None:
+
+            if granularity == "service":
+                evaluation_ground_truth = (
+                    benchmark_case.root_cause_service
+                )
+
+            elif (
+                benchmark_case.root_cause_metrics
+                is not None
+            ):
+                evaluation_ground_truth = list(
+                    benchmark_case.root_cause_metrics
+                )
+
+            else:
+                raise ValueError(
+                    "Metric-level ground truth "
+                    "is unavailable for "
+                    f"{benchmark_case.benchmark}: "
+                    f"{benchmark_case.case_id}"
+                )
+
+        else:
+            evaluation_ground_truth = (
+                make_evaluation_ground_truth(
+                    ground_truth,
+                    granularity,
+                    config[
+                        "evaluation"
+                    ].get(
+                        "fine_grained_fault_to_metric",
+                        {},
+                    ),
+                )
+            )
 
     else:
         raise ValueError(f"Unknown model target in config: {target_model}")
@@ -238,9 +293,17 @@ def run_experiment(
 
     results = {
         "dataset": dataset,
-        "fault_type": fault,
-        "run_id": run,
+        "fault_type": (
+            benchmark_case.fault_type
+            if benchmark_case is not None
+            else fault
+        ),
 
+        "run_id": (
+            benchmark_case.repetition
+            if benchmark_case is not None
+            else run
+        ),
         "experiment_category": experiment.get("category", "main"),
         "experiment_name": experiment.get("name", target_model),
 
@@ -255,6 +318,17 @@ def run_experiment(
         "predicted_top_5": predicted_ranking[:5],
         "ground_truth": ground_truth,
         "evaluation_ground_truth": evaluation_ground_truth,
+        "benchmark": (
+            benchmark_case.benchmark
+            if benchmark_case is not None
+            else "baro_pilot"
+        ),
+
+        "case_id": (
+            benchmark_case.case_id
+            if benchmark_case is not None
+            else None
+        ),
     }
 
     # This is observational output only: AMBER's scoring and ranking are
@@ -269,7 +343,16 @@ def run_experiment(
     )
     output_dir.mkdir(parents=True, exist_ok=True)
 
-    output_file = output_dir / f"{fault}_run{run}.json"
+    if benchmark_case is not None:
+        output_file = (
+            output_dir
+            / f"{benchmark_case.case_id}.json"
+        )
+    else:
+        output_file = (
+            output_dir
+            / f"{fault}_run{run}.json"
+        )
 
     with output_file.open("w", encoding="utf-8") as f:
         json.dump(results, f, indent=4, ensure_ascii=False, )

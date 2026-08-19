@@ -251,15 +251,38 @@ def main() -> None:
         category = configs[0].get("experiment", {}).get(
             "category", "ablation"
         )
-        output_file = (
+
+        base_output_dir = (
             Path(
-                configs[0].get("paths", {}).get(
-                    "results_root", "results"
+                configs[0].get(
+                    "paths",
+                    {},
+                ).get(
+                    "results_root",
+                    "results",
                 )
             )
             / category
+        )
+
+        benchmark_name = (
+            configs[0].get(
+                "benchmark",
+                {},
+            ).get("name")
+        )
+
+        if benchmark_name:
+            base_output_dir = (
+                base_output_dir
+                / benchmark_name
+            )
+
+        output_file = (
+            base_output_dir
             / f"summary_{granularity}.json"
         )
+        
         table_summary = {
             name: {
                 "total_execution_time_sec": summary[

@@ -3,19 +3,60 @@ from __future__ import annotations
 from pathlib import Path
 
 
-def experiment_dir(config: dict) -> Path:
+def experiment_dir(
+    config: dict,
+) -> Path:
     root = Path(
-        config.get("paths", {}).get("results_root", "results")
+        config.get(
+            "paths",
+            {},
+        ).get(
+            "results_root",
+            "results",
+        )
     )
 
-    experiment = config.get("experiment", {})
-    category = experiment.get("category", "main")
+    experiment = config.get(
+        "experiment",
+        {},
+    )
+
+    category = experiment.get(
+        "category",
+        "main",
+    )
+
     name = experiment.get(
         "name",
-        config.get("model", {}).get("target", "experiment"),
+        config.get(
+            "model",
+            {},
+        ).get(
+            "target",
+            "experiment",
+        ),
     )
 
-    return root / category / name
+    benchmark = config.get(
+        "benchmark",
+        {},
+    ).get("name")
+
+    path = (
+        root
+        / category
+    )
+
+    if benchmark:
+        path = (
+            path
+            / benchmark
+        )
+
+    return (
+        path
+        / name
+    )
 
 
 def case_result_dir(
@@ -23,11 +64,18 @@ def case_result_dir(
     granularity: str,
     dataset: str,
 ) -> Path:
-    return experiment_dir(config) / granularity / dataset
+    return (
+        experiment_dir(config)
+        / granularity
+        / dataset
+    )
 
 
 def summary_path(
     config: dict,
     granularity: str,
 ) -> Path:
-    return experiment_dir(config) / f"summary_{granularity}.json"
+    return (
+        experiment_dir(config)
+        / f"summary_{granularity}.json"
+    )
