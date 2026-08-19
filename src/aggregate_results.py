@@ -22,18 +22,34 @@ def aggregate_config(
     granularity: str,
     total_time: float = 0.0,
 ) -> dict:
-    """Return one experiment's summary without writing it to disk."""
-    target_datasets = config.get("datasets", [])
-    model_used = config["model"]["target"]
+    """1実験の結果を読み込み、集計結果を返す。"""
 
-    experiment = config.get("experiment", {})
-    experiment_category = experiment.get(
-        "category",
-        "main",
+    target_datasets = config.get(
+        "datasets",
+        [],
     )
-    experiment_name = experiment.get(
-        "name",
-        model_used,
+
+    model_used = config[
+        "model"
+    ]["target"]
+
+    experiment = config.get(
+        "experiment",
+        {},
+    )
+
+    experiment_category = (
+        experiment.get(
+            "category",
+            "main",
+        )
+    )
+
+    experiment_name = (
+        experiment.get(
+            "name",
+            model_used,
+        )
     )
 
     results_root = (
@@ -41,11 +57,19 @@ def aggregate_config(
         / granularity
     )
 
-    all_results = []
+    # 全結果を保持せず、
+    # 読み込みと同時に必要な値だけ集計する。
+    dataset_metrics = defaultdict(
+        lambda: defaultdict(list)
+    )
+
+    number_of_cases = 0
     pure_execution_time = 0.0
 
     for dataset in target_datasets:
-        dataset_dir = results_root / dataset
+        dataset_dir = (
+            results_root / dataset
+        )
 
         if not dataset_dir.is_dir():
             continue
@@ -56,54 +80,68 @@ def aggregate_config(
             with filepath.open(
                 "r",
                 encoding="utf-8",
-            ) as f:
-                data = json.load(f)
+            ) as file:
+                data = json.load(file)
 
+            # 別granularityの結果を除外する。
             if (
-                data.get("evaluation_granularity")
+                data.get(
+                    "evaluation_granularity"
+                )
                 != granularity
             ):
                 continue
 
-            if data.get("model_used") != model_used:
+            # 別モデルの結果を除外する。
+            if (
+                data.get("model_used")
+                != model_used
+            ):
                 continue
 
+            # 別実験カテゴリの結果を除外する。
             if (
-                data.get("experiment_category")
+                data.get(
+                    "experiment_category"
+                )
                 != experiment_category
             ):
                 continue
 
+            # 別実験名の結果を除外する。
             if (
-                data.get("experiment_name")
+                data.get(
+                    "experiment_name"
+                )
                 != experiment_name
             ):
                 continue
 
-            all_results.append(data)
+            number_of_cases += 1
 
-            pure_execution_time += data.get(
-                "execution_time_sec",
-                0.0,
+            pure_execution_time += (
+                data.get(
+                    "execution_time_sec",
+                    0.0,
+                )
             )
 
-    if not all_results:
+            # data全体を保存せず、
+            # 必要なmetricsだけその場で追加する。
+            for metric_name, value in (
+                data["metrics"].items()
+            ):
+                dataset_metrics[
+                    data["dataset"]
+                ][metric_name].append(
+                    value
+                )
+
+    if number_of_cases == 0:
         raise FileNotFoundError(
-            f"No result files found under "
+            "No result files found under "
             f"{results_root}"
         )
-
-    dataset_metrics = defaultdict(
-        lambda: defaultdict(list)
-    )
-
-    for result in all_results:
-        for metric_name, value in (
-            result["metrics"].items()
-        ):
-            dataset_metrics[
-                result["dataset"]
-            ][metric_name].append(value)
 
     summary = {
         dataset: {
@@ -125,19 +163,29 @@ def aggregate_config(
     )
 
     return {
-        "experiment_category": experiment_category,
-        "experiment_name": experiment_name,
+        "experiment_category": (
+            experiment_category
+        ),
+        "experiment_name": (
+            experiment_name
+        ),
         "model_used": model_used,
-        "evaluation_granularity": granularity,
-        "total_execution_time_sec": round(final_time, 1),
+        "evaluation_granularity": (
+            granularity
+        ),
+        "number_of_cases": (
+            number_of_cases
+        ),
+        "total_execution_time_sec": round(
+            final_time,
+            1,
+        ),
         "pure_python_execution_time_sec": round(
             pure_execution_time,
             2,
         ),
         "summary": summary,
-        "details": all_results,
     }
-
 
 def write_summary(output_file, summary: dict) -> None:
 
@@ -282,7 +330,7 @@ def main() -> None:
             base_output_dir
             / f"summary_{granularity}.json"
         )
-        
+
         table_summary = {
             name: {
                 "total_execution_time_sec": summary[

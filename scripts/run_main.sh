@@ -6,10 +6,13 @@ PROJECT_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
 cd "${PROJECT_ROOT}"
 
 GRANULARITY_ARG="${1:-}"
-CONFIG="${2:-configs/amber.yaml}"
+
+CONFIG="${
+    2:-configs/main/rcaeval_re1_zenodo_v2.yaml
+}"
 
 case "${GRANULARITY_ARG}" in
-    "" )
+    "")
         GRANULARITY=""
         ;;
     service|-service|--service)
@@ -19,7 +22,9 @@ case "${GRANULARITY_ARG}" in
         GRANULARITY="metric"
         ;;
     *)
-        echo "Usage: $0 [service|-service|--service|metric|-metric|--metric] [config]" >&2
+        echo \
+            "Usage: $0 [service|metric] [config]" \
+            >&2
         exit 2
         ;;
 esac
@@ -31,10 +36,12 @@ START_TIME=$(date +%s)
 if [[ -n "${GRANULARITY}" ]]; then
     python3 src/runner.py \
         --config "${CONFIG}" \
-        --granularity "${GRANULARITY}"
+        --granularity "${GRANULARITY}" \
+        --defer-success-notification
 else
     python3 src/runner.py \
-        --config "${CONFIG}"
+        --config "${CONFIG}" \
+        --defer-success-notification
 fi
 
 END_TIME=$(date +%s)

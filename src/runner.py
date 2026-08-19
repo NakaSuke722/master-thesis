@@ -244,8 +244,17 @@ def main() -> None:
         default=None,
     )
 
-    args = parser.parse_args()
+    parser.add_argument(
+        "--defer-success-notification",
+        action="store_true",
+        help=(
+            "Defer successful Slack "
+            "notification until aggregation."
+        ),
+    )
 
+    args = parser.parse_args()
+    
     config = load_config(
         args.config
     )
@@ -305,35 +314,35 @@ def main() -> None:
     finally:
         end_epoch = time.time()
 
-        maybe_notify_slack(
-            webhook_url=os.environ.get(
-                "SLACK_WEBHOOK_URL",
-                "",
-            ),
-            mention_user_id=(
-                os.environ.get(
-                    "SLACK_MENTION_USER_ID",
-                    "",
-                )
-            ),
-            command=command_label,
-            start_epoch=start_epoch,
-            end_epoch=end_epoch,
-            exit_code=(
-                0
-                if status == "completed"
-                else (
-                    130
-                    if status
-                    == "interrupted"
-                    else 1
-                )
-            ),
-            status=status,
-            reason=reason,
-            result_files=generated,
+        should_notify = (
+            status != "completed"
+            or not args.defer_success_notification
         )
 
+        if should_notify:
+            maybe_notify_slack(
+                webhook_url=os.environ.get(
+                    "SLACK_WEBHOOK_URL",
+                    "",
+                ),
+                mention_user_id=os.environ.get(
+                    "SLACK_MENTION_USER_ID",
+                    "",
+                ),
+                command=command_label,
+                start_epoch=start_epoch,
+                end_epoch=end_epoch,
+                exit_code=(
+                    0
+                    if status == "completed"
+                    else 130
+                    if status == "interrupted"
+                    else 1
+                ),
+                status=status,
+                reason=reason,
+                result_files=generated,
+            )
 
 if __name__ == "__main__":
     main()
