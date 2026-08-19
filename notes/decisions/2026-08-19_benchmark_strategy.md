@@ -344,7 +344,7 @@ benchmark/case
 実装項目：
 
 - RCAEval loader作成
-- metrics.parquet読み込み
+- Zenodo v2原版のdata.csv読み込み
 - normal/abnormal split
 - case_info.json生成
 - service-level evaluation対応
@@ -388,4 +388,57 @@ AMBERがroot cause serviceを特定できるか」
 - 再現性
 - 既存研究との比較可能性
 
-を向上させる。v
+を向上させる。
+
+---
+
+# 9. RCAEval RE1正式実験条件の確定
+
+2026-08-19にRCAEval RE1への移行を完了し、正式実験条件を以下に確定した。
+
+## 9.1 データソース
+
+- Provider: Zenodo
+- Record: 14590730
+- DOI: 10.5281/zenodo.14590730
+- Version: v2
+- 対象: RE1-OB、RE1-SS、RE1-TT
+- ケース数: 各125件、合計375件
+
+Hugging Face版では一部ケースに時刻・行数の不整合が確認されたため、正式実験には使用しない。Zenodo v2原版の`data.csv`とcase-localな`inject_time.txt`をsource of truthとする。
+
+## 9.2 時系列分割と解析窓
+
+障害注入時刻を`t_F`として、次の規則で分割する。
+
+- normal: `time < t_F`
+- abnormal: `time >= t_F`
+- normal window: 障害直前から最大600点
+- abnormal window: 障害直後から最大600点
+
+600点未満の区間はパディングせず、利用可能な全点を使用する。
+
+## 9.3 評価条件
+
+- 評価粒度: service-level
+- Ground truth: `root_cause_service`
+- 指標: AC@1、AC@3、AC@5、Avg@1、Avg@3、Avg@5
+- Service aggregation: `mean_top3`
+
+RCAEval RE1では正式なmetric-level ground truthを使用しないため、metric-level評価は本実験の対象外とする。
+
+## 9.4 成果物の分離
+
+Hugging Face版やBARO予備実験との混在を防ぐため、入出力を以下へ分離する。
+
+```text
+data/raw/rcaeval_zenodo_v2/
+data/processed/rcaeval_zenodo_v2/
+results/main/rcaeval_re1/amber_zenodo_v2/service/
+```
+
+正式設定は`configs/main/rcaeval_re1_zenodo_v2.yaml`で管理する。AMBER本体の推論実装は変更せず、benchmark adapter、前処理、設定、テスト、結果パスのみをRCAEval向けに整備した。
+
+## 9.5 移行状態
+
+Phase 2は完了とする。Zenodo v2の375ケースすべてについて、データ発見、前処理、AMBER実行、service-level集計が成功した。初回実行の詳細は`notes/experiments/2026-08-19_rcaeval_re1_zenodo_v2_migration.md`に記録する。
