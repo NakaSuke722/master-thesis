@@ -1,10 +1,22 @@
 # macOS specific
 .DS_Store
 
-# Data files
-data/raw/*
-data/processed/*
+# Data payloads and local download caches.
+# Keep the documented directory scaffold and .gitkeep files visible on GitHub.
+data/**/*.csv
+data/**/*.json
+data/**/*.parquet
+data/**/*.zip
+data/**/*.txt
+data/**/*.png
+data/**/*.log
+data/**/*.metadata
+data/**/*.lock
+data/**/.cache/
+data/**/.DS_Store
+data/**/TAG
 !data/**/.gitkeep
+!data/**/*.md
 
 # Python specific
 __pycache__/
