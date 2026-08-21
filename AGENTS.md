@@ -46,7 +46,8 @@
   - `no_ar`: `raw` + `bayes_factor`
   - `no_bayes`: `ar` + `glrt`
   - `no_ar_no_bayes`: `raw` + `glrt`
-- `configs/ablation/no_ar.yaml`、`no_bayes.yaml`、`no_ar_no_bayes.yaml` はBARO pilot再現用として保持し、削除またはRCAEval用に上書きしない。
+- `configs/ablation/baro/` 配下の3設定はBARO pilot再現用として保持し、削除またはRCAEval用に上書きしない。
+- BARO pilotのデータパスは raw `data/raw/baro`、processed `data/processed/baro` とする。
 
 ## 検証
 

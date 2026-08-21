@@ -10,30 +10,42 @@ documented here.
 ```text
 data/
 ├── raw/
-│   └── rcaeval_zenodo_v2/
-│       ├── re1_ob/
-│       │   └── RE1-OB/
-│       │       └── <service>_<fault>/
-│       │           └── <run>/
-│       │               ├── data.csv
-│       │               └── inject_time.txt
-│       ├── re1_ss/
-│       │   └── RE1-SS/
-│       │       └── <service>_<fault>/<run>/...
-│       └── re1_tt/
-│           └── RE1-TT/
-│               └── <service>_<fault>/<run>/...
+│   ├── baro/
+│   │   ├── online_boutique/
+│   │   ├── sock_shop/
+│   │   └── train_ticket/
+│   ├── rcaeval_zenodo_v2/
+│   │   ├── re1_ob/
+│   │   │   └── RE1-OB/
+│   │   │       └── <service>_<fault>/
+│   │   │           └── <run>/
+│   │   │               ├── data.csv
+│   │   │               └── inject_time.txt
+│   │   ├── re1_ss/
+│   │   │   └── RE1-SS/
+│   │   │       └── <service>_<fault>/<run>/...
+│   │   └── re1_tt/
+│   │       └── RE1-TT/
+│   │           └── <service>_<fault>/<run>/...
+│   └── legacy/
+│       └── rcaeval_re1_huggingface/
 └── processed/
-    └── rcaeval_zenodo_v2/
-        └── default/
-            └── rcaeval_re1/
-                ├── re1_ob/
-                ├── re1_ss/
-                └── re1_tt/
-                    └── <dataset>__<service>_<fault>__<run>/
-                        ├── normal_data.csv
-                        ├── abnormal_data.csv
-                        └── case_info.json
+    ├── baro/
+    │   ├── default/
+    │   ├── min_max/
+    │   └── standardized/
+    ├── rcaeval_zenodo_v2/
+    │   └── default/
+    │       └── rcaeval_re1/
+    │           ├── re1_ob/
+    │           ├── re1_ss/
+    │           └── re1_tt/
+    │               └── <dataset>__<service>_<fault>__<run>/
+    │                   ├── normal_data.csv
+    │                   ├── abnormal_data.csv
+    │                   └── case_info.json
+    └── legacy/
+        └── rcaeval_re1_huggingface/
 ```
 
 - `<fault>` is one of `cpu`, `delay`, `disk`, `loss`, or `mem`.
@@ -57,18 +69,23 @@ The earlier BARO pilot uses the following dataset-level layout:
 ```text
 data/
 ├── raw/
-│   ├── online_boutique/
-│   ├── sock_shop/
-│   └── train_ticket/
+│   └── baro/
+│       ├── online_boutique/
+│       ├── sock_shop/
+│       └── train_ticket/
 └── processed/
-    └── default/
-        ├── online_boutique/
-        ├── sock_shop/
-        └── train_ticket/
+    └── baro/
+        ├── default/
+        │   ├── online_boutique/
+        │   ├── sock_shop/
+        │   └── train_ticket/
+        ├── min_max/
+        └── standardized/
 ```
 
-These paths remain for pilot reproducibility but are not the formal RCAEval
-Zenodo v2 experiment paths.
+BARO settings use `data/raw/baro` and `data/processed/baro`. The retired
+Hugging Face RCAEval files are preserved below `data/*/legacy/` for provenance
+only; formal experiments never read them.
 
 ## Git policy
 

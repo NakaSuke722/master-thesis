@@ -105,8 +105,8 @@ r_t ≈ (1 - sum_p phi_p) Delta
 ## 8. Related artifacts
 
 - configs/amber.yaml
-- configs/ablation/no_ar.yaml
-- configs/ablation/no_bayes.yaml
-- configs/ablation/no_ar_no_bayes.yaml
+- configs/ablation/baro/no_ar.yaml
+- configs/ablation/baro/no_bayes.yaml
+- configs/ablation/baro/no_ar_no_bayes.yaml
 - results/main/amber/
 - results/ablation/

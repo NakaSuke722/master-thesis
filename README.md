@@ -85,6 +85,7 @@ venv\Scripts\Activate.ps1
 ## データの配置
 
 元データは `data/raw/` に配置し、必要に応じて前処理済みデータを `data/processed/` に生成します。大容量データは `.gitignore` により Git 管理から除外します。
+データセット別のディレクトリ構造と、Git管理対象外のファイルは `data/README.md` に記載しています。
 
 実験前に、設定ファイルが参照するデータパスと、障害発生時刻・対象データセット・評価粒度が正しいことを確認してください。
 
@@ -179,8 +180,8 @@ results/
 
 ## 推奨する実験フロー
 
-1. `data/raw/` に元データを配置する。
-2. `configs/amber.yaml` のデータパスと実験条件を確認する。
+1. `data/raw/<benchmark>/` に元データを配置する。
+2. 対象benchmarkの設定ファイルにあるデータパスと実験条件を確認する。
 3. `scripts/run_main.sh` で主要実験を実行する。
 4. `scripts/run_baselines.sh` で比較手法を実行する。
 5. `scripts/run_ablation.sh` と `scripts/run_sensitivity.sh` で手法の構成要素とハイパーパラメータを検証する。
@@ -217,6 +218,9 @@ results/
 configs/
 ├── amber.yaml
 ├── ablation/
+│   ├── baro/
+│   └── rcaeval_re1_zenodo_v2/
+├── main/
 ├── sensitivity/
 └── baselines/
 ```
@@ -267,8 +271,14 @@ datasets:
 
 ```text
 configs/ablation/
-├── no_ar.yaml
-└── no_bayes.yaml
+├── baro/
+│   ├── no_ar.yaml
+│   ├── no_bayes.yaml
+│   └── no_ar_no_bayes.yaml
+└── rcaeval_re1_zenodo_v2/
+    ├── no_ar.yaml
+    ├── no_bayes.yaml
+    └── no_ar_no_bayes.yaml
 ```
 
 とします。目的は、「AMBERのどの構成要素が性能に寄与しているか？」を検証することです。
@@ -325,12 +335,18 @@ BAROなどの**比較手法**の設定です。
 ```text
 data/
 ├── raw/
+│   ├── baro/
+│   ├── rcaeval_zenodo_v2/
+│   └── legacy/
 └── processed/
+    ├── baro/
+    ├── rcaeval_zenodo_v2/
+    └── legacy/
 ```
 
 #### `data/raw/`
 
-BAROで公開されているOnline Boutique、Sock Shop、Train Ticketなどの**元データ**です。
+benchmark別の**元データ**です。BARO pilotは `data/raw/baro/`、正式RCAEvalは `data/raw/rcaeval_zenodo_v2/` に分離します。
 ここは原則としてimmutable、つまり、研究コードから書き換えない方針にします。
 
 ---
@@ -342,13 +358,14 @@ AMBERへ入力できる形へ前処理したデータです。
 
 ```text
 data/processed/
-└── default/
-    └── sock_shop/
-        └── catalogue_cpu/
-            └── 1/
-                ├── normal_data.csv
-                ├── abnormal_data.csv
-                └── graph.json
+└── baro/
+    └── default/
+        └── sock_shop/
+            └── catalogue_cpu/
+                └── 1/
+                    ├── normal_data.csv
+                    ├── abnormal_data.csv
+                    └── graph_info.json
 ```
 
 のような構造です。AMBERが実際に使う中心的な情報は、
