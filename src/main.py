@@ -23,10 +23,58 @@ from evaluation import (
 from utils.slack_notify import maybe_notify_slack
 
 
+_AMBER_TIME_SERIES_DIAGNOSTIC_KEYS = {
+    "raw_normal",
+    "raw_abnormal",
+    "ar_prediction_normal",
+    "ar_prediction_abnormal",
+    "ar_residual_normal",
+    "ar_residual_abnormal",
+    "standardized_residual_normal",
+    "standardized_residual_abnormal",
+}
+
+
+def select_amber_diagnostics(
+    diagnostics: dict | None,
+    mode: str,
+) -> dict | None:
+    """Select how much observational AMBER output is persisted per case."""
+    if mode not in {"full", "summary", "none"}:
+        raise ValueError(
+            "output.amber_diagnostics must be one of: "
+            "full, summary, none"
+        )
+
+    if mode == "full":
+        return diagnostics
+
+    if mode == "none" or diagnostics is None:
+        return None
+
+    compact = {
+        key: value
+        for key, value in diagnostics.items()
+        if key != "metrics"
+    }
+    compact["metrics"] = [
+        {
+            key: value
+            for key, value in metric.items()
+            if key not in _AMBER_TIME_SERIES_DIAGNOSTIC_KEYS
+        }
+        for metric in diagnostics.get("metrics", [])
+    ]
+    return compact
+
+
 @lru_cache(maxsize=None)
-def get_dataset_progress_info(dataset):
+def get_dataset_progress_info(
+    dataset: str,
+    raw_root: str = "data/raw/baro",
+):
     """データセット内の総実行数と各ケースの進捗番号を返す"""
-    dataset_dir = os.path.join("data", "raw", dataset)
+    dataset_dir = os.path.join(raw_root, dataset)
     if not os.path.isdir(dataset_dir):
         return {}, 0
 
@@ -77,7 +125,7 @@ def run_experiment(
 
     processed_root = config["paths"].get(
         "processed_data_dir",
-        "data/processed",
+        "data/processed/baro",
     )
 
     ground_truth = (
@@ -279,7 +327,14 @@ def run_experiment(
     execution_time = round(end_time - start_time, 2)
 
     if progress is None or total_progress is None:
-        progress_map, total_progress = get_dataset_progress_info(dataset)
+        raw_root = config.get("paths", {}).get(
+            "raw_data_dir",
+            "data/raw/baro",
+        )
+        progress_map, total_progress = get_dataset_progress_info(
+            dataset,
+            raw_root,
+        )
         progress = progress_map.get((fault, run))
 
     if progress is not None and total_progress:
@@ -374,7 +429,16 @@ def run_experiment(
     # This is observational output only: AMBER's scoring and ranking are
     # completed above before diagnostics are copied into the result artifact.
     if target_model == "amber":
-        results["amber_diagnostics"] = rca_model.diagnostics_
+        diagnostics_mode = config.get("output", {}).get(
+            "amber_diagnostics",
+            "full",
+        )
+        diagnostics = select_amber_diagnostics(
+            rca_model.diagnostics_,
+            diagnostics_mode,
+        )
+        if diagnostics is not None:
+            results["amber_diagnostics"] = diagnostics
 
     output_dir = case_result_dir(
         config,

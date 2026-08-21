@@ -2,7 +2,8 @@ import os
 import glob
 import argparse
 import pandas as pd
-import yaml
+
+from experiments.config import load_config
 
 # 1. 各前処理モジュールのインポート
 from preprocessors.default import apply as apply_default
@@ -177,16 +178,23 @@ def get_causal_graph(dataset_name, variables):
 
     return cleaned_graph
 
-def process_dataset(strategy_name):
+def process_dataset(
+    strategy_name,
+    config_path="configs/amber.yaml",
+):
     if strategy_name != "all" and strategy_name not in STRATEGIES:
         raise ValueError(f"Unknown strategy: {strategy_name}")
 
-    # YAMLから実行対象のデータセットリストを読み込む
-    with open("configs/default_params.yaml", "r") as f:
-        config = yaml.safe_load(f)
+    # 設定から対象データセットとBARO用の入出力ルートを読み込む。
+    config = load_config(config_path)
     target_datasets = config.get("datasets", [])
 
-    base_raw_dir = "data/raw"
+    paths = config.get("paths", {})
+    base_raw_dir = paths.get("raw_data_dir", "data/raw/baro")
+    processed_root = paths.get(
+        "processed_data_dir",
+        "data/processed/baro",
+    )
     targets = STRATEGIES.keys() if strategy_name == "all" else [strategy_name]
     
     # 対象データセットのみを探索
@@ -237,7 +245,13 @@ def process_dataset(strategy_name):
             }
             
             for current_strategy in targets:
-                output_dir = os.path.join("data/processed", current_strategy, dataset, fault_type, run_id)
+                output_dir = os.path.join(
+                    processed_root,
+                    current_strategy,
+                    dataset,
+                    fault_type,
+                    run_id,
+                )
                 processor_func = STRATEGIES[current_strategy]
                 processor_func(df_normal, df_abnormal, df.columns, output_dir, graph_info)
 
@@ -251,6 +265,11 @@ if __name__ == "__main__":
         default="all", 
         help="Specify strategy to generate (e.g., 'default', 'standardized', 'min_max', or 'all')"
     )
+    parser.add_argument(
+        "--config",
+        default="configs/amber.yaml",
+        help="BARO config containing datasets and data paths",
+    )
     args = parser.parse_args()
     
-    process_dataset(args.strategy)
+    process_dataset(args.strategy, args.config)

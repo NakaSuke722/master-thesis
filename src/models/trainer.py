@@ -98,6 +98,6 @@ class Phase1Trainer:
 # 単体テスト用のエントリーポイント
 if __name__ == "__main__":
     # 例として1つのデータセットでテスト実行
-    test_dir = "data/processed/standardized/online_boutique/cartservice_cpu/1"
+    test_dir = "data/processed/baro/standardized/online_boutique/cartservice_cpu/1"
     trainer = Phase1Trainer(data_dir=test_dir)
     trained_model = trainer.train()

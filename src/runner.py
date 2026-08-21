@@ -119,7 +119,7 @@ def run_legacy(
         "paths"
     ].get(
         "raw_data_dir",
-        "data/raw",
+        "data/raw/baro",
     )
 
     runs = [1, 2, 3, 4, 5]

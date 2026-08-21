@@ -7,9 +7,7 @@ cd "${PROJECT_ROOT}"
 
 GRANULARITY_ARG="${1:-}"
 
-CONFIG="${
-    2:-configs/main/rcaeval_re1_zenodo_v2.yaml
-}"
+CONFIG="${2:-configs/main/rcaeval_re1_zenodo_v2.yaml}"
 
 case "${GRANULARITY_ARG}" in
     "")

@@ -1,8 +1,8 @@
 """Compare AMBER (AR + BF) and no_ar (raw + BF) case by case.
 
 The script reads only result artifacts, so it can be rerun after an experiment
-without rerunning inference.  New AMBER artifacts include ``amber_diagnostics``
-with the time-series observations needed for representative-case plots.
+without rerunning inference. Compact ``amber_diagnostics`` retain the scalar
+scores, ranks, and AR coefficients used by this analysis.
 """
 from __future__ import annotations
 

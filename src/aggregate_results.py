@@ -17,6 +17,34 @@ from experiments.paths import (
 )
 
 
+_DIAGNOSTICS_MARKER = b'\n    "amber_diagnostics":'
+_MAX_HEADER_BYTES = 4 * 1024 * 1024
+
+
+def load_result_for_aggregation(filepath: Path) -> dict:
+    """Read only the result header when large diagnostics are the last field."""
+    prefix = bytearray()
+
+    with filepath.open("rb") as file:
+        while len(prefix) <= _MAX_HEADER_BYTES:
+            chunk = file.read(64 * 1024)
+            if not chunk:
+                return json.loads(prefix.decode("utf-8"))
+
+            prefix.extend(chunk)
+            marker_index = prefix.find(_DIAGNOSTICS_MARKER)
+            if marker_index >= 0:
+                header = bytes(prefix[:marker_index]).rstrip()
+                if header.endswith(b","):
+                    header = header[:-1]
+                return json.loads((header + b"\n}").decode("utf-8"))
+
+    # Older or differently formatted result files may not place diagnostics
+    # last. Preserve compatibility by falling back to a complete JSON read.
+    with filepath.open("r", encoding="utf-8") as file:
+        return json.load(file)
+
+
 def aggregate_config(
     config: dict,
     granularity: str,
@@ -77,11 +105,9 @@ def aggregate_config(
         for filepath in sorted(
             dataset_dir.glob("*.json")
         ):
-            with filepath.open(
-                "r",
-                encoding="utf-8",
-            ) as file:
-                data = json.load(file)
+            data = load_result_for_aggregation(
+                filepath
+            )
 
             # 別granularityの結果を除外する。
             if (
@@ -227,6 +253,43 @@ def recorded_total_time(
     )
 
 
+def load_recorded_summary(
+    config: dict,
+    granularity: str,
+) -> dict | None:
+    """Return a matching per-variant summary without reopening case JSONs."""
+    filepath = summary_path(config, granularity)
+    if not filepath.is_file():
+        return None
+
+    with filepath.open("r", encoding="utf-8") as file:
+        summary = json.load(file)
+
+    experiment = config.get("experiment", {})
+    expected = {
+        "experiment_category": experiment.get("category", "main"),
+        "experiment_name": experiment.get(
+            "name",
+            config["model"]["target"],
+        ),
+        "model_used": config["model"]["target"],
+        "evaluation_granularity": granularity,
+    }
+
+    if any(summary.get(key) != value for key, value in expected.items()):
+        return None
+
+    target_datasets = set(config.get("datasets", []))
+    summarized_datasets = set(summary.get("summary", {}))
+    if summarized_datasets != target_datasets:
+        return None
+
+    if int(summary.get("number_of_cases", 0)) <= 0:
+        return None
+
+    return summary
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(
         description="Aggregate RCA experiment results"
@@ -271,19 +334,27 @@ def main() -> None:
     summaries = {}
 
     for config in configs:
-        total_time = (
-            args.total_time
-            if len(configs) == 1
-            else recorded_total_time(
+        summary = None
+        if len(configs) > 1:
+            summary = load_recorded_summary(
                 config,
                 granularity,
             )
-        )
-        summary = aggregate_config(
-            config,
-            granularity,
-            total_time,
-        )
+
+        if summary is None:
+            total_time = (
+                args.total_time
+                if len(configs) == 1
+                else recorded_total_time(
+                    config,
+                    granularity,
+                )
+            )
+            summary = aggregate_config(
+                config,
+                granularity,
+                total_time,
+            )
         summaries[summary["experiment_name"]] = summary
 
     if len(configs) == 1:

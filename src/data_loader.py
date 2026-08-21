@@ -17,7 +17,7 @@ def get_processed_case_dir(
     fault_type: str,
     run_id: int,
     strategy: str = "default",
-    processed_root: str = "data/processed",
+    processed_root: str = "data/processed/baro",
 ) -> Path:
     return (
         Path(processed_root)
@@ -33,7 +33,7 @@ def load_processed_case(
     fault_type: str,
     run_id: int,
     strategy: str = "default",
-    processed_root: str = "data/processed",
+    processed_root: str = "data/processed/baro",
     load_graph_info: bool = False,
 ) -> tuple[
     pd.DataFrame,
@@ -106,7 +106,7 @@ def load_timeseries_data(
     fault_type: str,
     run_id: int,
     strategy: str = "default",
-    processed_root: str = "data/processed",
+    processed_root: str = "data/processed/baro",
 ):
     df_normal, df_abnormal, graph_info = (
         load_processed_case(

@@ -55,5 +55,5 @@ def visualize_causal_graph_interactive(json_path: str):
     print(f"Graph generated: Open {output_html} in your web browser.")
 
 if __name__ == "__main__":
-    target_json = "data/processed/standardized/online_boutique/cartservice_cpu/1/graph_info.json"
+    target_json = "data/processed/baro/standardized/online_boutique/cartservice_cpu/1/graph_info.json"
     visualize_causal_graph_interactive(target_json)
