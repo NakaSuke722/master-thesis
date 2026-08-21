@@ -2,8 +2,8 @@ benchmark:
   name: "rcaeval_re1"
 
 experiment:
-  category: "main"
-  name: "amber_zenodo_v2"
+  category: "ablation"
+  name: "no_ar"
 
 data:
   source:
@@ -21,7 +21,7 @@ model:
   preprocess_strategy: "default"
 
   params:
-    residualization: "ar"
+    residualization: "raw"
     scoring: "bayes_factor"
 
     ar_order: 3

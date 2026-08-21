@@ -25,8 +25,8 @@ model:
       beta: 1.0
       
 paths:
-  raw_data_dir: "data/raw"
-  processed_data_dir: "data/processed"
+  raw_data_dir: "data/raw/baro"
+  processed_data_dir: "data/processed/baro"
   results_root: "results"
 
 evaluation:

@@ -1,16 +1,15 @@
-# configs/amber.yaml
-
+# BARO pilot reproduction config.
 experiment:
   category: "ablation"
-  name: "no_ar"
-  
+  name: "no_ar_no_bayes"
+
 model:
   target: "amber"
   preprocess_strategy: "default"
 
   params:
     residualization: "raw"
-    scoring: "bayes_factor"
+    scoring: "glrt"
 
     ar_order: 3
     ridge: 1.0e-3
@@ -23,15 +22,14 @@ model:
       kappa: 1.0e-3
       alpha: 2.0
       beta: 1.0
-      
+
 paths:
-  raw_data_dir: "data/raw"
-  processed_data_dir: "data/processed"
+  raw_data_dir: "data/raw/baro"
+  processed_data_dir: "data/processed/baro"
   results_root: "results"
 
 evaluation:
   k_values: [1, 3, 5]
-
   granularity: "metric"
 
   service_aggregation:

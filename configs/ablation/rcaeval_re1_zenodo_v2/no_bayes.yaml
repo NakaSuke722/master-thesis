@@ -2,14 +2,19 @@ benchmark:
   name: "rcaeval_re1"
 
 experiment:
-  category: "main"
-  name: "amber"
+  category: "ablation"
+  name: "no_bayes"
 
 data:
-  # null = 利用可能な全normal/abnormal区間を使用する。
-  # window sensitivityは後で別実験として行う。
-  normal_window_points: null
-  abnormal_window_points: null
+  source:
+    provider: "Zenodo"
+    record: "14590730"
+    doi: "10.5281/zenodo.14590730"
+    version: "v2"
+
+  # 「必ず600点」ではなく「最大600点」。
+  normal_window_points: 600
+  abnormal_window_points: 600
 
 model:
   target: "amber"
@@ -17,7 +22,7 @@ model:
 
   params:
     residualization: "ar"
-    scoring: "bayes_factor"
+    scoring: "glrt"
 
     ar_order: 3
     ridge: 1.0e-3
@@ -34,14 +39,17 @@ model:
       beta: 1.0
 
 paths:
-  raw_data_dir: "data/raw/rcaeval_re1"
-  processed_data_dir: "data/processed"
+  raw_data_dir: "data/raw/rcaeval_zenodo_v2"
+  processed_data_dir: "data/processed/rcaeval_zenodo_v2"
   results_root: "results"
+
+# Scalar diagnostics are retained, but per-metric time-series arrays are not
+# duplicated into every case result JSON.
+output:
+  amber_diagnostics: "summary"
 
 evaluation:
   k_values: [1, 3, 5]
-
-  # RCAEval RE1では正式評価はservice-level。
   granularity: "service"
 
   service_aggregation:
