@@ -373,6 +373,10 @@ def run_experiment(
 
         "execution_time_sec": execution_time,
         "metrics": metrics,
+        # Keep the complete ranking for paired post-hoc analyses.  This is
+        # copied only after AMBER has finished scoring, so it does not alter
+        # inference or evaluation.
+        "predicted_ranking": predicted_ranking,
         "predicted_top_5": predicted_ranking[:5],
         "ground_truth": ground_truth,
         "evaluation_ground_truth": evaluation_ground_truth,

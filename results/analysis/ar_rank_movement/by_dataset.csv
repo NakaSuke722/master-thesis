@@ -1,0 +1,4 @@
+dataset,improved,improved_pct,mean_rank_delta,median_rank_delta,n_cases,raw_non_top1_to_ar_top1,raw_top1_to_ar_non_top1,same,same_pct,worsened,worsened_pct
+re1_ob,16,0.128,-0.104,0,125,3,9,85,0.68,24,0.192
+re1_ss,2,0.016,-0.032,0,125,2,0,119,0.952,4,0.032
+re1_tt,26,0.208,-0.112,0,125,7,13,70,0.56,29,0.232

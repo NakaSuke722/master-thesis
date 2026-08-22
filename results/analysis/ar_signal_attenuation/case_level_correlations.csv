@@ -1,0 +1,11 @@
+diagnostic,n_cases,outcome,pearson_r,spearman_rho
+sum_phi,375,rank_delta (positive means AR improved),-0.18945428407718362,-0.24907923794541054
+raw_shift_abs,375,rank_delta (positive means AR improved),0.007880342431685963,-0.10122575507202769
+raw_late_to_early_shift_ratio,374,rank_delta (positive means AR improved),0.15823020985005257,0.034619425205439355
+raw_shift_sign_consistency,375,rank_delta (positive means AR improved),-0.05724147842610849,-0.05767739184694264
+signal_retention_ratio,374,rank_delta (positive means AR improved),0.19283823651923637,0.25682077148295296
+ar_late_to_early_shift_ratio,371,rank_delta (positive means AR improved),0.024450932614641787,0.031570615785019226
+ar_early_to_late_decay_fraction,371,rank_delta (positive means AR improved),-0.024450932614641784,-0.031570615785019226
+ar_initial_to_late_retention_ratio,154,rank_delta (positive means AR improved),-0.03879703966452499,0.14232020260884082
+ar_initial_to_late_decay_fraction,154,rank_delta (positive means AR improved),0.03879703966452499,-0.14232020260884082
+ar_score_minus_raw_score,375,rank_delta (positive means AR improved),0.2800845202077582,0.43350795543267095
