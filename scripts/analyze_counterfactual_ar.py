@@ -52,6 +52,15 @@ METHOD_LABELS = {
     "adaptive_direct_ar_bayes_factor": (
         "Adaptive intervention-response Direct AR BF"
     ),
+    "adaptive_direct_no_null_calibration": (
+        "Adaptive Direct without pseudo-fault subtraction"
+    ),
+    "adaptive_direct_fixed_onset": "Adaptive Direct with fixed onset",
+    "adaptive_direct_step_only": "Adaptive Direct with step response only",
+    "adaptive_direct_no_step_ramp": "Adaptive Direct without step+ramp",
+    "adaptive_direct_no_per_row_normalization": (
+        "Adaptive Direct without per-row normalization"
+    ),
 }
 
 

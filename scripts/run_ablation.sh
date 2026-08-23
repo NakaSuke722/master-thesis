@@ -69,6 +69,17 @@ case "${1:-}" in
         )
         GRANULARITY="service"
         ;;
+    --adaptive-direct-rollback)
+        # 統合candidateから1要素ずつ外すロールバック・アブレーション。
+        CONFIGS=(
+            "configs/ablation/rcaeval_re1_zenodo_v2/adaptive_direct_no_null_calibration.yaml"
+            "configs/ablation/rcaeval_re1_zenodo_v2/adaptive_direct_fixed_onset.yaml"
+            "configs/ablation/rcaeval_re1_zenodo_v2/adaptive_direct_step_only.yaml"
+            "configs/ablation/rcaeval_re1_zenodo_v2/adaptive_direct_no_step_ramp.yaml"
+            "configs/ablation/rcaeval_re1_zenodo_v2/adaptive_direct_no_per_row_normalization.yaml"
+        )
+        GRANULARITY="service"
+        ;;
     --baro)
         # 既存BARO pilotの再現用設定は専用ディレクトリから実行する。
         CONFIGS=(
@@ -79,7 +90,7 @@ case "${1:-}" in
         GRANULARITY="metric"
         ;;
     *)
-        echo "Usage: $0 [--rcaeval|--counterfactual-ar|--ar-redesign|--full-covariance-ar|--direct-ar-bayes-factor|--intercept-shift-ar-bayes-factor|--adaptive-direct-ar-bayes-factor|--baro]" >&2
+        echo "Usage: $0 [--rcaeval|--counterfactual-ar|--ar-redesign|--full-covariance-ar|--direct-ar-bayes-factor|--intercept-shift-ar-bayes-factor|--adaptive-direct-ar-bayes-factor|--adaptive-direct-rollback|--baro]" >&2
         exit 2
         ;;
 esac
