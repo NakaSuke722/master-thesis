@@ -38,6 +38,15 @@ EXPECTED_VARIANTS = {
         "counterfactual_bounds": "none", "horizon_aware_uncertainty": True,
         "forecast_error_covariance": "full",
     },
+    "direct_ar_bayes_factor": {
+        "residualization": "ar_model", "scoring": "ar_bayes_factor",
+        "winsor_quantile": None,
+        "ar_bayes_prior": {
+            "intercept_mean": 0.0, "lag_mean": 0.0,
+            "intercept_precision": 0.1, "lag_precision": 10.0,
+            "alpha": 5.0, "beta": 4.0,
+        },
+    },
 }
 
 

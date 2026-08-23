@@ -45,6 +45,7 @@ METHOD_LABELS = {
     "stationary_counterfactual_ar_full_covariance": (
         "Stationary counterfactual AR+BF + full forecast covariance"
     ),
+    "direct_ar_bayes_factor": "Direct shared-vs-separate AR BF",
 }
 
 

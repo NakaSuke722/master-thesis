@@ -190,6 +190,7 @@ def run_experiment(
         import pandas as pd
 
         from models.amber import AMBER, NIG
+        from models.ar_bayes_factor import ARBayesFactorPrior
 
         if benchmark_case is not None:
             (
@@ -239,6 +240,21 @@ def run_experiment(
             alpha=float(prior_params.get("alpha", 2.0)),
             beta=float(prior_params.get("beta", 1.0)),
         )
+        ar_bayes_prior_params = params.get("ar_bayes_prior", {})
+        ar_bayes_prior = ARBayesFactorPrior(
+            intercept_mean=float(
+                ar_bayes_prior_params.get("intercept_mean", 0.0)
+            ),
+            lag_mean=float(ar_bayes_prior_params.get("lag_mean", 0.0)),
+            intercept_precision=float(
+                ar_bayes_prior_params.get("intercept_precision", 0.01)
+            ),
+            lag_precision=float(
+                ar_bayes_prior_params.get("lag_precision", 1.0)
+            ),
+            alpha=float(ar_bayes_prior_params.get("alpha", 2.0)),
+            beta=float(ar_bayes_prior_params.get("beta", 1.0)),
+        )
 
         rca_model = AMBER(
             ar_order=int(params.get("ar_order", 3)),
@@ -276,6 +292,7 @@ def run_experiment(
             forecast_error_covariance=params.get(
                 "forecast_error_covariance", "diagonal"
             ),
+            ar_bayes_prior=ar_bayes_prior,
         )
 
         if granularity == "service":

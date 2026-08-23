@@ -8,7 +8,7 @@ cd "${PROJECT_ROOT}"
 
 case "${1:-}" in
     ""|--rcaeval)
-        # RCAEval RE1 Zenodo v2正式アブレーション（375ケース × 8 variants）。
+        # RCAEval RE1 Zenodo v2正式アブレーション（375ケース × 9 variants）。
         CONFIGS=(
             "configs/ablation/rcaeval_re1_zenodo_v2/no_ar.yaml"
             "configs/ablation/rcaeval_re1_zenodo_v2/no_bayes.yaml"
@@ -18,6 +18,7 @@ case "${1:-}" in
             "configs/ablation/rcaeval_re1_zenodo_v2/stationary_counterfactual_ar.yaml"
             "configs/ablation/rcaeval_re1_zenodo_v2/stationary_counterfactual_ar_uncertainty.yaml"
             "configs/ablation/rcaeval_re1_zenodo_v2/stationary_counterfactual_ar_full_covariance.yaml"
+            "configs/ablation/rcaeval_re1_zenodo_v2/direct_ar_bayes_factor.yaml"
         )
         GRANULARITY="service"
         ;;
@@ -45,6 +46,13 @@ case "${1:-}" in
         )
         GRANULARITY="service"
         ;;
+    --direct-ar-bayes-factor)
+        # shared AR対separate ARの直接Bayes Factorだけを実行する。
+        CONFIGS=(
+            "configs/ablation/rcaeval_re1_zenodo_v2/direct_ar_bayes_factor.yaml"
+        )
+        GRANULARITY="service"
+        ;;
     --baro)
         # 既存BARO pilotの再現用設定は専用ディレクトリから実行する。
         CONFIGS=(
@@ -55,7 +63,7 @@ case "${1:-}" in
         GRANULARITY="metric"
         ;;
     *)
-        echo "Usage: $0 [--rcaeval|--counterfactual-ar|--ar-redesign|--full-covariance-ar|--baro]" >&2
+        echo "Usage: $0 [--rcaeval|--counterfactual-ar|--ar-redesign|--full-covariance-ar|--direct-ar-bayes-factor|--baro]" >&2
         exit 2
         ;;
 esac

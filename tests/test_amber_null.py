@@ -1,7 +1,9 @@
 import numpy as np
 import pandas as pd
+import pytest
 
 from models.amber import AMBER
+from models.ar_bayes_factor import ARBayesFactorPrior
 
 
 def test_unchanged_metric_has_finite_score():
@@ -41,3 +43,52 @@ def test_changed_metric_ranks_above_stable_metric():
     result = model.fit_predict(normal, abnormal)
 
     assert result.iloc[0]["metric"] == "changed_cpu"
+
+
+def test_direct_ar_bayes_factor_ranks_changed_process_first():
+    rng = np.random.default_rng(17)
+    normal = {"stable_cpu": [], "changed_cpu": []}
+    abnormal = {"stable_cpu": [], "changed_cpu": []}
+    state = {"stable_cpu": 0.0, "changed_cpu": 0.0}
+    for target in (normal, abnormal):
+        for _ in range(300):
+            for metric in target:
+                phi = -0.4 if target is abnormal and metric == "changed_cpu" else 0.6
+                state[metric] = phi * state[metric] + rng.normal(0.0, 0.5)
+                target[metric].append(state[metric])
+
+    model = AMBER(
+        ar_order=1,
+        residualization="ar_model",
+        scoring="ar_bayes_factor",
+        winsor_quantile=None,
+        ar_bayes_prior=ARBayesFactorPrior(
+            intercept_precision=0.1,
+            lag_precision=10.0,
+            alpha=5.0,
+            beta=4.0,
+        ),
+    )
+    result = model.fit_predict(pd.DataFrame(normal), pd.DataFrame(abnormal))
+
+    assert result.iloc[0]["metric"] == "changed_cpu"
+    assert model.diagnostics_["residualization"] == "ar_model"
+    assert model.diagnostics_["scoring"] == "ar_bayes_factor"
+    assert model.diagnostics_["ar_bayes_prior"]["lag_precision"] == 10.0
+
+
+@pytest.mark.parametrize(
+    "kwargs",
+    [
+        {"residualization": "ar_model", "scoring": "bayes_factor"},
+        {"residualization": "ar", "scoring": "ar_bayes_factor"},
+        {
+            "residualization": "ar_model",
+            "scoring": "ar_bayes_factor",
+            "winsor_quantile": 0.01,
+        },
+    ],
+)
+def test_direct_ar_bayes_factor_rejects_inconsistent_modes(kwargs):
+    with pytest.raises(ValueError):
+        AMBER(**kwargs)

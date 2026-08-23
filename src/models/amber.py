@@ -8,11 +8,13 @@ Only NumPy and pandas are required.
 """
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import asdict, dataclass
 from typing import Iterable, Literal
 
 import numpy as np
 import pandas as pd
+
+from models.ar_bayes_factor import ARBayesFactorPrior, ar_change_bayes_factor
 
 
 @dataclass(frozen=True)
@@ -346,10 +348,12 @@ def _gaussian_glrt_score(
 
 
 class AMBER:
-    """RCA using Bayesian model selection on standardized AR residuals.
+    """RCA using Bayesian model selection on time-series changes.
 
-    H0: Normal and abnormal residuals share the same Gaussian parameters.
-    H1: Normal and abnormal residuals have independent Gaussian parameters.
+    The standard modes compare Gaussian distributions after raw/AR
+    residualization.  ``ar_model`` + ``ar_bayes_factor`` instead compares
+    one AR process shared across the two periods against separate AR
+    processes, so AR is part of the hypothesis rather than preprocessing.
 
     The RCA score is
         log BF= log m(z_normal) + log m(z_abnormal) - log m(z_normal and z_abnormal),
@@ -367,13 +371,18 @@ class AMBER:
         aggregate: Literal["metric", "service"] = "metric",
         service_aggregation: Literal["max", "mean_top3", "logsumexp"] = "max",
         prior: NIG | None = None,
-        residualization: Literal["ar", "counterfactual_ar", "raw",] = "ar",
-        scoring: Literal["bayes_factor", "glrt",] = "bayes_factor",
+        residualization: Literal[
+            "ar", "counterfactual_ar", "raw", "ar_model",
+        ] = "ar",
+        scoring: Literal[
+            "bayes_factor", "glrt", "ar_bayes_factor",
+        ] = "bayes_factor",
         ar_stationarity: Literal["none", "root_projection"] = "none",
         stationarity_radius: float = 0.98,
         counterfactual_bounds: Literal["normal_range", "none"] = "normal_range",
         horizon_aware_uncertainty: bool = False,
         forecast_error_covariance: Literal["diagonal", "full"] = "diagonal",
+        ar_bayes_prior: ARBayesFactorPrior | None = None,
     ) -> None:
         if ar_order < 0:
             raise ValueError("ar_order must be non-negative")
@@ -392,11 +401,23 @@ class AMBER:
         if service_aggregation not in {"max","mean_top3","logsumexp",}:
             raise ValueError("Unknown service_aggregation=" f"{service_aggregation}")
 
-        if residualization not in {"ar", "counterfactual_ar", "raw"}:
+        if residualization not in {"ar", "counterfactual_ar", "raw", "ar_model"}:
             raise ValueError(f"Unknown residualization={residualization}")
 
-        if scoring not in {"bayes_factor", "glrt",}:
+        if scoring not in {"bayes_factor", "glrt", "ar_bayes_factor"}:
             raise ValueError(f"Unknown scoring={scoring}")
+
+        if (scoring == "ar_bayes_factor") != (residualization == "ar_model"):
+            raise ValueError(
+                "ar_bayes_factor scoring and ar_model residualization "
+                "must be selected together"
+            )
+
+        if scoring == "ar_bayes_factor" and winsor_quantile is not None:
+            raise ValueError(
+                "ar_bayes_factor requires winsor_quantile=None so the AR "
+                "likelihood is evaluated without clipping"
+            )
 
         if ar_stationarity not in {"none", "root_projection"}:
             raise ValueError(f"Unknown ar_stationarity={ar_stationarity}")
@@ -445,6 +466,7 @@ class AMBER:
         self.counterfactual_bounds = counterfactual_bounds
         self.horizon_aware_uncertainty = horizon_aware_uncertainty
         self.forecast_error_covariance = forecast_error_covariance
+        self.ar_bayes_prior = ar_bayes_prior or ARBayesFactorPrior()
         self.result_: pd.DataFrame | None = None
         # JSON-serializable, per-metric observations for post-hoc analysis.
         # Populated by fit_predict; deliberately separate from metric_result_
@@ -506,6 +528,88 @@ class AMBER:
         return normal_y, abnormal_y
     
     def _score_metric(self, normal_y: np.ndarray, abnormal_y: np.ndarray) -> dict[str, object]:
+        if self.scoring == "ar_bayes_factor":
+            normal_y = np.asarray(normal_y, dtype=float)
+            abnormal_y = np.asarray(abnormal_y, dtype=float)
+            if (
+                np.isfinite(normal_y).sum() <= self.ar_order + 3
+                or np.isfinite(abnormal_y).sum() <= self.ar_order
+            ):
+                return {
+                    "score": -np.inf,
+                    "evidence_weight": 0.0,
+                    "normal_scale": np.nan,
+                    "abnormal_mean_z": np.nan,
+                    "abnormal_sd_z": np.nan,
+                    "ar_coefficients": [],
+                    "raw_normal": normal_y.tolist(),
+                    "raw_abnormal": abnormal_y.tolist(),
+                    "ar_prediction_normal": [],
+                    "ar_prediction_abnormal": [],
+                    "ar_residual_normal": [],
+                    "ar_residual_abnormal": [],
+                    "standardized_residual_normal": [],
+                    "standardized_residual_abnormal": [],
+                }
+            try:
+                comparison = ar_change_bayes_factor(
+                    normal_y,
+                    abnormal_y,
+                    order=self.ar_order,
+                    prior=self.ar_bayes_prior,
+                    min_scale=self.min_scale,
+                )
+            except (ValueError, np.linalg.LinAlgError, FloatingPointError):
+                return {
+                    "score": -np.inf,
+                    "evidence_weight": 0.0,
+                    "normal_scale": np.nan,
+                    "abnormal_mean_z": np.nan,
+                    "abnormal_sd_z": np.nan,
+                    "ar_coefficients": [],
+                    "raw_normal": normal_y.tolist(),
+                    "raw_abnormal": abnormal_y.tolist(),
+                    "ar_prediction_normal": [],
+                    "ar_prediction_abnormal": [],
+                    "ar_residual_normal": [],
+                    "ar_residual_abnormal": [],
+                    "standardized_residual_normal": [],
+                    "standardized_residual_abnormal": [],
+                }
+            pre = comparison["posterior_pre"]
+            post = comparison["posterior_post"]
+            shared = comparison["posterior_shared"]
+            return {
+                "score": float(comparison["log_bayes_factor"]),
+                "normal_scale": float(comparison["normalization"]["scale"]),
+                "abnormal_mean_z": np.nan,
+                "abnormal_sd_z": np.nan,
+                "log_marginal_h0": float(comparison["log_marginal_h0"]),
+                "log_marginal_h1": float(comparison["log_marginal_h1"]),
+                "ar_coefficients": pre["coefficient_mean"],
+                "ar_post_coefficients": post["coefficient_mean"],
+                "ar_shared_coefficients": shared["coefficient_mean"],
+                "ar_pre_innovation_variance": pre["innovation_variance_mean"],
+                "ar_post_innovation_variance": post["innovation_variance_mean"],
+                "ar_shared_innovation_variance": shared["innovation_variance_mean"],
+                "ar_pre_spectral_radius": pre["spectral_radius_at_mean"],
+                "ar_post_spectral_radius": post["spectral_radius_at_mean"],
+                "ar_shared_spectral_radius": shared["spectral_radius_at_mean"],
+                "ar_pre_long_run_mean": pre["long_run_mean_at_mean"],
+                "ar_post_long_run_mean": post["long_run_mean_at_mean"],
+                "ar_shared_long_run_mean": shared["long_run_mean_at_mean"],
+                "ar_pre_rows": pre["n_rows"],
+                "ar_post_rows": post["n_rows"],
+                "raw_normal": normal_y.astype(float).tolist(),
+                "raw_abnormal": abnormal_y.astype(float).tolist(),
+                "ar_prediction_normal": [],
+                "ar_prediction_abnormal": [],
+                "ar_residual_normal": [],
+                "ar_residual_abnormal": [],
+                "standardized_residual_normal": [],
+                "standardized_residual_abnormal": [],
+            }
+
         normal_y, abnormal_y = self._prepare_series(
             normal_y,
             abnormal_y,
@@ -744,7 +848,7 @@ class AMBER:
             out = self._score_metric(normal[col].to_numpy(), abnormal[col].to_numpy())
             ranking_fields = {
                 key: value for key, value in out.items()
-                if not isinstance(value, list)
+                if not isinstance(value, (list, dict))
             }
             records.append({"metric": col, "service": _service_name(col), **ranking_fields})
             diagnostic_records.append({
@@ -795,6 +899,10 @@ class AMBER:
                 "counterfactual_bounds": self.counterfactual_bounds,
                 "horizon_aware_uncertainty": self.horizon_aware_uncertainty,
                 "forecast_error_covariance": self.forecast_error_covariance,
+                "ar_bayes_prior": (
+                    asdict(self.ar_bayes_prior)
+                    if self.scoring == "ar_bayes_factor" else None
+                ),
                 "metrics": diagnostic_records,
             }
             self.result_ = metric_df
@@ -851,6 +959,10 @@ class AMBER:
             "counterfactual_bounds": self.counterfactual_bounds,
             "horizon_aware_uncertainty": self.horizon_aware_uncertainty,
             "forecast_error_covariance": self.forecast_error_covariance,
+            "ar_bayes_prior": (
+                asdict(self.ar_bayes_prior)
+                if self.scoring == "ar_bayes_factor" else None
+            ),
             "metrics": diagnostic_records,
             "services": service_df.to_dict(orient="records"),
         }
