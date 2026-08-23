@@ -1,0 +1,29 @@
+# Counterfactual ARの最終候補に関する判断
+
+決定日: 2026-08-23
+
+## 事実
+
+RCAEval RE1 Zenodo v2全375ケースにおいて、bounded counterfactual ARはmacro AC@1 0.6667で既存最高だった。hard clipを使わないStationary Counterfactual ARは0.6640、さらにhorizon-aware uncertaintyを加えた方式も0.6640だった。最終方式はRaw+BF 0.6400に対してTop-1を10件獲得・1件喪失し、exact McNemar `p=0.01172`だった。bounded方式との差は獲得8・喪失9、`p=1.0`である。
+
+最終方式はbounded方式に対しmacro AC@3を0.8800から0.8853、Avg@5を0.8416から0.8496へ上げ、AC@5は0.9440で同じだった。正常のみpseudo-faultでは、horizon補正がStationary CFのservice BF中央値を266.98から133.66へ下げたが、Stationary Observedの34.52より高かった。
+
+## 解釈
+
+AR過程をRCAから捨てる根拠はない。むしろ、Observed-lag方式で異常観測を予測へfeedbackすることがroot signalを吸収していたという説明が、同じstationary係数を用いた介入的比較で支持された。hard clipは改善の必要条件ではなく、stationarity constraintで数値安定性を置換できる。
+
+horizon-aware uncertaintyは理論的には必要で、正常時校正と順位深度を改善する。ただしforecast-error correlationを無視しており、正常時の偽BFを完全には解消しない。また半径0.98は未感度分析の設計値である。
+
+## 判断
+
+`Stationary Counterfactual AR + horizon-aware uncertainty`をAMBERの**暫定最終候補**とする。人工的なnormal min/max clipを用いるbounded方式は比較対象として保持する。半径感度と補正過大caseの診断が終わるまで、`configs/main/rcaeval_re1_zenodo_v2.yaml`は変更せずAMBERをfreezeしない。
+
+この判断はAC@1だけの最大値選択ではなく、次の複合基準による。
+
+- Rawに対する対応のある有意な改善
+- bounded方式と統計的に同等なTop-1
+- AC@3 / Avg@5の改善
+- hard clipを除去した理論的一貫性
+- 正常時校正の改善
+
+詳細な条件・数値・成果物は `notes/experiments/2026-08-23_stationary_counterfactual_ar.md` に記録する。

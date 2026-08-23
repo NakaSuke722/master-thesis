@@ -12,6 +12,7 @@ SERIES_KEYS = {
     "ar_residual_abnormal",
     "standardized_residual_normal",
     "standardized_residual_abnormal",
+    "forecast_uncertainty_multiplier",
 }
 
 

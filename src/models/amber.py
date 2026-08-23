@@ -111,6 +111,123 @@ def _ar_residuals(y: np.ndarray, coef: np.ndarray, order: int) -> np.ndarray:
     return target - X @ coef
 
 
+def _counterfactual_ar_forecast(
+    history: np.ndarray,
+    coef: np.ndarray,
+    order: int,
+    steps: int,
+    bounds: tuple[float, float] | None = None,
+) -> tuple[np.ndarray, int]:
+    """Recursively forecast a no-fault baseline without abnormal lag inputs.
+
+    The initial lags come from the end of the normal period.  Every later lag
+    is a previous model prediction, never an observed abnormal value.  Bounds
+    learned only from the normal period may be supplied to keep an unstable
+    one-step AR fit from exploding during a long recursive forecast.
+    """
+    history = np.asarray(history, dtype=float)
+    coef = np.asarray(coef, dtype=float)
+    if steps < 0:
+        raise ValueError("steps must be non-negative")
+    if coef.size != order + 1:
+        raise ValueError(f"Expected {order + 1} AR coefficients, got {coef.size}")
+    if order > 0 and history.size < order:
+        raise ValueError(f"Need at least ar_order={order} history observations")
+    if bounds is not None and bounds[0] > bounds[1]:
+        raise ValueError("counterfactual lower bound must not exceed upper bound")
+
+    state = history[-order:].astype(float).tolist() if order else []
+    predictions = np.empty(steps, dtype=float)
+    clipped_count = 0
+    for index in range(steps):
+        if order:
+            lags = np.asarray(state[-order:][::-1], dtype=float)
+            prediction = float(coef[0] + np.dot(coef[1:], lags))
+        else:
+            prediction = float(coef[0])
+        if bounds is not None:
+            bounded_prediction = float(np.clip(prediction, bounds[0], bounds[1]))
+            clipped_count += int(bounded_prediction != prediction)
+            prediction = bounded_prediction
+        predictions[index] = prediction
+        if order:
+            state.append(prediction)
+            if len(state) > order:
+                del state[:-order]
+    return predictions, clipped_count
+
+
+def _ar_spectral_radius(coef: np.ndarray) -> float:
+    """Return the largest companion-root magnitude for an AR coefficient vector."""
+    coef = np.asarray(coef, dtype=float)
+    order = max(0, coef.size - 1)
+    if order == 0:
+        return 0.0
+    roots = np.roots(np.concatenate(([1.0], -coef[1:])))
+    return float(np.max(np.abs(roots))) if roots.size else 0.0
+
+
+def _project_ar_stationary(
+    coef: np.ndarray,
+    normal_mean: float,
+    radius: float,
+) -> tuple[np.ndarray, float, float, bool]:
+    """Project companion roots inside ``radius`` and preserve normal mean.
+
+    Ridge fitting remains normal-only and unconstrained.  If its companion
+    roots are outside the requested disk, their angles are retained and only
+    their magnitudes are projected.  The intercept is then adjusted so the
+    projected AR has the observed normal-window mean as its fixed point.
+    """
+    coef = np.asarray(coef, dtype=float)
+    if not 0.0 < radius < 1.0:
+        raise ValueError("stationarity_radius must be between zero and one")
+    order = max(0, coef.size - 1)
+    before = _ar_spectral_radius(coef)
+    if order == 0 or before <= radius:
+        return coef.copy(), before, before, False
+
+    roots = np.roots(np.concatenate(([1.0], -coef[1:])))
+    projected = np.asarray([
+        root if abs(root) <= radius else root * (radius / abs(root))
+        for root in roots
+    ])
+    polynomial = np.real_if_close(np.poly(projected), tol=1000)
+    if np.iscomplexobj(polynomial):
+        raise ValueError("Stationarity projection produced complex AR coefficients")
+    ar_coef = -np.asarray(polynomial[1:], dtype=float)
+    constrained = np.empty_like(coef)
+    constrained[1:] = ar_coef
+    constrained[0] = float(normal_mean) * (1.0 - float(np.sum(ar_coef)))
+    after = _ar_spectral_radius(constrained)
+    return constrained, before, after, True
+
+
+def _ar_forecast_uncertainty_multipliers(
+    coef: np.ndarray,
+    steps: int,
+) -> np.ndarray:
+    """Standard-deviation multipliers for h-step AR forecast errors.
+
+    If ``psi_j`` denotes the MA(infinity) impulse response, then the forecast
+    error variance at horizon h is ``sigma^2 * sum(psi_j^2, j=0..h-1)``.
+    """
+    if steps < 0:
+        raise ValueError("steps must be non-negative")
+    coef = np.asarray(coef, dtype=float)
+    phi = coef[1:]
+    order = phi.size
+    psi = np.zeros(steps, dtype=float)
+    if steps:
+        psi[0] = 1.0
+    for index in range(1, steps):
+        psi[index] = sum(
+            phi[lag - 1] * psi[index - lag]
+            for lag in range(1, min(order, index) + 1)
+        )
+    return np.sqrt(np.cumsum(psi ** 2))
+
+
 def _service_name(metric: str) -> str:
     """Infer service from names such as catalogue_cpu or catalogue_latency-90."""
     for suffix in ("_latency-50", "_latency-90", "_latency-95", "_latency-99",
@@ -200,8 +317,12 @@ class AMBER:
         aggregate: Literal["metric", "service"] = "metric",
         service_aggregation: Literal["max", "mean_top3", "logsumexp"] = "max",
         prior: NIG | None = None,
-        residualization: Literal["ar", "raw",] = "ar",
+        residualization: Literal["ar", "counterfactual_ar", "raw",] = "ar",
         scoring: Literal["bayes_factor", "glrt",] = "bayes_factor",
+        ar_stationarity: Literal["none", "root_projection"] = "none",
+        stationarity_radius: float = 0.98,
+        counterfactual_bounds: Literal["normal_range", "none"] = "normal_range",
+        horizon_aware_uncertainty: bool = False,
     ) -> None:
         if ar_order < 0:
             raise ValueError("ar_order must be non-negative")
@@ -220,11 +341,25 @@ class AMBER:
         if service_aggregation not in {"max","mean_top3","logsumexp",}:
             raise ValueError("Unknown service_aggregation=" f"{service_aggregation}")
 
-        if residualization not in {"ar", "raw"}:
+        if residualization not in {"ar", "counterfactual_ar", "raw"}:
             raise ValueError(f"Unknown residualization={residualization}")
 
         if scoring not in {"bayes_factor", "glrt",}:
             raise ValueError(f"Unknown scoring={scoring}")
+
+        if ar_stationarity not in {"none", "root_projection"}:
+            raise ValueError(f"Unknown ar_stationarity={ar_stationarity}")
+
+        if not 0.0 < stationarity_radius < 1.0:
+            raise ValueError("stationarity_radius must be between zero and one")
+
+        if counterfactual_bounds not in {"normal_range", "none"}:
+            raise ValueError(f"Unknown counterfactual_bounds={counterfactual_bounds}")
+
+        if horizon_aware_uncertainty and residualization != "counterfactual_ar":
+            raise ValueError(
+                "horizon_aware_uncertainty requires counterfactual_ar residualization"
+            )
         
         self.ar_order = ar_order
         self.ridge = ridge
@@ -242,6 +377,10 @@ class AMBER:
         self.metric_result_: pd.DataFrame | None = None
         self.residualization = residualization
         self.scoring = scoring
+        self.ar_stationarity = ar_stationarity
+        self.stationarity_radius = stationarity_radius
+        self.counterfactual_bounds = counterfactual_bounds
+        self.horizon_aware_uncertainty = horizon_aware_uncertainty
         self.result_: pd.DataFrame | None = None
         # JSON-serializable, per-metric observations for post-hoc analysis.
         # Populated by fit_predict; deliberately separate from metric_result_
@@ -328,12 +467,33 @@ class AMBER:
                 "standardized_residual_abnormal": [],
             }
         
-        if self.residualization == "ar":
+        counterfactual_clipped_count: int | None = None
+        spectral_radius_before: float | None = None
+        spectral_radius_after: float | None = None
+        stationarity_constrained: bool | None = None
+        forecast_uncertainty_multiplier = np.empty(0, dtype=float)
+
+        if self.residualization in {"ar", "counterfactual_ar"}:
             coef = _ridge_ar_fit(
                 normal_y,
                 self.ar_order,
                 self.ridge,
             )
+
+            spectral_radius_before = _ar_spectral_radius(coef)
+            spectral_radius_after = spectral_radius_before
+            stationarity_constrained = False
+            if self.ar_stationarity == "root_projection":
+                (
+                    coef,
+                    spectral_radius_before,
+                    spectral_radius_after,
+                    stationarity_constrained,
+                ) = _project_ar_stationary(
+                    coef,
+                    normal_mean=float(np.mean(normal_y)),
+                    radius=self.stationarity_radius,
+                )
 
             r_n = _ar_residuals(
                 normal_y,
@@ -349,20 +509,42 @@ class AMBER:
                     dtype=float,
                 )
 
-            history_and_abnormal = np.concatenate([
-                history,
-                abnormal_y,
-            ])
-
-            r_a = _ar_residuals(
-                history_and_abnormal,
-                coef,
-                self.ar_order,
-            )
             _, normal_target = _build_ar(normal_y, self.ar_order)
-            _, abnormal_target = _build_ar(history_and_abnormal, self.ar_order)
             normal_prediction = normal_target - r_n
-            abnormal_prediction = abnormal_target - r_a
+
+            if self.residualization == "ar":
+                history_and_abnormal = np.concatenate([
+                    history,
+                    abnormal_y,
+                ])
+                r_a = _ar_residuals(
+                    history_and_abnormal,
+                    coef,
+                    self.ar_order,
+                )
+                _, abnormal_target = _build_ar(
+                    history_and_abnormal,
+                    self.ar_order,
+                )
+                abnormal_prediction = abnormal_target - r_a
+            else:
+                abnormal_prediction, counterfactual_clipped_count = (
+                    _counterfactual_ar_forecast(
+                        history,
+                        coef,
+                        self.ar_order,
+                        abnormal_y.size,
+                        bounds=(
+                            (
+                                float(np.min(normal_y)),
+                                float(np.max(normal_y)),
+                            )
+                            if self.counterfactual_bounds == "normal_range"
+                            else None
+                        ),
+                    )
+                )
+                r_a = abnormal_y - abnormal_prediction
 
         elif self.residualization == "raw":
             r_n = normal_y.copy()
@@ -380,7 +562,16 @@ class AMBER:
         scale = max(robust_scale, 0.1 * sd, relative_floor, self.min_scale)
 
         z_n = (r_n - center) / scale
-        z_a = (r_a - center) / scale
+        if self.horizon_aware_uncertainty:
+            forecast_uncertainty_multiplier = (
+                _ar_forecast_uncertainty_multipliers(coef, r_a.size)
+            )
+            z_a = (
+                (r_a - center)
+                / (scale * forecast_uncertainty_multiplier)
+            )
+        else:
+            z_a = (r_a - center) / scale
 
         log_h0 = np.nan
         log_h1 = np.nan
@@ -424,6 +615,34 @@ class AMBER:
             "abnormal_sd_z": float(np.std(z_a, ddof=1)) if z_a.size > 1 else 0.0,
             "log_marginal_h0": float(log_h0),
             "log_marginal_h1": float(log_h1),
+            "counterfactual_clipped_predictions": counterfactual_clipped_count,
+            "counterfactual_clipped_fraction": (
+                counterfactual_clipped_count / abnormal_y.size
+                if counterfactual_clipped_count is not None and abnormal_y.size
+                else None
+            ),
+            "ar_spectral_radius_before": spectral_radius_before,
+            "ar_spectral_radius_after": spectral_radius_after,
+            "ar_stationarity_constrained": stationarity_constrained,
+            "counterfactual_bounds": (
+                self.counterfactual_bounds
+                if self.residualization == "counterfactual_ar"
+                else None
+            ),
+            "horizon_aware_uncertainty": self.horizon_aware_uncertainty,
+            "forecast_uncertainty_final_multiplier": (
+                float(forecast_uncertainty_multiplier[-1])
+                if forecast_uncertainty_multiplier.size
+                else None
+            ),
+            "forecast_uncertainty_max_multiplier": (
+                float(np.max(forecast_uncertainty_multiplier))
+                if forecast_uncertainty_multiplier.size
+                else None
+            ),
+            "forecast_uncertainty_multiplier": (
+                forecast_uncertainty_multiplier.astype(float).tolist()
+            ),
             # Keep the observations required to recreate an individual case
             # plot without reloading preprocessed input data.  For AR, the
             # prediction/residual series begin at ar_order; for raw they align
@@ -498,6 +717,10 @@ class AMBER:
                 "residualization": self.residualization,
                 "scoring": self.scoring,
                 "ar_order": self.ar_order,
+                "ar_stationarity": self.ar_stationarity,
+                "stationarity_radius": self.stationarity_radius,
+                "counterfactual_bounds": self.counterfactual_bounds,
+                "horizon_aware_uncertainty": self.horizon_aware_uncertainty,
                 "metrics": diagnostic_records,
             }
             self.result_ = metric_df
@@ -549,6 +772,10 @@ class AMBER:
             "residualization": self.residualization,
             "scoring": self.scoring,
             "ar_order": self.ar_order,
+            "ar_stationarity": self.ar_stationarity,
+            "stationarity_radius": self.stationarity_radius,
+            "counterfactual_bounds": self.counterfactual_bounds,
+            "horizon_aware_uncertainty": self.horizon_aware_uncertainty,
             "metrics": diagnostic_records,
             "services": service_df.to_dict(orient="records"),
         }

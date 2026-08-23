@@ -32,6 +32,7 @@ _AMBER_TIME_SERIES_DIAGNOSTIC_KEYS = {
     "ar_residual_abnormal",
     "standardized_residual_normal",
     "standardized_residual_abnormal",
+    "forecast_uncertainty_multiplier",
 }
 
 
@@ -257,6 +258,20 @@ def run_experiment(
             scoring=params.get(
                 "scoring",
                 "bayes_factor",
+            ),
+            ar_stationarity=params.get(
+                "ar_stationarity",
+                "none",
+            ),
+            stationarity_radius=float(
+                params.get("stationarity_radius", 0.98)
+            ),
+            counterfactual_bounds=params.get(
+                "counterfactual_bounds",
+                "normal_range",
+            ),
+            horizon_aware_uncertainty=bool(
+                params.get("horizon_aware_uncertainty", False)
             ),
         )
 
