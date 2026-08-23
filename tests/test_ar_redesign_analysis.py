@@ -6,6 +6,7 @@ from scripts.analyze_ar_redesign import analyze
 METHODS = (
     "raw", "observed_ar", "counterfactual_ar", "stationary_ar",
     "stationary_counterfactual_ar", "stationary_counterfactual_ar_uncertainty",
+    "stationary_counterfactual_ar_full_covariance",
 )
 
 
@@ -25,7 +26,11 @@ def _write(root, case_id, ranking):
 def test_ar_redesign_analysis_reports_stagewise_paired_results(tmp_path):
     roots = {method: tmp_path / method for method in METHODS}
     for method, root in roots.items():
-        ranking = ["root", "other"] if method.endswith("uncertainty") else ["other", "root"]
+        ranking = (
+            ["root", "other"]
+            if method == "stationary_counterfactual_ar_full_covariance"
+            else ["other", "root"]
+        )
         _write(root, "case-a", ranking)
 
     report = analyze(roots, tmp_path / "out", bootstrap_samples=100, seed=3)

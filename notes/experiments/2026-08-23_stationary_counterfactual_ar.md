@@ -128,3 +128,53 @@ fault type別にRawから最終variantへのTop-1変化を見ると、cpu +1、m
 2. delay/lossで改善しmem/diskで低下したcaseのAR persistenceとuncertainty倍率を比較し、補正が過大なmetricを特定する。
 3. 必要ならh-step errorの周辺分散だけでなく、forecast-error covarianceまたはeffective sample sizeをBFへ組み込む。
 4. 感度分析後にAR仕様をfreezeし、正式main configの置換、baseline比較へ進む。
+
+## 追試: full forecast-error covariance
+
+上記3のfull forecast-error covariance variantをRCAEval RE1 Zenodo v2全375ケースで実行した。
+
+ARのimpulse responseから下三角Toeplitz行列 `L`を定めると、innovation分散を `sigma^2`として多段先予測誤差の共分散は次になる。
+
+```text
+Sigma_H = sigma^2 L L^T
+```
+
+対角補正は `Sigma_H`の各時点の分散だけを使うが、追加variantは `L^{-1} e`によりhorizon間相関もwhiteningする。実装は各metricで密な `H x H`行列を構築・逆行列化せず、このCholesky逆変換と代数的に同じAR inverse filterを `O(Hp)` で計算する。係数の推定不確実性とAR model misspecificationは依然として含まない。
+
+重要な理論的予測として、同じAR係数と初期履歴の下では、Counterfactual forecast errorへの完全whiteningはObserved-lag ARの1-step innovationと一致する。そのため、このvariantは `stationary_ar` と同一のスコア・順位になると予想した。完全共分散補正は正常時の相関を厳密に除く一方、Counterfactual ARが保持したpersistent shiftもAR inverse filterで再び減衰させる。
+
+設定:
+
+- `configs/ablation/rcaeval_re1_zenodo_v2/stationary_counterfactual_ar_full_covariance.yaml`
+
+新variantだけの実行:
+
+```bash
+./scripts/run_ablation.sh --full-covariance-ar
+```
+
+実行後の全AR redesign対応比較:
+
+```bash
+PYTHONPATH=src:. python3 scripts/analyze_ar_redesign.py
+```
+
+### 事実
+
+| Method | AC@1 macro | AC@3 macro | AC@5 macro | Avg@5 macro |
+|---|---:|---:|---:|---:|
+| Stationary observed-lag AR | 0.6107 | 0.8587 | 0.9227 | 0.8181 |
+| Stationary CF + diagonal uncertainty | **0.6640** | **0.8853** | **0.9440** | **0.8496** |
+| Stationary CF + full covariance | 0.6107 | 0.8587 | 0.9227 | 0.8181 |
+
+full covarianceとStationary observed-lag ARは、375ケースすべてでroot-service rankが一致した。対角補正からfull covarianceへのAC@1差は `-0.0533`、95% bootstrap区間は `[-0.0853, -0.0240]`、対角補正だけ正解28件、full covarianceだけ正解8件、exact McNemar `p=0.001193` だった。
+
+fault type別のAC@1変化（対角補正 → full covariance）は、cpu `0.8267 → 0.7467`、mem `0.8800 → 0.8400`、disk `0.8533 → 0.6267`、delay `0.3600 → 0.4267`、loss `0.4000 → 0.4133` だった。最大の低下はdiskの `-0.2267` である。
+
+### 解釈
+
+full covarianceの結果は実装上の失敗ではなく、`L^{-1}e`がObserved-lag innovationを復元するという理論的等価性の実証である。特にresource fault、なかでもdiskでのpersistent level shiftを強く減衰させたと解釈できる。対角補正は各horizonの周辺分散は揃えるが、時点間相関を完全に除かないため、RCAに必要なpersistent signalを残している。
+
+### 判断
+
+full covariance variantは最終候補にせず、負のアブレーションとして保持する。暂定最終候補は `Stationary Counterfactual AR + diagonal horizon-aware uncertainty + Bayes Factor` のままとする。次はARを残差前処理ではなく、shared AR対separate ARのBayesian hypothesisとして直接比較する。

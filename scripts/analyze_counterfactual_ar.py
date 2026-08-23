@@ -42,6 +42,9 @@ METHOD_LABELS = {
     "stationary_counterfactual_ar_uncertainty": (
         "Stationary counterfactual AR+BF + horizon uncertainty"
     ),
+    "stationary_counterfactual_ar_full_covariance": (
+        "Stationary counterfactual AR+BF + full forecast covariance"
+    ),
 }
 
 

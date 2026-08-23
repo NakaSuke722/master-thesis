@@ -214,6 +214,14 @@ def _ar_forecast_uncertainty_multipliers(
     """
     if steps < 0:
         raise ValueError("steps must be non-negative")
+    psi = _ar_impulse_response(coef, steps)
+    return np.sqrt(np.cumsum(psi ** 2))
+
+
+def _ar_impulse_response(coef: np.ndarray, steps: int) -> np.ndarray:
+    """Return ``psi_0, ..., psi_(steps-1)`` for an AR model."""
+    if steps < 0:
+        raise ValueError("steps must be non-negative")
     coef = np.asarray(coef, dtype=float)
     phi = coef[1:]
     order = phi.size
@@ -225,7 +233,49 @@ def _ar_forecast_uncertainty_multipliers(
             phi[lag - 1] * psi[index - lag]
             for lag in range(1, min(order, index) + 1)
         )
-    return np.sqrt(np.cumsum(psi ** 2))
+    return psi
+
+
+def _ar_forecast_error_cholesky(
+    coef: np.ndarray,
+    steps: int,
+) -> np.ndarray:
+    """Return the unit-innovation Cholesky factor of AR forecast errors.
+
+    For innovation variance ``sigma**2``, the complete forecast-error
+    covariance is ``Sigma_H = sigma**2 * L @ L.T``.  ``L`` is lower-triangular
+    Toeplitz with the AR impulse responses on its diagonals.  This helper is
+    primarily useful for verification; scoring uses an algebraically exact
+    O(Hp) inverse filter instead of materializing an H-by-H matrix per metric.
+    """
+    psi = _ar_impulse_response(coef, steps)
+    factor = np.zeros((steps, steps), dtype=float)
+    for row in range(steps):
+        factor[row, :row + 1] = psi[row::-1]
+    return factor
+
+
+def _whiten_ar_forecast_errors(
+    errors: np.ndarray,
+    coef: np.ndarray,
+) -> np.ndarray:
+    """Apply the exact inverse-Cholesky transform to AR forecast errors.
+
+    If ``e = L @ innovation`` under the fitted AR model, this returns
+    ``L**-1 @ e``.  The AR inverse-filter form avoids an O(H^3) dense solve and
+    is mathematically identical because ``L`` is the impulse-response factor.
+    """
+    errors = np.asarray(errors, dtype=float)
+    coef = np.asarray(coef, dtype=float)
+    phi = coef[1:]
+    order = phi.size
+    whitened = errors.copy()
+    for index in range(errors.size):
+        whitened[index] -= sum(
+            phi[lag - 1] * errors[index - lag]
+            for lag in range(1, min(order, index) + 1)
+        )
+    return whitened
 
 
 def _service_name(metric: str) -> str:
@@ -323,6 +373,7 @@ class AMBER:
         stationarity_radius: float = 0.98,
         counterfactual_bounds: Literal["normal_range", "none"] = "normal_range",
         horizon_aware_uncertainty: bool = False,
+        forecast_error_covariance: Literal["diagonal", "full"] = "diagonal",
     ) -> None:
         if ar_order < 0:
             raise ValueError("ar_order must be non-negative")
@@ -360,6 +411,18 @@ class AMBER:
             raise ValueError(
                 "horizon_aware_uncertainty requires counterfactual_ar residualization"
             )
+
+        if forecast_error_covariance not in {"diagonal", "full"}:
+            raise ValueError(
+                "Unknown forecast_error_covariance="
+                f"{forecast_error_covariance}"
+            )
+
+        if forecast_error_covariance == "full" and not horizon_aware_uncertainty:
+            raise ValueError(
+                "full forecast_error_covariance requires "
+                "horizon_aware_uncertainty"
+            )
         
         self.ar_order = ar_order
         self.ridge = ridge
@@ -381,6 +444,7 @@ class AMBER:
         self.stationarity_radius = stationarity_radius
         self.counterfactual_bounds = counterfactual_bounds
         self.horizon_aware_uncertainty = horizon_aware_uncertainty
+        self.forecast_error_covariance = forecast_error_covariance
         self.result_: pd.DataFrame | None = None
         # JSON-serializable, per-metric observations for post-hoc analysis.
         # Populated by fit_predict; deliberately separate from metric_result_
@@ -566,10 +630,18 @@ class AMBER:
             forecast_uncertainty_multiplier = (
                 _ar_forecast_uncertainty_multipliers(coef, r_a.size)
             )
-            z_a = (
-                (r_a - center)
-                / (scale * forecast_uncertainty_multiplier)
-            )
+            if self.forecast_error_covariance == "full":
+                # The multi-horizon counterfactual errors satisfy e = L eps.
+                # Whitening first recovers innovation-like errors; their
+                # normal-only center and scale are then directly comparable
+                # with the one-step normal residuals.
+                whitened_abnormal = _whiten_ar_forecast_errors(r_a, coef)
+                z_a = (whitened_abnormal - center) / scale
+            else:
+                z_a = (
+                    (r_a - center)
+                    / (scale * forecast_uncertainty_multiplier)
+                )
         else:
             z_a = (r_a - center) / scale
 
@@ -630,6 +702,7 @@ class AMBER:
                 else None
             ),
             "horizon_aware_uncertainty": self.horizon_aware_uncertainty,
+            "forecast_error_covariance": self.forecast_error_covariance,
             "forecast_uncertainty_final_multiplier": (
                 float(forecast_uncertainty_multiplier[-1])
                 if forecast_uncertainty_multiplier.size
@@ -721,6 +794,7 @@ class AMBER:
                 "stationarity_radius": self.stationarity_radius,
                 "counterfactual_bounds": self.counterfactual_bounds,
                 "horizon_aware_uncertainty": self.horizon_aware_uncertainty,
+                "forecast_error_covariance": self.forecast_error_covariance,
                 "metrics": diagnostic_records,
             }
             self.result_ = metric_df
@@ -776,6 +850,7 @@ class AMBER:
             "stationarity_radius": self.stationarity_radius,
             "counterfactual_bounds": self.counterfactual_bounds,
             "horizon_aware_uncertainty": self.horizon_aware_uncertainty,
+            "forecast_error_covariance": self.forecast_error_covariance,
             "metrics": diagnostic_records,
             "services": service_df.to_dict(orient="records"),
         }

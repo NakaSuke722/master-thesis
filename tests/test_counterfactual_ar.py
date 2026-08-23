@@ -4,11 +4,13 @@ import pytest
 
 from models.amber import (
     AMBER,
+    _ar_forecast_error_cholesky,
     _ar_forecast_uncertainty_multipliers,
     _ar_residuals,
     _ar_spectral_radius,
     _counterfactual_ar_forecast,
     _project_ar_stationary,
+    _whiten_ar_forecast_errors,
 )
 
 
@@ -111,6 +113,38 @@ def test_horizon_uncertainty_matches_ar1_forecast_variance_formula():
     ])
 
 
+def test_full_forecast_covariance_contains_variances_and_cross_horizon_covariances():
+    factor = _ar_forecast_error_cholesky(
+        np.array([0.0, 0.5]),
+        steps=3,
+    )
+    covariance = factor @ factor.T
+
+    assert np.allclose(factor, np.array([
+        [1.0, 0.0, 0.0],
+        [0.5, 1.0, 0.0],
+        [0.25, 0.5, 1.0],
+    ]))
+    assert np.diag(covariance) == pytest.approx([
+        1.0,
+        1.0 + 0.5 ** 2,
+        1.0 + 0.5 ** 2 + 0.25 ** 2,
+    ])
+    assert covariance[0, 1] == pytest.approx(0.5)
+    assert covariance[1, 2] == pytest.approx(0.5 + 0.5 * 0.25)
+
+
+def test_fast_full_covariance_whitening_matches_cholesky_solve():
+    coefficients = np.array([0.0, 0.4, -0.2])
+    errors = np.array([1.2, -0.7, 2.0, 0.5])
+    factor = _ar_forecast_error_cholesky(coefficients, errors.size)
+
+    expected = np.linalg.solve(factor, errors)
+    actual = _whiten_ar_forecast_errors(errors, coefficients)
+
+    assert actual == pytest.approx(expected)
+
+
 def test_stationary_counterfactual_is_clip_free_and_uncertainty_aware():
     normal = pd.DataFrame({"service_cpu": np.arange(30, dtype=float)})
     abnormal = pd.DataFrame({"service_cpu": np.arange(30, 45, dtype=float)})
@@ -137,3 +171,45 @@ def test_stationary_counterfactual_is_clip_free_and_uncertainty_aware():
 def test_horizon_uncertainty_rejects_non_counterfactual_mode():
     with pytest.raises(ValueError, match="requires counterfactual_ar"):
         AMBER(residualization="ar", horizon_aware_uncertainty=True)
+
+
+def test_full_covariance_requires_horizon_uncertainty():
+    with pytest.raises(ValueError, match="requires horizon_aware_uncertainty"):
+        AMBER(forecast_error_covariance="full")
+
+
+def test_full_covariance_counterfactual_equals_observed_lag_innovations():
+    normal_values = np.sin(np.arange(80, dtype=float) / 4.0)
+    abnormal_values = np.concatenate([
+        normal_values[-1:] + 4.0,
+        np.full(19, normal_values[-1] + 4.0),
+    ])
+    normal = pd.DataFrame({"service_cpu": normal_values})
+    abnormal = pd.DataFrame({"service_cpu": abnormal_values})
+    common = dict(
+        ar_order=3,
+        winsor_quantile=None,
+        ar_stationarity="root_projection",
+        stationarity_radius=0.98,
+        counterfactual_bounds="none",
+    )
+    observed = AMBER(residualization="ar", **common)
+    full = AMBER(
+        residualization="counterfactual_ar",
+        horizon_aware_uncertainty=True,
+        forecast_error_covariance="full",
+        **common,
+    )
+
+    observed.fit_predict(normal, abnormal)
+    full.fit_predict(normal, abnormal)
+    observed_metric = observed.diagnostics_["metrics"][0]
+    full_metric = full.diagnostics_["metrics"][0]
+
+    assert full_metric["forecast_error_covariance"] == "full"
+    assert full_metric["standardized_residual_abnormal"] == pytest.approx(
+        observed_metric["standardized_residual_abnormal"], abs=1e-10
+    )
+    assert full_metric["score"] == pytest.approx(
+        observed_metric["score"], abs=1e-10
+    )

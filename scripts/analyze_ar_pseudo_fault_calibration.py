@@ -47,6 +47,14 @@ MODE_OVERRIDES: dict[str, dict[str, Any]] = {
         "counterfactual_bounds": "none",
         "horizon_aware_uncertainty": True,
     },
+    "stationary_counterfactual_ar_full_covariance": {
+        "residualization": "counterfactual_ar",
+        "ar_stationarity": "root_projection",
+        "stationarity_radius": 0.98,
+        "counterfactual_bounds": "none",
+        "horizon_aware_uncertainty": True,
+        "forecast_error_covariance": "full",
+    },
 }
 
 
@@ -89,6 +97,9 @@ def _build_model(params: dict[str, Any], mode: str) -> AMBER:
         counterfactual_bounds=overrides.get("counterfactual_bounds", "normal_range"),
         horizon_aware_uncertainty=bool(
             overrides.get("horizon_aware_uncertainty", False)
+        ),
+        forecast_error_covariance=overrides.get(
+            "forecast_error_covariance", "diagonal"
         ),
     )
 

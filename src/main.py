@@ -273,6 +273,9 @@ def run_experiment(
             horizon_aware_uncertainty=bool(
                 params.get("horizon_aware_uncertainty", False)
             ),
+            forecast_error_covariance=params.get(
+                "forecast_error_covariance", "diagonal"
+            ),
         )
 
         if granularity == "service":

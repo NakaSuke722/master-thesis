@@ -3,7 +3,7 @@ benchmark:
 
 experiment:
   category: "ablation"
-  name: "stationary_counterfactual_ar_uncertainty"
+  name: "stationary_counterfactual_ar_full_covariance"
 
 data:
   source:
@@ -26,8 +26,8 @@ model:
     stationarity_radius: 0.98
     counterfactual_bounds: "none"
     horizon_aware_uncertainty: true
-    # Sigma_Hの対角（各horizonの分散）だけで標準化する現行方式。
-    forecast_error_covariance: "diagonal"
+    # Sigma_Hの対角だけでなくhorizon間共分散も含むL^{-1}eを用いる。
+    forecast_error_covariance: "full"
     min_scale: 1.0e-6
     relative_scale_floor: 1.0e-3
     winsor_quantile: null

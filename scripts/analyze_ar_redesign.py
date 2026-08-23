@@ -35,14 +35,23 @@ DEFAULT_ROOTS = {
     "stationary_counterfactual_ar_uncertainty": Path(
         "results/ablation/rcaeval_re1/stationary_counterfactual_ar_uncertainty"
     ),
+    "stationary_counterfactual_ar_full_covariance": Path(
+        "results/ablation/rcaeval_re1/"
+        "stationary_counterfactual_ar_full_covariance"
+    ),
 }
 
 STAGE_COMPARISONS = (
     ("observed_ar", "stationary_ar"),
     ("stationary_ar", "stationary_counterfactual_ar"),
     ("stationary_counterfactual_ar", "stationary_counterfactual_ar_uncertainty"),
-    ("raw", "stationary_counterfactual_ar_uncertainty"),
-    ("counterfactual_ar", "stationary_counterfactual_ar_uncertainty"),
+    (
+        "stationary_counterfactual_ar_uncertainty",
+        "stationary_counterfactual_ar_full_covariance",
+    ),
+    ("stationary_ar", "stationary_counterfactual_ar_full_covariance"),
+    ("raw", "stationary_counterfactual_ar_full_covariance"),
+    ("counterfactual_ar", "stationary_counterfactual_ar_full_covariance"),
 )
 
 
@@ -87,7 +96,7 @@ def _scope_comparisons(
 
 def _write_markdown(path: Path, report: dict[str, Any]) -> None:
     lines = [
-        "# Stationarity and horizon-uncertainty AR redesign",
+        "# Stationarity and forecast-error covariance AR redesign",
         "",
         f"Joined cases: {report['n_joined_cases']}",
         "",
@@ -111,7 +120,7 @@ def _write_markdown(path: Path, report: dict[str, Any]) -> None:
         )
     lines.extend([
         "",
-        "## Final candidate by dataset",
+        "## Full-covariance variant by dataset",
         "",
         "| Dataset | AC@1 | AC@3 | AC@5 | Avg@5 |",
         "|---|---:|---:|---:|---:|",

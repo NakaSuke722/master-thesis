@@ -8,7 +8,7 @@ cd "${PROJECT_ROOT}"
 
 case "${1:-}" in
     ""|--rcaeval)
-        # RCAEval RE1 Zenodo v2正式アブレーション（375ケース × 7 variants）。
+        # RCAEval RE1 Zenodo v2正式アブレーション（375ケース × 8 variants）。
         CONFIGS=(
             "configs/ablation/rcaeval_re1_zenodo_v2/no_ar.yaml"
             "configs/ablation/rcaeval_re1_zenodo_v2/no_bayes.yaml"
@@ -17,6 +17,7 @@ case "${1:-}" in
             "configs/ablation/rcaeval_re1_zenodo_v2/stationary_ar.yaml"
             "configs/ablation/rcaeval_re1_zenodo_v2/stationary_counterfactual_ar.yaml"
             "configs/ablation/rcaeval_re1_zenodo_v2/stationary_counterfactual_ar_uncertainty.yaml"
+            "configs/ablation/rcaeval_re1_zenodo_v2/stationary_counterfactual_ar_full_covariance.yaml"
         )
         GRANULARITY="service"
         ;;
@@ -28,11 +29,19 @@ case "${1:-}" in
         GRANULARITY="service"
         ;;
     --ar-redesign)
-        # 定常化、clipなし再帰、horizon uncertaintyを順番に比較する。
+        # 定常化、clipなし再帰、対角補正、完全共分散を順番に比較する。
         CONFIGS=(
             "configs/ablation/rcaeval_re1_zenodo_v2/stationary_ar.yaml"
             "configs/ablation/rcaeval_re1_zenodo_v2/stationary_counterfactual_ar.yaml"
             "configs/ablation/rcaeval_re1_zenodo_v2/stationary_counterfactual_ar_uncertainty.yaml"
+            "configs/ablation/rcaeval_re1_zenodo_v2/stationary_counterfactual_ar_full_covariance.yaml"
+        )
+        GRANULARITY="service"
+        ;;
+    --full-covariance-ar)
+        # 既存variantを再実行せず、完全forecast-error covarianceだけを実行する。
+        CONFIGS=(
+            "configs/ablation/rcaeval_re1_zenodo_v2/stationary_counterfactual_ar_full_covariance.yaml"
         )
         GRANULARITY="service"
         ;;
@@ -46,7 +55,7 @@ case "${1:-}" in
         GRANULARITY="metric"
         ;;
     *)
-        echo "Usage: $0 [--rcaeval|--counterfactual-ar|--ar-redesign|--baro]" >&2
+        echo "Usage: $0 [--rcaeval|--counterfactual-ar|--ar-redesign|--full-covariance-ar|--baro]" >&2
         exit 2
         ;;
 esac
