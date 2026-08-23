@@ -46,6 +46,9 @@ METHOD_LABELS = {
         "Stationary counterfactual AR+BF + full forecast covariance"
     ),
     "direct_ar_bayes_factor": "Direct shared-vs-separate AR BF",
+    "intercept_shift_ar_bayes_factor": (
+        "Intercept-shift AR BF (shared lags and variance)"
+    ),
 }
 
 

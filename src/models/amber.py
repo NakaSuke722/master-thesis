@@ -14,7 +14,11 @@ from typing import Iterable, Literal
 import numpy as np
 import pandas as pd
 
-from models.ar_bayes_factor import ARBayesFactorPrior, ar_change_bayes_factor
+from models.ar_bayes_factor import (
+    ARBayesFactorPrior,
+    ar_change_bayes_factor,
+    ar_intercept_shift_bayes_factor,
+)
 
 
 @dataclass(frozen=True)
@@ -351,9 +355,8 @@ class AMBER:
     """RCA using Bayesian model selection on time-series changes.
 
     The standard modes compare Gaussian distributions after raw/AR
-    residualization.  ``ar_model`` + ``ar_bayes_factor`` instead compares
-    one AR process shared across the two periods against separate AR
-    processes, so AR is part of the hypothesis rather than preprocessing.
+    residualization.  ``ar_model`` scoring modes instead make AR part of the
+    hypothesis: either every AR parameter or only the intercept can differ.
 
     The RCA score is
         log BF= log m(z_normal) + log m(z_abnormal) - log m(z_normal and z_abnormal),
@@ -376,6 +379,7 @@ class AMBER:
         ] = "ar",
         scoring: Literal[
             "bayes_factor", "glrt", "ar_bayes_factor",
+            "ar_intercept_bayes_factor",
         ] = "bayes_factor",
         ar_stationarity: Literal["none", "root_projection"] = "none",
         stationarity_radius: float = 0.98,
@@ -404,18 +408,21 @@ class AMBER:
         if residualization not in {"ar", "counterfactual_ar", "raw", "ar_model"}:
             raise ValueError(f"Unknown residualization={residualization}")
 
-        if scoring not in {"bayes_factor", "glrt", "ar_bayes_factor"}:
+        ar_model_scores = {
+            "ar_bayes_factor", "ar_intercept_bayes_factor",
+        }
+        if scoring not in {"bayes_factor", "glrt", *ar_model_scores}:
             raise ValueError(f"Unknown scoring={scoring}")
 
-        if (scoring == "ar_bayes_factor") != (residualization == "ar_model"):
+        if (scoring in ar_model_scores) != (residualization == "ar_model"):
             raise ValueError(
-                "ar_bayes_factor scoring and ar_model residualization "
+                "AR-model Bayes-factor scoring and ar_model residualization "
                 "must be selected together"
             )
 
-        if scoring == "ar_bayes_factor" and winsor_quantile is not None:
+        if scoring in ar_model_scores and winsor_quantile is not None:
             raise ValueError(
-                "ar_bayes_factor requires winsor_quantile=None so the AR "
+                "AR-model Bayes factors require winsor_quantile=None so the AR "
                 "likelihood is evaluated without clipping"
             )
 
@@ -528,7 +535,7 @@ class AMBER:
         return normal_y, abnormal_y
     
     def _score_metric(self, normal_y: np.ndarray, abnormal_y: np.ndarray) -> dict[str, object]:
-        if self.scoring == "ar_bayes_factor":
+        if self.scoring in {"ar_bayes_factor", "ar_intercept_bayes_factor"}:
             normal_y = np.asarray(normal_y, dtype=float)
             abnormal_y = np.asarray(abnormal_y, dtype=float)
             if (
@@ -552,7 +559,12 @@ class AMBER:
                     "standardized_residual_abnormal": [],
                 }
             try:
-                comparison = ar_change_bayes_factor(
+                comparison_function = (
+                    ar_change_bayes_factor
+                    if self.scoring == "ar_bayes_factor"
+                    else ar_intercept_shift_bayes_factor
+                )
+                comparison = comparison_function(
                     normal_y,
                     abnormal_y,
                     order=self.ar_order,
@@ -576,30 +588,60 @@ class AMBER:
                     "standardized_residual_normal": [],
                     "standardized_residual_abnormal": [],
                 }
-            pre = comparison["posterior_pre"]
-            post = comparison["posterior_post"]
-            shared = comparison["posterior_shared"]
+            if self.scoring == "ar_bayes_factor":
+                pre = comparison["posterior_pre"]
+                post = comparison["posterior_post"]
+                shared = comparison["posterior_shared"]
+                pre_coefficients = pre["coefficient_mean"]
+                post_coefficients = post["coefficient_mean"]
+                pre_variance = pre["innovation_variance_mean"]
+                post_variance = post["innovation_variance_mean"]
+                pre_radius = pre["spectral_radius_at_mean"]
+                post_radius = post["spectral_radius_at_mean"]
+                pre_long_run_mean = pre["long_run_mean_at_mean"]
+                post_long_run_mean = post["long_run_mean_at_mean"]
+                pre_rows = pre["n_rows"]
+                post_rows = post["n_rows"]
+                intercept_shift = (
+                    float(post_coefficients[0] - pre_coefficients[0])
+                )
+            else:
+                shared = comparison["posterior_h0"]
+                alternative = comparison["posterior_h1"]
+                pre_coefficients = alternative["pre_coefficient_mean"]
+                post_coefficients = alternative["post_coefficient_mean"]
+                pre_variance = alternative["innovation_variance_mean"]
+                post_variance = alternative["innovation_variance_mean"]
+                pre_radius = alternative["spectral_radius_at_mean"]
+                post_radius = alternative["spectral_radius_at_mean"]
+                pre_long_run_mean = alternative["pre_long_run_mean_at_mean"]
+                post_long_run_mean = alternative["post_long_run_mean_at_mean"]
+                pre_rows = alternative["pre_rows"]
+                post_rows = alternative["post_rows"]
+                intercept_shift = alternative["intercept_shift_mean"]
             return {
                 "score": float(comparison["log_bayes_factor"]),
+                "ar_hypothesis": comparison["hypothesis"],
                 "normal_scale": float(comparison["normalization"]["scale"]),
                 "abnormal_mean_z": np.nan,
                 "abnormal_sd_z": np.nan,
                 "log_marginal_h0": float(comparison["log_marginal_h0"]),
                 "log_marginal_h1": float(comparison["log_marginal_h1"]),
-                "ar_coefficients": pre["coefficient_mean"],
-                "ar_post_coefficients": post["coefficient_mean"],
+                "ar_coefficients": pre_coefficients,
+                "ar_post_coefficients": post_coefficients,
                 "ar_shared_coefficients": shared["coefficient_mean"],
-                "ar_pre_innovation_variance": pre["innovation_variance_mean"],
-                "ar_post_innovation_variance": post["innovation_variance_mean"],
+                "ar_intercept_shift": intercept_shift,
+                "ar_pre_innovation_variance": pre_variance,
+                "ar_post_innovation_variance": post_variance,
                 "ar_shared_innovation_variance": shared["innovation_variance_mean"],
-                "ar_pre_spectral_radius": pre["spectral_radius_at_mean"],
-                "ar_post_spectral_radius": post["spectral_radius_at_mean"],
+                "ar_pre_spectral_radius": pre_radius,
+                "ar_post_spectral_radius": post_radius,
                 "ar_shared_spectral_radius": shared["spectral_radius_at_mean"],
-                "ar_pre_long_run_mean": pre["long_run_mean_at_mean"],
-                "ar_post_long_run_mean": post["long_run_mean_at_mean"],
+                "ar_pre_long_run_mean": pre_long_run_mean,
+                "ar_post_long_run_mean": post_long_run_mean,
                 "ar_shared_long_run_mean": shared["long_run_mean_at_mean"],
-                "ar_pre_rows": pre["n_rows"],
-                "ar_post_rows": post["n_rows"],
+                "ar_pre_rows": pre_rows,
+                "ar_post_rows": post_rows,
                 "raw_normal": normal_y.astype(float).tolist(),
                 "raw_abnormal": abnormal_y.astype(float).tolist(),
                 "ar_prediction_normal": [],
@@ -901,7 +943,9 @@ class AMBER:
                 "forecast_error_covariance": self.forecast_error_covariance,
                 "ar_bayes_prior": (
                     asdict(self.ar_bayes_prior)
-                    if self.scoring == "ar_bayes_factor" else None
+                    if self.scoring in {
+                        "ar_bayes_factor", "ar_intercept_bayes_factor",
+                    } else None
                 ),
                 "metrics": diagnostic_records,
             }
@@ -961,7 +1005,9 @@ class AMBER:
             "forecast_error_covariance": self.forecast_error_covariance,
             "ar_bayes_prior": (
                 asdict(self.ar_bayes_prior)
-                if self.scoring == "ar_bayes_factor" else None
+                if self.scoring in {
+                    "ar_bayes_factor", "ar_intercept_bayes_factor",
+                } else None
             ),
             "metrics": diagnostic_records,
             "services": service_df.to_dict(orient="records"),

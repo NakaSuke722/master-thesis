@@ -4,6 +4,7 @@ from models.ar_bayes_factor import (
     ARBayesFactorPrior,
     _ar_design,
     ar_change_bayes_factor,
+    ar_intercept_shift_bayes_factor,
 )
 
 
@@ -76,6 +77,50 @@ def test_ar_change_bayes_factor_detects_dynamics_and_variance_changes():
     assert variance_result["log_bayes_factor"] > 10.0
 
 
+def test_intercept_shift_bayes_factor_detects_persistent_mean_change():
+    prior = ARBayesFactorPrior(
+        intercept_precision=0.1,
+        lag_precision=10.0,
+        alpha=5.0,
+        beta=4.0,
+    )
+    pre_same, post_same = _simulate(19)
+    pre_shift, post_shift = _simulate(19, post_mean=2.0)
+
+    same = ar_intercept_shift_bayes_factor(
+        pre_same, post_same, order=1, prior=prior
+    )
+    shifted = ar_intercept_shift_bayes_factor(
+        pre_shift, post_shift, order=1, prior=prior
+    )
+
+    assert same["log_bayes_factor"] < 0.0
+    assert shifted["log_bayes_factor"] > 10.0
+    assert shifted["posterior_h1"]["intercept_shift_mean"] > 1.0
+    assert len(shifted["posterior_h1"]["shared_lag_mean"]) == 1
+
+
+def test_intercept_shift_bayes_factor_does_not_reward_pure_dynamics_or_variance():
+    prior = ARBayesFactorPrior(
+        intercept_precision=0.1,
+        lag_precision=10.0,
+        alpha=5.0,
+        beta=4.0,
+    )
+    pre_phi, post_phi = _simulate(19, post_phi=-0.2)
+    pre_var, post_var = _simulate(19, post_sigma=1.2)
+
+    phi_result = ar_intercept_shift_bayes_factor(
+        pre_phi, post_phi, order=1, prior=prior
+    )
+    variance_result = ar_intercept_shift_bayes_factor(
+        pre_var, post_var, order=1, prior=prior
+    )
+
+    assert phi_result["log_bayes_factor"] < 0.0
+    assert variance_result["log_bayes_factor"] < 0.0
+
+
 def test_normal_only_scaling_does_not_change_when_post_is_rescaled():
     pre, post = _simulate(31)
     baseline = ar_change_bayes_factor(pre, post, order=1)
@@ -92,6 +137,13 @@ def test_proper_prior_keeps_constant_metric_score_finite():
     )
 
     assert np.isfinite(result["log_bayes_factor"])
+
+    intercept_result = ar_intercept_shift_bayes_factor(
+        np.ones(100),
+        np.ones(80),
+        order=3,
+    )
+    assert np.isfinite(intercept_result["log_bayes_factor"])
 
 
 def test_prior_validation_rejects_improper_precision():
