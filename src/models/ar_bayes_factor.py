@@ -9,6 +9,7 @@ from __future__ import annotations
 
 from dataclasses import asdict, dataclass
 from math import lgamma, log, pi
+from typing import Sequence
 
 import numpy as np
 
@@ -430,4 +431,257 @@ def ar_intercept_shift_bayes_factor(
         "prior": asdict(model_prior),
         "posterior_h0": posterior_h0,
         "posterior_h1": posterior_h1,
+    }
+
+
+def _logsumexp(values: np.ndarray) -> float:
+    values = np.asarray(values, dtype=float)
+    if values.size == 0:
+        raise ValueError("logsumexp requires at least one value")
+    maximum = float(np.max(values))
+    return maximum + float(np.log(np.sum(np.exp(values - maximum))))
+
+
+def _intervention_basis(
+    length: int,
+    *,
+    shape: str,
+    onset_offset: int,
+    half_life: float,
+) -> np.ndarray:
+    """Create post-period intervention columns for a candidate response."""
+    if length <= 0:
+        raise ValueError("intervention length must be positive")
+    if onset_offset < 0 or onset_offset >= length:
+        raise ValueError("onset_offset must lie within the post period")
+    if half_life <= 0:
+        raise ValueError("half_life must be positive")
+    allowed = {"step", "ramp", "exp_rise", "exp_decay", "step_ramp"}
+    if shape not in allowed:
+        raise ValueError(f"Unknown intervention shape={shape}")
+
+    horizon = np.arange(length, dtype=float) - float(onset_offset)
+    active = horizon >= 0
+    step = active.astype(float)
+    active_horizon = np.maximum(horizon, 0.0)
+    remaining = max(1, length - onset_offset)
+    ramp = np.where(active, (active_horizon + 1.0) / remaining, 0.0)
+    rise = np.where(
+        active,
+        1.0 - np.exp(-np.log(2.0) * (active_horizon + 1.0) / half_life),
+        0.0,
+    )
+    decay = np.where(
+        active,
+        np.exp(-np.log(2.0) * active_horizon / half_life),
+        0.0,
+    )
+    if shape == "step":
+        return step[:, None]
+    if shape == "ramp":
+        return ramp[:, None]
+    if shape == "exp_rise":
+        return rise[:, None]
+    if shape == "exp_decay":
+        return decay[:, None]
+    return np.column_stack([step, ramp])
+
+
+def ar_intervention_bayes_factor(
+    pre: np.ndarray,
+    post: np.ndarray,
+    *,
+    order: int = 3,
+    prior: ARBayesFactorPrior | None = None,
+    shapes: Sequence[str] = (
+        "step", "ramp", "exp_rise", "exp_decay", "step_ramp",
+    ),
+    onset_offsets: Sequence[int] = (0,),
+    half_life: float = 10.0,
+    intervention_precision: float = 0.1,
+    onset_prior_decay: float = 0.0,
+    standardize: bool = True,
+    min_scale: float = 1e-6,
+) -> dict[str, object]:
+    """Model-average structured intervention responses on a shared AR process.
+
+    H0 has one baseline AR process.  Each H1 candidate keeps the baseline AR
+    coefficients and innovation variance shared, then adds one of several
+    deterministic response bases beginning at a candidate onset.  Conditional
+    on shape/onset, the model is conjugate Bayesian regression.  The H1
+    marginal likelihood averages all candidates rather than selecting the
+    largest one, retaining the Bayesian multiplicity penalty.
+    """
+    if order < 0:
+        raise ValueError("order must be non-negative")
+    if intervention_precision <= 0:
+        raise ValueError("intervention_precision must be positive")
+    if onset_prior_decay < 0:
+        raise ValueError("onset_prior_decay must be non-negative")
+    if not shapes:
+        raise ValueError("At least one intervention shape is required")
+    if not onset_offsets:
+        raise ValueError("At least one onset offset is required")
+    pre = np.asarray(pre, dtype=float)
+    post = np.asarray(post, dtype=float)
+    if pre.ndim != 1 or post.ndim != 1:
+        raise ValueError("pre and post must be one-dimensional")
+    if pre.size <= order:
+        raise ValueError(f"Need more than ar_order={order} pre observations")
+    if post.size == 0:
+        raise ValueError("post segment must not be empty")
+
+    model_prior = prior or ARBayesFactorPrior()
+    if standardize:
+        scaled_pre, scaled_post, center, scale = _normal_only_standardize(
+            pre, post, min_scale
+        )
+    else:
+        scaled_pre, scaled_post = pre.copy(), post.copy()
+        center, scale = 0.0, 1.0
+
+    pre_design, pre_target = _ar_design(scaled_pre, order)
+    post_design, post_target = _ar_design(
+        scaled_post, order, history=scaled_pre
+    )
+    if pre_target.size == 0 or post_target.size == 0:
+        raise ValueError("No finite conditional-AR rows in one or both segments")
+    # Build the exact retained-target indices without compressing time gaps.
+    combined = np.concatenate([
+        scaled_pre[-order:] if order else np.empty(0), scaled_post,
+    ])
+    retained_post_indices: list[int] = []
+    for index in range(order, combined.size):
+        lags = (
+            combined[index - np.arange(1, order + 1)]
+            if order else np.empty(0, dtype=float)
+        )
+        if np.isfinite(combined[index]) and np.all(np.isfinite(lags)):
+            retained_post_indices.append(index - order)
+    if len(retained_post_indices) != post_design.shape[0]:
+        raise ValueError("Intervention/design row alignment failed")
+
+    pooled_design = np.vstack([pre_design, post_design])
+    pooled_target = np.concatenate([pre_target, post_target])
+    log_h0, posterior_h0 = _bayesian_ar_log_marginal(
+        pooled_design, pooled_target, model_prior
+    )
+    base_dimension = pooled_design.shape[1]
+    base_prior_mean = np.concatenate([
+        [model_prior.intercept_mean],
+        np.full(order, model_prior.lag_mean, dtype=float),
+    ])
+    base_prior_precision = np.concatenate([
+        [model_prior.intercept_precision],
+        np.full(order, model_prior.lag_precision, dtype=float),
+    ])
+
+    candidates: list[dict[str, object]] = []
+    for onset_offset in onset_offsets:
+        for shape in shapes:
+            full_post_basis = _intervention_basis(
+                post.size,
+                shape=str(shape),
+                onset_offset=int(onset_offset),
+                half_life=half_life,
+            )
+            post_basis = full_post_basis[retained_post_indices]
+            intervention = np.vstack([
+                np.zeros((pre_design.shape[0], post_basis.shape[1])),
+                post_basis,
+            ])
+            candidate_design = np.column_stack([pooled_design, intervention])
+            candidate_prior_mean = np.concatenate([
+                base_prior_mean, np.zeros(post_basis.shape[1]),
+            ])
+            candidate_prior_precision = np.concatenate([
+                base_prior_precision,
+                np.full(post_basis.shape[1], intervention_precision),
+            ])
+            log_marginal, mean, alpha_n, beta_n = (
+                _bayesian_regression_log_marginal(
+                    candidate_design,
+                    pooled_target,
+                    prior_mean=candidate_prior_mean,
+                    prior_precision=candidate_prior_precision,
+                    alpha=model_prior.alpha,
+                    beta=model_prior.beta,
+                )
+            )
+            base_mean = mean[:base_dimension]
+            effect_mean = mean[base_dimension:]
+            final_effect = float(full_post_basis[-1] @ effect_mean)
+            initial_effect = float(
+                full_post_basis[int(onset_offset)] @ effect_mean
+            )
+            denominator = 1.0 - float(np.sum(base_mean[1:]))
+            post_long_run_mean = (
+                float((base_mean[0] + final_effect) / denominator)
+                if abs(denominator) > 1e-10 else None
+            )
+            candidates.append({
+                "shape": str(shape),
+                "onset_offset": int(onset_offset),
+                "log_prior_weight": float(-onset_prior_decay * onset_offset),
+                "pre_rows": int(pre_target.size),
+                "post_rows": int(post_target.size),
+                "log_marginal": float(log_marginal),
+                "base_coefficient_mean": base_mean.astype(float).tolist(),
+                "intervention_coefficient_mean": effect_mean.astype(float).tolist(),
+                "initial_effect_mean": initial_effect,
+                "final_effect_mean": final_effect,
+                "innovation_variance_mean": (
+                    float(beta_n / (alpha_n - 1.0)) if alpha_n > 1.0 else None
+                ),
+                "spectral_radius_at_mean": _ar_spectral_radius_from_mean(
+                    base_mean
+                ),
+                "post_long_run_mean_at_end": post_long_run_mean,
+                "alpha": alpha_n,
+                "beta": beta_n,
+            })
+
+    candidate_log_marginals = np.asarray([
+        float(candidate["log_marginal"]) for candidate in candidates
+    ])
+    candidate_log_weights = np.asarray([
+        float(candidate["log_prior_weight"]) for candidate in candidates
+    ])
+    log_h1 = (
+        _logsumexp(candidate_log_marginals + candidate_log_weights)
+        - _logsumexp(candidate_log_weights)
+    )
+    posterior_log_normalizer = _logsumexp(
+        candidate_log_marginals + candidate_log_weights
+    )
+    probabilities = np.exp(
+        candidate_log_marginals + candidate_log_weights
+        - posterior_log_normalizer
+    )
+    for candidate, probability in zip(candidates, probabilities, strict=True):
+        candidate["posterior_model_probability"] = float(probability)
+    candidates.sort(
+        key=lambda item: float(item["posterior_model_probability"]),
+        reverse=True,
+    )
+
+    return {
+        "schema_version": 1,
+        "hypothesis": "shared_ar_vs_model_averaged_intervention_response",
+        "ar_order": order,
+        "log_bayes_factor": float(log_h1 - log_h0),
+        "log_marginal_h0": float(log_h0),
+        "log_marginal_h1": float(log_h1),
+        "normalization": {
+            "normal_only": bool(standardize),
+            "center": center,
+            "scale": scale,
+        },
+        "prior": asdict(model_prior),
+        "intervention_precision": float(intervention_precision),
+        "onset_prior_decay": float(onset_prior_decay),
+        "half_life": float(half_life),
+        "posterior_h0": posterior_h0,
+        "posterior_models": candidates,
+        "posterior_map": candidates[0],
     }

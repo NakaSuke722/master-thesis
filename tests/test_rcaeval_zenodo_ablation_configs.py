@@ -57,6 +57,26 @@ EXPECTED_VARIANTS = {
             "alpha": 5.0, "beta": 4.0,
         },
     },
+    "adaptive_direct_ar_bayes_factor": {
+        "residualization": "ar_model",
+        "scoring": "ar_intervention_bayes_factor",
+        "winsor_quantile": None,
+        "ar_bayes_prior": {
+            "intercept_mean": 0.0, "lag_mean": 0.0,
+            "intercept_precision": 0.1, "lag_precision": 10.0,
+            "alpha": 5.0, "beta": 4.0,
+        },
+        "ar_intervention_shapes": [
+            "step", "ramp", "exp_rise", "exp_decay", "step_ramp",
+        ],
+        "ar_intervention_onset_offsets": [0, 5, 15],
+        "ar_intervention_onset_prior_decay": 0.15,
+        "ar_intervention_half_life": 10.0,
+        "ar_intervention_precision": 0.1,
+        "ar_null_calibration_fractions": [0.4, 0.5, 0.6],
+        "ar_null_calibration_quantile": 0.9,
+        "ar_null_calibration_mode": "per_row_excess",
+    },
 }
 
 

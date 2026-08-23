@@ -49,6 +49,9 @@ METHOD_LABELS = {
     "intercept_shift_ar_bayes_factor": (
         "Intercept-shift AR BF (shared lags and variance)"
     ),
+    "adaptive_direct_ar_bayes_factor": (
+        "Adaptive intervention-response Direct AR BF"
+    ),
 }
 
 

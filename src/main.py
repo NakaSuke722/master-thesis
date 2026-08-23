@@ -293,6 +293,31 @@ def run_experiment(
                 "forecast_error_covariance", "diagonal"
             ),
             ar_bayes_prior=ar_bayes_prior,
+            ar_intervention_shapes=params.get(
+                "ar_intervention_shapes",
+                ["step", "ramp", "exp_rise", "exp_decay", "step_ramp"],
+            ),
+            ar_intervention_onset_offsets=params.get(
+                "ar_intervention_onset_offsets", [0]
+            ),
+            ar_intervention_half_life=float(
+                params.get("ar_intervention_half_life", 10.0)
+            ),
+            ar_intervention_precision=float(
+                params.get("ar_intervention_precision", 0.1)
+            ),
+            ar_intervention_onset_prior_decay=float(
+                params.get("ar_intervention_onset_prior_decay", 0.0)
+            ),
+            ar_null_calibration_fractions=params.get(
+                "ar_null_calibration_fractions", []
+            ),
+            ar_null_calibration_quantile=float(
+                params.get("ar_null_calibration_quantile", 0.9)
+            ),
+            ar_null_calibration_mode=params.get(
+                "ar_null_calibration_mode", "subtract"
+            ),
         )
 
         if granularity == "service":

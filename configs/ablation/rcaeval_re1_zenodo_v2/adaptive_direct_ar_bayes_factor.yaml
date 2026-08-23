@@ -1,0 +1,83 @@
+benchmark:
+  name: "rcaeval_re1"
+
+experiment:
+  category: "ablation"
+  name: "adaptive_direct_ar_bayes_factor"
+
+data:
+  source:
+    provider: "Zenodo"
+    record: "14590730"
+    doi: "10.5281/zenodo.14590730"
+    version: "v2"
+  normal_window_points: 600
+  abnormal_window_points: 600
+
+model:
+  target: "amber"
+  preprocess_strategy: "default"
+  params:
+    residualization: "ar_model"
+    scoring: "ar_intervention_bayes_factor"
+    ar_order: 3
+    ridge: 1.0e-3
+    min_scale: 1.0e-6
+    relative_scale_floor: 1.0e-3
+    winsor_quantile: null
+
+    # Baseline AR process prior. Full/Intercept Directと同じstrong profile。
+    ar_bayes_prior:
+      intercept_mean: 0.0
+      lag_mean: 0.0
+      intercept_precision: 0.1
+      lag_precision: 10.0
+      alpha: 5.0
+      beta: 4.0
+
+    # 永続stepに限定せず、複数の障害応答形状をmodel averagingする。
+    ar_intervention_shapes:
+      - "step"
+      - "ramp"
+      - "exp_rise"
+      - "exp_decay"
+      - "step_ramp"
+    # 現在の既知fault boundaryからの遅延候補。将来の未知tauは
+    # この候補集合を全windowに拡張して周辺化できる。
+    ar_intervention_onset_offsets: [0, 5, 15]
+    ar_intervention_onset_prior_decay: 0.15
+    ar_intervention_half_life: 10.0
+    ar_intervention_precision: 0.1
+
+    # metric固有のnormal期間内非定常性を、同じBFで差し引く。
+    ar_null_calibration_fractions: [0.4, 0.5, 0.6]
+    ar_null_calibration_quantile: 0.9
+    ar_null_calibration_mode: "per_row_excess"
+
+    # AR-model BFでは未使用。正式mainとの共通条件を保持する。
+    prior:
+      m: 0.0
+      kappa: 1.0e-3
+      alpha: 2.0
+      beta: 1.0
+
+paths:
+  raw_data_dir: "data/raw/rcaeval_zenodo_v2"
+  processed_data_dir: "data/processed/rcaeval_zenodo_v2"
+  results_root: "results"
+
+output:
+  amber_diagnostics: "summary"
+
+evaluation:
+  k_values: [1, 3, 5]
+  granularity: "service"
+  service_aggregation:
+    method: "mean_top3"
+  metric_aggregation:
+    method: "max"
+
+datasets:
+  - re1_ob
+  - re1_ss
+  - re1_tt

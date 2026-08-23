@@ -4,6 +4,7 @@ from models.ar_bayes_factor import (
     ARBayesFactorPrior,
     _ar_design,
     ar_change_bayes_factor,
+    ar_intervention_bayes_factor,
     ar_intercept_shift_bayes_factor,
 )
 
@@ -121,6 +122,47 @@ def test_intercept_shift_bayes_factor_does_not_reward_pure_dynamics_or_variance(
     assert variance_result["log_bayes_factor"] < 0.0
 
 
+def test_intervention_bayes_factor_averages_shapes_and_detects_step():
+    prior = ARBayesFactorPrior(
+        intercept_precision=0.1,
+        lag_precision=10.0,
+        alpha=5.0,
+        beta=4.0,
+    )
+    pre_same, post_same = _simulate(29)
+    pre_shift, post_shift = _simulate(29, post_mean=2.0)
+
+    same = ar_intervention_bayes_factor(
+        pre_same, post_same, order=1, prior=prior,
+    )
+    shifted = ar_intervention_bayes_factor(
+        pre_shift, post_shift, order=1, prior=prior,
+        onset_offsets=(0, 5), onset_prior_decay=0.15,
+    )
+
+    assert same["log_bayes_factor"] < 0.0
+    assert shifted["log_bayes_factor"] > 10.0
+    assert shifted["posterior_map"]["shape"] == "step"
+    assert shifted["posterior_map"]["onset_offset"] == 0
+    probability = sum(
+        model["posterior_model_probability"]
+        for model in shifted["posterior_models"]
+    )
+    assert np.isclose(probability, 1.0)
+
+
+def test_intervention_bayes_factor_preserves_missing_time_alignment():
+    pre, post = _simulate(37, post_mean=1.5)
+    post[10] = np.nan
+
+    result = ar_intervention_bayes_factor(
+        pre, post, order=2, shapes=("step", "ramp"),
+    )
+
+    assert np.isfinite(result["log_bayes_factor"])
+    assert result["posterior_map"]["post_rows"] == post.size - 3
+
+
 def test_normal_only_scaling_does_not_change_when_post_is_rescaled():
     pre, post = _simulate(31)
     baseline = ar_change_bayes_factor(pre, post, order=1)
@@ -144,6 +186,13 @@ def test_proper_prior_keeps_constant_metric_score_finite():
         order=3,
     )
     assert np.isfinite(intercept_result["log_bayes_factor"])
+
+    intervention_result = ar_intervention_bayes_factor(
+        np.ones(100),
+        np.ones(80),
+        order=3,
+    )
+    assert np.isfinite(intervention_result["log_bayes_factor"])
 
 
 def test_prior_validation_rejects_improper_precision():

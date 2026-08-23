@@ -117,12 +117,64 @@ def test_intercept_shift_ar_bayes_factor_ranks_persistent_shift_first():
     assert shifted["ar_intercept_shift"] > 1.0
 
 
+def test_adaptive_direct_ar_bayes_factor_uses_normal_only_calibration():
+    rng = np.random.default_rng(41)
+    normal = {"stable_cpu": [], "shifted_cpu": []}
+    abnormal = {"stable_cpu": [], "shifted_cpu": []}
+    state = {"stable_cpu": 0.0, "shifted_cpu": 0.0}
+    for _ in range(300):
+        for metric in normal:
+            state[metric] = 0.5 * state[metric] + rng.normal(0.0, 0.5)
+            normal[metric].append(state[metric])
+    for index in range(300):
+        for metric in abnormal:
+            effect = 0.6 * (index + 1) / 300 if metric == "shifted_cpu" else 0.0
+            state[metric] = effect + 0.5 * state[metric] + rng.normal(0.0, 0.5)
+            abnormal[metric].append(state[metric])
+
+    model = AMBER(
+        ar_order=1,
+        residualization="ar_model",
+        scoring="ar_intervention_bayes_factor",
+        winsor_quantile=None,
+        ar_intervention_shapes=("step", "ramp", "exp_rise"),
+        ar_intervention_onset_offsets=(0, 5),
+        ar_intervention_onset_prior_decay=0.15,
+        ar_null_calibration_fractions=(0.4, 0.5, 0.6),
+        ar_null_calibration_quantile=0.9,
+        ar_null_calibration_mode="per_row_excess",
+    )
+    result = model.fit_predict(pd.DataFrame(normal), pd.DataFrame(abnormal))
+
+    assert result.iloc[0]["metric"] == "shifted_cpu"
+    shifted = next(
+        row for row in model.diagnostics_["metrics"]
+        if row["metric"] == "shifted_cpu"
+    )
+    assert len(shifted["null_log_bayes_factors"]) == 3
+    assert np.isclose(
+        shifted["score"],
+        shifted["raw_log_bayes_factor_per_row"]
+        - shifted["null_calibration_baseline"],
+    )
+    assert shifted["ar_intervention_map_shape"] in {
+        "step", "ramp", "exp_rise",
+    }
+    assert np.isclose(
+        sum(shifted["ar_intervention_shape_posterior"].values()), 1.0
+    )
+    assert np.isclose(
+        sum(shifted["ar_intervention_onset_posterior"].values()), 1.0
+    )
+
+
 @pytest.mark.parametrize(
     "kwargs",
     [
         {"residualization": "ar_model", "scoring": "bayes_factor"},
         {"residualization": "ar", "scoring": "ar_bayes_factor"},
         {"residualization": "ar", "scoring": "ar_intercept_bayes_factor"},
+        {"residualization": "ar", "scoring": "ar_intervention_bayes_factor"},
         {
             "residualization": "ar_model",
             "scoring": "ar_bayes_factor",

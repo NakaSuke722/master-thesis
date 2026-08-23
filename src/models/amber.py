@@ -9,7 +9,7 @@ Only NumPy and pandas are required.
 from __future__ import annotations
 
 from dataclasses import asdict, dataclass
-from typing import Iterable, Literal
+from typing import Iterable, Literal, Sequence
 
 import numpy as np
 import pandas as pd
@@ -17,6 +17,7 @@ import pandas as pd
 from models.ar_bayes_factor import (
     ARBayesFactorPrior,
     ar_change_bayes_factor,
+    ar_intervention_bayes_factor,
     ar_intercept_shift_bayes_factor,
 )
 
@@ -379,7 +380,7 @@ class AMBER:
         ] = "ar",
         scoring: Literal[
             "bayes_factor", "glrt", "ar_bayes_factor",
-            "ar_intercept_bayes_factor",
+            "ar_intercept_bayes_factor", "ar_intervention_bayes_factor",
         ] = "bayes_factor",
         ar_stationarity: Literal["none", "root_projection"] = "none",
         stationarity_radius: float = 0.98,
@@ -387,6 +388,18 @@ class AMBER:
         horizon_aware_uncertainty: bool = False,
         forecast_error_covariance: Literal["diagonal", "full"] = "diagonal",
         ar_bayes_prior: ARBayesFactorPrior | None = None,
+        ar_intervention_shapes: Sequence[str] = (
+            "step", "ramp", "exp_rise", "exp_decay", "step_ramp",
+        ),
+        ar_intervention_onset_offsets: Sequence[int] = (0,),
+        ar_intervention_half_life: float = 10.0,
+        ar_intervention_precision: float = 0.1,
+        ar_intervention_onset_prior_decay: float = 0.0,
+        ar_null_calibration_fractions: Sequence[float] = (),
+        ar_null_calibration_quantile: float = 0.9,
+        ar_null_calibration_mode: Literal[
+            "none", "subtract", "per_row_excess",
+        ] = "subtract",
     ) -> None:
         if ar_order < 0:
             raise ValueError("ar_order must be non-negative")
@@ -410,6 +423,7 @@ class AMBER:
 
         ar_model_scores = {
             "ar_bayes_factor", "ar_intercept_bayes_factor",
+            "ar_intervention_bayes_factor",
         }
         if scoring not in {"bayes_factor", "glrt", *ar_model_scores}:
             raise ValueError(f"Unknown scoring={scoring}")
@@ -451,6 +465,46 @@ class AMBER:
                 "full forecast_error_covariance requires "
                 "horizon_aware_uncertainty"
             )
+
+        intervention_shapes = tuple(str(value) for value in ar_intervention_shapes)
+        intervention_onsets = tuple(
+            int(value) for value in ar_intervention_onset_offsets
+        )
+        allowed_intervention_shapes = {
+            "step", "ramp", "exp_rise", "exp_decay", "step_ramp",
+        }
+        if not intervention_shapes:
+            raise ValueError("ar_intervention_shapes must not be empty")
+        unknown_shapes = set(intervention_shapes) - allowed_intervention_shapes
+        if unknown_shapes:
+            raise ValueError(
+                "Unknown ar_intervention_shapes="
+                + ",".join(sorted(unknown_shapes))
+            )
+        if not intervention_onsets or any(
+            value < 0 for value in intervention_onsets
+        ):
+            raise ValueError(
+                "ar_intervention_onset_offsets must contain non-negative values"
+            )
+        if ar_intervention_half_life <= 0:
+            raise ValueError("ar_intervention_half_life must be positive")
+        if ar_intervention_precision <= 0:
+            raise ValueError("ar_intervention_precision must be positive")
+        if ar_intervention_onset_prior_decay < 0:
+            raise ValueError(
+                "ar_intervention_onset_prior_decay must be non-negative"
+            )
+        if not 0.0 <= ar_null_calibration_quantile <= 1.0:
+            raise ValueError("ar_null_calibration_quantile must be in [0, 1]")
+        if any(not 0.0 < value < 1.0 for value in ar_null_calibration_fractions):
+            raise ValueError("ar_null_calibration_fractions must lie in (0, 1)")
+        if ar_null_calibration_mode not in {
+            "none", "subtract", "per_row_excess",
+        }:
+            raise ValueError(
+                f"Unknown ar_null_calibration_mode={ar_null_calibration_mode}"
+            )
         
         self.ar_order = ar_order
         self.ridge = ridge
@@ -474,6 +528,18 @@ class AMBER:
         self.horizon_aware_uncertainty = horizon_aware_uncertainty
         self.forecast_error_covariance = forecast_error_covariance
         self.ar_bayes_prior = ar_bayes_prior or ARBayesFactorPrior()
+        self.ar_intervention_shapes = intervention_shapes
+        self.ar_intervention_onset_offsets = intervention_onsets
+        self.ar_intervention_half_life = float(ar_intervention_half_life)
+        self.ar_intervention_precision = float(ar_intervention_precision)
+        self.ar_intervention_onset_prior_decay = float(
+            ar_intervention_onset_prior_decay
+        )
+        self.ar_null_calibration_fractions = tuple(
+            float(value) for value in ar_null_calibration_fractions
+        )
+        self.ar_null_calibration_quantile = float(ar_null_calibration_quantile)
+        self.ar_null_calibration_mode = ar_null_calibration_mode
         self.result_: pd.DataFrame | None = None
         # JSON-serializable, per-metric observations for post-hoc analysis.
         # Populated by fit_predict; deliberately separate from metric_result_
@@ -535,7 +601,10 @@ class AMBER:
         return normal_y, abnormal_y
     
     def _score_metric(self, normal_y: np.ndarray, abnormal_y: np.ndarray) -> dict[str, object]:
-        if self.scoring in {"ar_bayes_factor", "ar_intercept_bayes_factor"}:
+        if self.scoring in {
+            "ar_bayes_factor", "ar_intercept_bayes_factor",
+            "ar_intervention_bayes_factor",
+        }:
             normal_y = np.asarray(normal_y, dtype=float)
             abnormal_y = np.asarray(abnormal_y, dtype=float)
             if (
@@ -559,18 +628,61 @@ class AMBER:
                     "standardized_residual_abnormal": [],
                 }
             try:
-                comparison_function = (
-                    ar_change_bayes_factor
-                    if self.scoring == "ar_bayes_factor"
-                    else ar_intercept_shift_bayes_factor
-                )
-                comparison = comparison_function(
-                    normal_y,
-                    abnormal_y,
-                    order=self.ar_order,
-                    prior=self.ar_bayes_prior,
-                    min_scale=self.min_scale,
-                )
+                if self.scoring == "ar_bayes_factor":
+                    comparison = ar_change_bayes_factor(
+                        normal_y, abnormal_y, order=self.ar_order,
+                        prior=self.ar_bayes_prior, min_scale=self.min_scale,
+                    )
+                elif self.scoring == "ar_intercept_bayes_factor":
+                    comparison = ar_intercept_shift_bayes_factor(
+                        normal_y, abnormal_y, order=self.ar_order,
+                        prior=self.ar_bayes_prior, min_scale=self.min_scale,
+                    )
+                else:
+                    comparison = ar_intervention_bayes_factor(
+                        normal_y,
+                        abnormal_y,
+                        order=self.ar_order,
+                        prior=self.ar_bayes_prior,
+                        shapes=self.ar_intervention_shapes,
+                        onset_offsets=self.ar_intervention_onset_offsets,
+                        half_life=self.ar_intervention_half_life,
+                        intervention_precision=self.ar_intervention_precision,
+                        onset_prior_decay=self.ar_intervention_onset_prior_decay,
+                        min_scale=self.min_scale,
+                    )
+                null_scores: list[float] = []
+                null_score_rates: list[float] = []
+                if self.scoring == "ar_intervention_bayes_factor":
+                    for fraction in self.ar_null_calibration_fractions:
+                        split = int(round(normal_y.size * fraction))
+                        if (
+                            split <= self.ar_order + 3
+                            or normal_y.size - split <= self.ar_order
+                        ):
+                            continue
+                        null_comparison = ar_intervention_bayes_factor(
+                            normal_y[:split],
+                            normal_y[split:],
+                            order=self.ar_order,
+                            prior=self.ar_bayes_prior,
+                            shapes=self.ar_intervention_shapes,
+                            onset_offsets=self.ar_intervention_onset_offsets,
+                            half_life=self.ar_intervention_half_life,
+                            intervention_precision=self.ar_intervention_precision,
+                            onset_prior_decay=self.ar_intervention_onset_prior_decay,
+                            min_scale=self.min_scale,
+                        )
+                        null_scores.append(
+                            float(null_comparison["log_bayes_factor"])
+                        )
+                        null_rows = int(
+                            null_comparison["posterior_h0"]["n_rows"]
+                        )
+                        null_score_rates.append(
+                            float(null_comparison["log_bayes_factor"])
+                            / null_rows
+                        )
             except (ValueError, np.linalg.LinAlgError, FloatingPointError):
                 return {
                     "score": -np.inf,
@@ -588,6 +700,33 @@ class AMBER:
                     "standardized_residual_normal": [],
                     "standardized_residual_abnormal": [],
                 }
+            raw_score = float(comparison["log_bayes_factor"])
+            observed_rows = int(comparison.get("posterior_h0", {}).get(
+                "n_rows", 1
+            ))
+            raw_score_rate = raw_score / observed_rows
+            if self.ar_null_calibration_mode == "per_row_excess":
+                null_baseline = (
+                    float(np.quantile(
+                        null_score_rates, self.ar_null_calibration_quantile
+                    ))
+                    if null_score_rates else 0.0
+                )
+                score = raw_score_rate - null_baseline
+            elif self.ar_null_calibration_mode == "subtract":
+                null_baseline = (
+                    float(np.quantile(
+                        null_scores, self.ar_null_calibration_quantile
+                    ))
+                    if null_scores else 0.0
+                )
+                score = raw_score - null_baseline
+            else:
+                null_baseline = 0.0
+                score = raw_score
+
+            intervention_shape_posterior = None
+            intervention_onset_posterior = None
             if self.scoring == "ar_bayes_factor":
                 pre = comparison["posterior_pre"]
                 post = comparison["posterior_post"]
@@ -605,7 +744,10 @@ class AMBER:
                 intercept_shift = (
                     float(post_coefficients[0] - pre_coefficients[0])
                 )
-            else:
+                intervention_shape = None
+                intervention_onset = None
+                intervention_probability = None
+            elif self.scoring == "ar_intercept_bayes_factor":
                 shared = comparison["posterior_h0"]
                 alternative = comparison["posterior_h1"]
                 pre_coefficients = alternative["pre_coefficient_mean"]
@@ -619,9 +761,67 @@ class AMBER:
                 pre_rows = alternative["pre_rows"]
                 post_rows = alternative["post_rows"]
                 intercept_shift = alternative["intercept_shift_mean"]
+                intervention_shape = None
+                intervention_onset = None
+                intervention_probability = None
+            else:
+                shared = comparison["posterior_h0"]
+                alternative = comparison["posterior_map"]
+                pre_coefficients = alternative["base_coefficient_mean"]
+                post_coefficients = list(pre_coefficients)
+                post_coefficients[0] += alternative["final_effect_mean"]
+                pre_variance = alternative["innovation_variance_mean"]
+                post_variance = alternative["innovation_variance_mean"]
+                pre_radius = alternative["spectral_radius_at_mean"]
+                post_radius = alternative["spectral_radius_at_mean"]
+                denominator = 1.0 - float(np.sum(pre_coefficients[1:]))
+                pre_long_run_mean = (
+                    float(pre_coefficients[0] / denominator)
+                    if abs(denominator) > 1e-10 else None
+                )
+                post_long_run_mean = alternative["post_long_run_mean_at_end"]
+                pre_rows = alternative["pre_rows"]
+                post_rows = alternative["post_rows"]
+                intercept_shift = alternative["final_effect_mean"]
+                intervention_shape = alternative["shape"]
+                intervention_onset = alternative["onset_offset"]
+                intervention_probability = alternative[
+                    "posterior_model_probability"
+                ]
+                intervention_shape_posterior = {}
+                intervention_onset_posterior = {}
+                for candidate in comparison["posterior_models"]:
+                    probability = float(
+                        candidate["posterior_model_probability"]
+                    )
+                    shape = str(candidate["shape"])
+                    onset = str(candidate["onset_offset"])
+                    intervention_shape_posterior[shape] = (
+                        intervention_shape_posterior.get(shape, 0.0)
+                        + probability
+                    )
+                    intervention_onset_posterior[onset] = (
+                        intervention_onset_posterior.get(onset, 0.0)
+                        + probability
+                    )
             return {
-                "score": float(comparison["log_bayes_factor"]),
+                "score": score,
+                "raw_log_bayes_factor": raw_score,
+                "raw_log_bayes_factor_per_row": raw_score_rate,
+                "null_log_bayes_factors": null_scores,
+                "null_log_bayes_factors_per_row": null_score_rates,
+                "null_calibration_baseline": null_baseline,
+                "null_calibration_mode": self.ar_null_calibration_mode,
                 "ar_hypothesis": comparison["hypothesis"],
+                "ar_intervention_map_shape": intervention_shape,
+                "ar_intervention_map_onset_offset": intervention_onset,
+                "ar_intervention_map_probability": intervention_probability,
+                "ar_intervention_shape_posterior": (
+                    intervention_shape_posterior
+                ),
+                "ar_intervention_onset_posterior": (
+                    intervention_onset_posterior
+                ),
                 "normal_scale": float(comparison["normalization"]["scale"]),
                 "abnormal_mean_z": np.nan,
                 "abnormal_sd_z": np.nan,
@@ -941,10 +1141,25 @@ class AMBER:
                 "counterfactual_bounds": self.counterfactual_bounds,
                 "horizon_aware_uncertainty": self.horizon_aware_uncertainty,
                 "forecast_error_covariance": self.forecast_error_covariance,
+                "ar_intervention_shapes": list(self.ar_intervention_shapes),
+                "ar_intervention_onset_offsets": list(
+                    self.ar_intervention_onset_offsets
+                ),
+                "ar_intervention_half_life": self.ar_intervention_half_life,
+                "ar_intervention_precision": self.ar_intervention_precision,
+                "ar_intervention_onset_prior_decay": (
+                    self.ar_intervention_onset_prior_decay
+                ),
+                "ar_null_calibration_fractions": list(
+                    self.ar_null_calibration_fractions
+                ),
+                "ar_null_calibration_quantile": self.ar_null_calibration_quantile,
+                "ar_null_calibration_mode": self.ar_null_calibration_mode,
                 "ar_bayes_prior": (
                     asdict(self.ar_bayes_prior)
                     if self.scoring in {
                         "ar_bayes_factor", "ar_intercept_bayes_factor",
+                        "ar_intervention_bayes_factor",
                     } else None
                 ),
                 "metrics": diagnostic_records,
@@ -1003,10 +1218,25 @@ class AMBER:
             "counterfactual_bounds": self.counterfactual_bounds,
             "horizon_aware_uncertainty": self.horizon_aware_uncertainty,
             "forecast_error_covariance": self.forecast_error_covariance,
+            "ar_intervention_shapes": list(self.ar_intervention_shapes),
+            "ar_intervention_onset_offsets": list(
+                self.ar_intervention_onset_offsets
+            ),
+            "ar_intervention_half_life": self.ar_intervention_half_life,
+            "ar_intervention_precision": self.ar_intervention_precision,
+            "ar_intervention_onset_prior_decay": (
+                self.ar_intervention_onset_prior_decay
+            ),
+            "ar_null_calibration_fractions": list(
+                self.ar_null_calibration_fractions
+            ),
+            "ar_null_calibration_quantile": self.ar_null_calibration_quantile,
+            "ar_null_calibration_mode": self.ar_null_calibration_mode,
             "ar_bayes_prior": (
                 asdict(self.ar_bayes_prior)
                 if self.scoring in {
                     "ar_bayes_factor", "ar_intercept_bayes_factor",
+                    "ar_intervention_bayes_factor",
                 } else None
             ),
             "metrics": diagnostic_records,
