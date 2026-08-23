@@ -650,6 +650,7 @@ class AMBER:
                         intervention_precision=self.ar_intervention_precision,
                         onset_prior_decay=self.ar_intervention_onset_prior_decay,
                         min_scale=self.min_scale,
+                        posterior_detail="map",
                     )
                 null_scores: list[float] = []
                 null_score_rates: list[float] = []
@@ -672,6 +673,7 @@ class AMBER:
                             intervention_precision=self.ar_intervention_precision,
                             onset_prior_decay=self.ar_intervention_onset_prior_decay,
                             min_scale=self.min_scale,
+                            posterior_detail="none",
                         )
                         null_scores.append(
                             float(null_comparison["log_bayes_factor"])

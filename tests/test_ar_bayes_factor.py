@@ -3,6 +3,10 @@ import numpy as np
 from models.ar_bayes_factor import (
     ARBayesFactorPrior,
     _ar_design,
+    _ar_design_with_indices,
+    _bayesian_regression_log_marginal,
+    _intervention_basis,
+    _normal_only_standardize,
     ar_change_bayes_factor,
     ar_intervention_bayes_factor,
     ar_intercept_shift_bayes_factor,
@@ -161,6 +165,117 @@ def test_intervention_bayes_factor_preserves_missing_time_alignment():
 
     assert np.isfinite(result["log_bayes_factor"])
     assert result["posterior_map"]["post_rows"] == post.size - 3
+
+
+def test_intervention_sufficient_statistics_match_full_design_calculation():
+    prior = ARBayesFactorPrior(
+        intercept_precision=0.1,
+        lag_precision=10.0,
+        alpha=5.0,
+        beta=4.0,
+    )
+    pre, post = _simulate(43, post_mean=1.5)
+    post[10] = np.nan
+    result = ar_intervention_bayes_factor(
+        pre,
+        post,
+        order=2,
+        prior=prior,
+        shapes=("step", "step_ramp"),
+        onset_offsets=(0, 5),
+    )
+
+    scaled_pre, scaled_post, _, _ = _normal_only_standardize(
+        pre, post, 1e-6
+    )
+    pre_design, pre_target = _ar_design(scaled_pre, 2)
+    post_design, post_target, retained = _ar_design_with_indices(
+        scaled_post, 2, history=scaled_pre
+    )
+    pooled_design = np.vstack([pre_design, post_design])
+    pooled_target = np.concatenate([pre_target, post_target])
+    base_prior_mean = np.array([0.0, 0.0, 0.0])
+    base_prior_precision = np.array([0.1, 10.0, 10.0])
+
+    for candidate in result["posterior_models"]:
+        basis = _intervention_basis(
+            post.size,
+            shape=candidate["shape"],
+            onset_offset=candidate["onset_offset"],
+            half_life=10.0,
+        )[retained]
+        intervention = np.vstack([
+            np.zeros((pre_design.shape[0], basis.shape[1])),
+            basis,
+        ])
+        design = np.column_stack([pooled_design, intervention])
+        prior_mean = np.concatenate([
+            base_prior_mean, np.zeros(basis.shape[1]),
+        ])
+        prior_precision = np.concatenate([
+            base_prior_precision, np.full(basis.shape[1], 0.1),
+        ])
+        log_marginal, mean, _, _ = _bayesian_regression_log_marginal(
+            design,
+            pooled_target,
+            prior_mean=prior_mean,
+            prior_precision=prior_precision,
+            alpha=prior.alpha,
+            beta=prior.beta,
+        )
+
+        assert np.isclose(candidate["log_marginal"], log_marginal)
+        assert np.allclose(
+            candidate["base_coefficient_mean"], mean[:3]
+        )
+        assert np.allclose(
+            candidate["intervention_coefficient_mean"], mean[3:]
+        )
+
+
+def test_intervention_posterior_detail_does_not_change_evidence():
+    pre, post = _simulate(47, post_mean=1.5)
+    kwargs = {
+        "order": 2,
+        "shapes": ("step", "ramp", "exp_decay"),
+        "onset_offsets": (0, 5),
+    }
+
+    full = ar_intervention_bayes_factor(
+        pre, post, posterior_detail="full", **kwargs
+    )
+    map_only = ar_intervention_bayes_factor(
+        pre, post, posterior_detail="map", **kwargs
+    )
+    none = ar_intervention_bayes_factor(
+        pre, post, posterior_detail="none", **kwargs
+    )
+
+    for key in ("log_bayes_factor", "log_marginal_h0", "log_marginal_h1"):
+        assert np.isclose(full[key], map_only[key])
+        assert np.isclose(full[key], none[key])
+    assert map_only["posterior_map"]["base_coefficient_mean"]
+    assert np.isclose(sum(
+        candidate["posterior_model_probability"]
+        for candidate in map_only["posterior_models"]
+    ), 1.0)
+    assert none["posterior_h0"] == {
+        "n_rows": full["posterior_h0"]["n_rows"],
+    }
+    assert none["posterior_models"] == []
+    assert none["posterior_map"] is None
+
+
+def test_intervention_basis_is_cached_and_read_only():
+    first = _intervention_basis(
+        100, shape="ramp", onset_offset=5, half_life=10.0
+    )
+    second = _intervention_basis(
+        100, shape="ramp", onset_offset=5, half_life=10.0
+    )
+
+    assert first is second
+    assert not first.flags.writeable
 
 
 def test_normal_only_scaling_does_not_change_when_post_is_rescaled():

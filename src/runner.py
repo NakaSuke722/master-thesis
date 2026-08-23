@@ -5,6 +5,8 @@ import os
 import shlex
 import sys
 import time
+from concurrent.futures import ProcessPoolExecutor
+from typing import Any
 
 from data_loader import (
     list_benchmark_processed_cases,
@@ -19,11 +21,35 @@ from utils.slack_notify import (
 )
 
 
+def _run_benchmark_case(
+    task: tuple[dict[str, Any], str, str, Any, int, int],
+) -> str:
+    """Run one independent benchmark case in the current worker process."""
+    config, config_path, granularity, case, progress, total = task
+    _, output_file = run_experiment(
+        dataset=case.dataset,
+        fault=case.fault_type or case.case_id,
+        run=case.repetition or 0,
+        config=config,
+        config_path=config_path,
+        granularity=granularity,
+        benchmark_case=case,
+        batch=True,
+        progress=progress,
+        total_progress=total,
+    )
+    return output_file
+
+
 def run_benchmark(
     config: dict,
     config_path: str,
     granularity: str,
+    workers: int = 1,
 ) -> list[str]:
+
+    if workers <= 0:
+        raise ValueError("workers must be positive")
 
     benchmark = config[
         "benchmark"
@@ -48,7 +74,7 @@ def run_benchmark(
         "data/processed",
     )
 
-    generated: list[str] = []
+    tasks: list[tuple[dict[str, Any], str, str, Any, int, int]] = []
 
     for dataset in datasets:
 
@@ -71,36 +97,25 @@ def run_benchmark(
 
         total = len(cases)
 
-        for progress, case in enumerate(
-            cases,
-            start=1,
-        ):
-            _, output_file = (
-                run_experiment(
-                    dataset=case.dataset,
-                    fault=(
-                        case.fault_type
-                        or case.case_id
-                    ),
-                    run=(
-                        case.repetition
-                        or 0
-                    ),
-                    config=config,
-                    config_path=config_path,
-                    granularity=granularity,
-                    benchmark_case=case,
-                    batch=True,
-                    progress=progress,
-                    total_progress=total,
-                )
+        tasks.extend(
+            (
+                config,
+                config_path,
+                granularity,
+                case,
+                progress,
+                total,
             )
-
-            generated.append(
-                output_file
+            for progress, case in enumerate(
+                cases,
+                start=1,
             )
+        )
 
-    return generated
+    if workers == 1:
+        return [_run_benchmark_case(task) for task in tasks]
+    with ProcessPoolExecutor(max_workers=workers) as executor:
+        return list(executor.map(_run_benchmark_case, tasks))
 
 
 def run_legacy(
@@ -204,6 +219,7 @@ def run_all(
     config: dict,
     config_path: str,
     granularity: str,
+    workers: int = 1,
 ) -> list[str]:
 
     if config.get(
@@ -214,6 +230,7 @@ def run_all(
             config,
             config_path,
             granularity,
+            workers,
         )
 
     return run_legacy(
@@ -251,6 +268,13 @@ def main() -> None:
             "Defer successful Slack "
             "notification until aggregation."
         ),
+    )
+
+    parser.add_argument(
+        "--workers",
+        type=int,
+        default=1,
+        help="Number of independent benchmark cases to run in parallel.",
     )
 
     args = parser.parse_args()
@@ -293,6 +317,7 @@ def main() -> None:
             config=config,
             config_path=args.config,
             granularity=granularity,
+            workers=args.workers,
         )
 
     except KeyboardInterrupt:

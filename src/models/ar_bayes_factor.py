@@ -8,8 +8,9 @@ Bayesian linear regression, so all marginal likelihoods are analytic.
 from __future__ import annotations
 
 from dataclasses import asdict, dataclass
+from functools import lru_cache
 from math import lgamma, log, pi
-from typing import Sequence
+from typing import Literal, Sequence
 
 import numpy as np
 
@@ -65,6 +66,16 @@ def _ar_design(
     history: np.ndarray | None = None,
 ) -> tuple[np.ndarray, np.ndarray]:
     """Build conditional-AR rows without collapsing gaps in the time axis."""
+    design, target, _ = _ar_design_with_indices(segment, order, history)
+    return design, target
+
+
+def _ar_design_with_indices(
+    segment: np.ndarray,
+    order: int,
+    history: np.ndarray | None = None,
+) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
+    """Build AR rows and return their original target indices."""
     if order < 0:
         raise ValueError("order must be non-negative")
     segment = np.asarray(segment, dtype=float)
@@ -73,7 +84,6 @@ def _ar_design(
 
     if history is None:
         prefix = np.empty(0, dtype=float)
-        first_target = order
     else:
         history = np.asarray(history, dtype=float)
         if history.ndim != 1:
@@ -81,25 +91,45 @@ def _ar_design(
         if order and history.size < order:
             raise ValueError(f"Need at least ar_order={order} history observations")
         prefix = history[-order:] if order else np.empty(0, dtype=float)
-        first_target = prefix.size
+
+    if order == 0:
+        finite = np.isfinite(segment)
+        return (
+            np.ones((int(np.sum(finite)), 1), dtype=float),
+            segment[finite].astype(float, copy=False),
+            np.flatnonzero(finite),
+        )
 
     combined = np.concatenate([prefix, segment])
-    rows: list[np.ndarray] = []
-    targets: list[float] = []
-    for index in range(first_target, combined.size):
-        if order:
-            lags = combined[index - np.arange(1, order + 1)]
-        else:
-            lags = np.empty(0, dtype=float)
-        row = np.concatenate(([1.0], lags))
-        target = float(combined[index])
-        if np.isfinite(target) and np.all(np.isfinite(row)):
-            rows.append(row)
-            targets.append(target)
-
-    if not rows:
-        return np.empty((0, order + 1), dtype=float), np.empty(0, dtype=float)
-    return np.vstack(rows), np.asarray(targets, dtype=float)
+    if combined.size <= order:
+        return (
+            np.empty((0, order + 1), dtype=float),
+            np.empty(0, dtype=float),
+            np.empty(0, dtype=int),
+        )
+    windows = np.lib.stride_tricks.sliding_window_view(combined, order + 1)
+    # With a history prefix every window ends at one post-segment target;
+    # without it the first target is naturally at index ``order``.
+    targets = windows[:, -1]
+    lags = windows[:, :-1][:, ::-1]
+    finite = np.isfinite(targets) & np.all(np.isfinite(lags), axis=1)
+    if not np.any(finite):
+        return (
+            np.empty((0, order + 1), dtype=float),
+            np.empty(0, dtype=float),
+            np.empty(0, dtype=int),
+        )
+    design = np.column_stack([
+        np.ones(int(np.sum(finite)), dtype=float),
+        lags[finite],
+    ])
+    target_offset = 0 if history is not None else order
+    retained_indices = np.flatnonzero(finite) + target_offset
+    return (
+        design,
+        targets[finite].astype(float, copy=False),
+        retained_indices,
+    )
 
 
 def _ar_spectral_radius_from_mean(coef: np.ndarray) -> float:
@@ -185,30 +215,66 @@ def _bayesian_regression_log_marginal(
     """
     design = np.asarray(design, dtype=float)
     target = np.asarray(target, dtype=float)
-    prior_mean = np.asarray(prior_mean, dtype=float)
-    prior_precision = np.asarray(prior_precision, dtype=float)
     if design.ndim != 2 or target.ndim != 1:
         raise ValueError("design must be 2-D and target must be 1-D")
     if design.shape[0] != target.size:
         raise ValueError("design and target row counts differ")
     if target.size == 0:
         raise ValueError("AR marginal likelihood requires at least one row")
-    if prior_mean.shape != (design.shape[1],):
+
+    return _bayesian_regression_log_marginal_from_sufficient_statistics(
+        design.T @ design,
+        design.T @ target,
+        float(target @ target),
+        target.size,
+        prior_mean=prior_mean,
+        prior_precision=prior_precision,
+        alpha=alpha,
+        beta=beta,
+    )
+
+
+def _bayesian_regression_log_marginal_from_sufficient_statistics(
+    gram: np.ndarray,
+    target_cross: np.ndarray,
+    target_square_sum: float,
+    n_rows: int,
+    *,
+    prior_mean: np.ndarray,
+    prior_precision: np.ndarray,
+    alpha: float,
+    beta: float,
+) -> tuple[float, np.ndarray, float, float]:
+    """Evaluate the same NIG marginal likelihood from reusable statistics."""
+    gram = np.asarray(gram, dtype=float)
+    target_cross = np.asarray(target_cross, dtype=float)
+    prior_mean = np.asarray(prior_mean, dtype=float)
+    prior_precision = np.asarray(prior_precision, dtype=float)
+    if gram.ndim != 2 or gram.shape[0] != gram.shape[1]:
+        raise ValueError("gram must be a square matrix")
+    dimension = gram.shape[0]
+    if target_cross.shape != (dimension,):
+        raise ValueError("target_cross dimension does not match gram")
+    if n_rows <= 0:
+        raise ValueError("AR marginal likelihood requires at least one row")
+    if prior_mean.shape != (dimension,):
         raise ValueError("prior_mean dimension does not match design")
-    if prior_precision.shape != (design.shape[1],):
+    if prior_precision.shape != (dimension,):
         raise ValueError("prior_precision dimension does not match design")
     if not np.all(np.isfinite(prior_precision)) or np.any(prior_precision <= 0):
         raise ValueError("prior_precision must be finite and positive")
+    if not np.isfinite(target_square_sum) or target_square_sum < 0:
+        raise ValueError("target_square_sum must be finite and non-negative")
     if alpha <= 0 or beta <= 0:
         raise ValueError("inverse-gamma parameters must be positive")
 
     prior_precision_matrix = np.diag(prior_precision)
-    posterior_precision = prior_precision_matrix + design.T @ design
-    posterior_rhs = prior_precision_matrix @ prior_mean + design.T @ target
+    posterior_precision = prior_precision_matrix + gram
+    posterior_rhs = prior_precision_matrix @ prior_mean + target_cross
     posterior_mean = np.linalg.solve(posterior_precision, posterior_rhs)
-    alpha_n = alpha + 0.5 * target.size
+    alpha_n = alpha + 0.5 * n_rows
     beta_n = beta + 0.5 * (
-        float(target @ target)
+        target_square_sum
         + float(prior_mean @ prior_precision_matrix @ prior_mean)
         - float(posterior_mean @ posterior_precision @ posterior_mean)
     )
@@ -220,7 +286,7 @@ def _bayesian_regression_log_marginal(
         raise ValueError("AR prior/posterior precision must be positive definite")
 
     log_marginal = (
-        -0.5 * target.size * log(2.0 * pi)
+        -0.5 * n_rows * log(2.0 * pi)
         + 0.5 * (prior_logdet - posterior_logdet)
         + alpha * log(beta)
         - alpha_n * log(beta_n)
@@ -442,6 +508,7 @@ def _logsumexp(values: np.ndarray) -> float:
     return maximum + float(np.log(np.sum(np.exp(values - maximum))))
 
 
+@lru_cache(maxsize=256)
 def _intervention_basis(
     length: int,
     *,
@@ -477,14 +544,17 @@ def _intervention_basis(
         0.0,
     )
     if shape == "step":
-        return step[:, None]
-    if shape == "ramp":
-        return ramp[:, None]
-    if shape == "exp_rise":
-        return rise[:, None]
-    if shape == "exp_decay":
-        return decay[:, None]
-    return np.column_stack([step, ramp])
+        basis = step[:, None]
+    elif shape == "ramp":
+        basis = ramp[:, None]
+    elif shape == "exp_rise":
+        basis = rise[:, None]
+    elif shape == "exp_decay":
+        basis = decay[:, None]
+    else:
+        basis = np.column_stack([step, ramp])
+    basis.setflags(write=False)
+    return basis
 
 
 def ar_intervention_bayes_factor(
@@ -502,6 +572,7 @@ def ar_intervention_bayes_factor(
     onset_prior_decay: float = 0.0,
     standardize: bool = True,
     min_scale: float = 1e-6,
+    posterior_detail: Literal["full", "map", "none"] = "full",
 ) -> dict[str, object]:
     """Model-average structured intervention responses on a shared AR process.
 
@@ -522,6 +593,8 @@ def ar_intervention_bayes_factor(
         raise ValueError("At least one intervention shape is required")
     if not onset_offsets:
         raise ValueError("At least one onset offset is required")
+    if posterior_detail not in {"full", "map", "none"}:
+        raise ValueError(f"Unknown posterior_detail={posterior_detail}")
     pre = np.asarray(pre, dtype=float)
     post = np.asarray(post, dtype=float)
     if pre.ndim != 1 or post.ndim != 1:
@@ -541,31 +614,16 @@ def ar_intervention_bayes_factor(
         center, scale = 0.0, 1.0
 
     pre_design, pre_target = _ar_design(scaled_pre, order)
-    post_design, post_target = _ar_design(
+    post_design, post_target, retained_post_indices = _ar_design_with_indices(
         scaled_post, order, history=scaled_pre
     )
     if pre_target.size == 0 or post_target.size == 0:
         raise ValueError("No finite conditional-AR rows in one or both segments")
-    # Build the exact retained-target indices without compressing time gaps.
-    combined = np.concatenate([
-        scaled_pre[-order:] if order else np.empty(0), scaled_post,
-    ])
-    retained_post_indices: list[int] = []
-    for index in range(order, combined.size):
-        lags = (
-            combined[index - np.arange(1, order + 1)]
-            if order else np.empty(0, dtype=float)
-        )
-        if np.isfinite(combined[index]) and np.all(np.isfinite(lags)):
-            retained_post_indices.append(index - order)
     if len(retained_post_indices) != post_design.shape[0]:
         raise ValueError("Intervention/design row alignment failed")
 
     pooled_design = np.vstack([pre_design, post_design])
     pooled_target = np.concatenate([pre_target, post_target])
-    log_h0, posterior_h0 = _bayesian_ar_log_marginal(
-        pooled_design, pooled_target, model_prior
-    )
     base_dimension = pooled_design.shape[1]
     base_prior_mean = np.concatenate([
         [model_prior.intercept_mean],
@@ -575,8 +633,34 @@ def ar_intervention_bayes_factor(
         [model_prior.intercept_precision],
         np.full(order, model_prior.lag_precision, dtype=float),
     ])
+    base_gram = pooled_design.T @ pooled_design
+    base_target_cross = pooled_design.T @ pooled_target
+    target_square_sum = float(pooled_target @ pooled_target)
+    log_h0, h0_mean, h0_alpha, h0_beta = (
+        _bayesian_regression_log_marginal_from_sufficient_statistics(
+            base_gram,
+            base_target_cross,
+            target_square_sum,
+            pooled_target.size,
+            prior_mean=base_prior_mean,
+            prior_precision=base_prior_precision,
+            alpha=model_prior.alpha,
+            beta=model_prior.beta,
+        )
+    )
+    posterior_h0 = (
+        {"n_rows": int(pooled_target.size)}
+        if posterior_detail == "none"
+        else _posterior_summary(
+            h0_mean, h0_alpha, h0_beta, pooled_target.size
+        )
+    )
 
-    candidates: list[dict[str, object]] = []
+    candidate_log_marginals: list[float] = []
+    candidate_log_weights: list[float] = []
+    candidate_states: list[tuple[
+        str, int, np.ndarray, np.ndarray, float, float,
+    ]] = []
     for onset_offset in onset_offsets:
         for shape in shapes:
             full_post_basis = _intervention_basis(
@@ -586,84 +670,122 @@ def ar_intervention_bayes_factor(
                 half_life=half_life,
             )
             post_basis = full_post_basis[retained_post_indices]
-            intervention = np.vstack([
-                np.zeros((pre_design.shape[0], post_basis.shape[1])),
-                post_basis,
-            ])
-            candidate_design = np.column_stack([pooled_design, intervention])
+            intervention_dimension = post_basis.shape[1]
             candidate_prior_mean = np.concatenate([
-                base_prior_mean, np.zeros(post_basis.shape[1]),
+                base_prior_mean, np.zeros(intervention_dimension),
             ])
             candidate_prior_precision = np.concatenate([
                 base_prior_precision,
-                np.full(post_basis.shape[1], intervention_precision),
+                np.full(intervention_dimension, intervention_precision),
+            ])
+            base_intervention_cross = post_design.T @ post_basis
+            candidate_gram = np.empty(
+                (
+                    base_dimension + intervention_dimension,
+                    base_dimension + intervention_dimension,
+                ),
+                dtype=float,
+            )
+            candidate_gram[:base_dimension, :base_dimension] = base_gram
+            candidate_gram[:base_dimension, base_dimension:] = (
+                base_intervention_cross
+            )
+            candidate_gram[base_dimension:, :base_dimension] = (
+                base_intervention_cross.T
+            )
+            candidate_gram[base_dimension:, base_dimension:] = (
+                post_basis.T @ post_basis
+            )
+            candidate_target_cross = np.concatenate([
+                base_target_cross,
+                post_basis.T @ post_target,
             ])
             log_marginal, mean, alpha_n, beta_n = (
-                _bayesian_regression_log_marginal(
-                    candidate_design,
-                    pooled_target,
+                _bayesian_regression_log_marginal_from_sufficient_statistics(
+                    candidate_gram,
+                    candidate_target_cross,
+                    target_square_sum,
+                    pooled_target.size,
                     prior_mean=candidate_prior_mean,
                     prior_precision=candidate_prior_precision,
                     alpha=model_prior.alpha,
                     beta=model_prior.beta,
                 )
             )
-            base_mean = mean[:base_dimension]
-            effect_mean = mean[base_dimension:]
-            final_effect = float(full_post_basis[-1] @ effect_mean)
-            initial_effect = float(
-                full_post_basis[int(onset_offset)] @ effect_mean
+            candidate_log_marginals.append(float(log_marginal))
+            candidate_log_weights.append(
+                float(-onset_prior_decay * onset_offset)
             )
-            denominator = 1.0 - float(np.sum(base_mean[1:]))
-            post_long_run_mean = (
-                float((base_mean[0] + final_effect) / denominator)
-                if abs(denominator) > 1e-10 else None
-            )
-            candidates.append({
-                "shape": str(shape),
-                "onset_offset": int(onset_offset),
-                "log_prior_weight": float(-onset_prior_decay * onset_offset),
-                "pre_rows": int(pre_target.size),
-                "post_rows": int(post_target.size),
-                "log_marginal": float(log_marginal),
-                "base_coefficient_mean": base_mean.astype(float).tolist(),
-                "intervention_coefficient_mean": effect_mean.astype(float).tolist(),
-                "initial_effect_mean": initial_effect,
-                "final_effect_mean": final_effect,
-                "innovation_variance_mean": (
-                    float(beta_n / (alpha_n - 1.0)) if alpha_n > 1.0 else None
-                ),
-                "spectral_radius_at_mean": _ar_spectral_radius_from_mean(
-                    base_mean
-                ),
-                "post_long_run_mean_at_end": post_long_run_mean,
-                "alpha": alpha_n,
-                "beta": beta_n,
-            })
+            if posterior_detail != "none":
+                candidate_states.append((
+                    str(shape), int(onset_offset), full_post_basis,
+                    mean, alpha_n, beta_n,
+                ))
 
-    candidate_log_marginals = np.asarray([
-        float(candidate["log_marginal"]) for candidate in candidates
-    ])
-    candidate_log_weights = np.asarray([
-        float(candidate["log_prior_weight"]) for candidate in candidates
-    ])
+    log_marginals = np.asarray(candidate_log_marginals, dtype=float)
+    log_weights = np.asarray(candidate_log_weights, dtype=float)
     log_h1 = (
-        _logsumexp(candidate_log_marginals + candidate_log_weights)
-        - _logsumexp(candidate_log_weights)
+        _logsumexp(log_marginals + log_weights)
+        - _logsumexp(log_weights)
     )
-    posterior_log_normalizer = _logsumexp(
-        candidate_log_marginals + candidate_log_weights
-    )
-    probabilities = np.exp(
-        candidate_log_marginals + candidate_log_weights
-        - posterior_log_normalizer
-    )
-    for candidate, probability in zip(candidates, probabilities, strict=True):
-        candidate["posterior_model_probability"] = float(probability)
-    candidates.sort(
-        key=lambda item: float(item["posterior_model_probability"]),
-        reverse=True,
-    )
+    candidates: list[dict[str, object]] = []
+    posterior_map: dict[str, object] | None = None
+    if posterior_detail != "none":
+        posterior_log_normalizer = _logsumexp(log_marginals + log_weights)
+        probabilities = np.exp(
+            log_marginals + log_weights - posterior_log_normalizer
+        )
+        map_index = int(np.argmax(probabilities))
+        for index, (
+            shape, onset_offset, full_post_basis, mean, alpha_n, beta_n,
+        ) in enumerate(candidate_states):
+            candidate: dict[str, object] = {
+                "shape": shape,
+                "onset_offset": onset_offset,
+                "log_prior_weight": float(log_weights[index]),
+                "log_marginal": float(log_marginals[index]),
+                "posterior_model_probability": float(probabilities[index]),
+            }
+            if posterior_detail == "full" or index == map_index:
+                base_mean = mean[:base_dimension]
+                effect_mean = mean[base_dimension:]
+                final_effect = float(full_post_basis[-1] @ effect_mean)
+                initial_effect = float(
+                    full_post_basis[onset_offset] @ effect_mean
+                )
+                denominator = 1.0 - float(np.sum(base_mean[1:]))
+                post_long_run_mean = (
+                    float((base_mean[0] + final_effect) / denominator)
+                    if abs(denominator) > 1e-10 else None
+                )
+                candidate.update({
+                    "pre_rows": int(pre_target.size),
+                    "post_rows": int(post_target.size),
+                    "base_coefficient_mean": (
+                        base_mean.astype(float).tolist()
+                    ),
+                    "intervention_coefficient_mean": (
+                        effect_mean.astype(float).tolist()
+                    ),
+                    "initial_effect_mean": initial_effect,
+                    "final_effect_mean": final_effect,
+                    "innovation_variance_mean": (
+                        float(beta_n / (alpha_n - 1.0))
+                        if alpha_n > 1.0 else None
+                    ),
+                    "spectral_radius_at_mean": (
+                        _ar_spectral_radius_from_mean(base_mean)
+                    ),
+                    "post_long_run_mean_at_end": post_long_run_mean,
+                    "alpha": alpha_n,
+                    "beta": beta_n,
+                })
+            candidates.append(candidate)
+        candidates.sort(
+            key=lambda item: float(item["posterior_model_probability"]),
+            reverse=True,
+        )
+        posterior_map = candidates[0]
 
     return {
         "schema_version": 1,
@@ -683,5 +805,5 @@ def ar_intervention_bayes_factor(
         "half_life": float(half_life),
         "posterior_h0": posterior_h0,
         "posterior_models": candidates,
-        "posterior_map": candidates[0],
+        "posterior_map": posterior_map,
     }

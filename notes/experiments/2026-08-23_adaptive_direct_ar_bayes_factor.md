@@ -121,4 +121,142 @@ PYTHONPATH=src:. venv/bin/python \
 
 ## 現在の状態
 
-実装、synthetic test、RCAEval 1ケースsmokeまで完了。正式375ケースは未実行である。
+正式375ケースの実験まで完了した。macroは `AC@1=0.6880`、`AC@3=0.8800`、`AC@5=0.9520`、`Avg@5=0.8576`である。Full Direct AR-BFに対するAC@1差は+0.2027、Intercept-shift AR-BFに対しては+0.0827だった。統合candidate全体の改善は確認できたが、各構成要素の寄与はrollback ablationで分離する。
+
+## Shapeとonsetの厳密な定義
+
+abnormal windowの長さを \(L\)、window内の0-origin時刻を \(t=0,\ldots,L-1\)、fault boundaryからの応答開始offsetを \(a\)とする。現在は \(a\in\{0,5,15\}\) である。経過時間を \(h=t-a\) とし、すべてのbasisは \(t<a\) で0とする。
+
+H1のconditional meanは、
+
+\[
+X_t=c+\sum_{p=1}^{P}\phi_pX_{t-p}
++\mathbf g_m(t;a)^\top\boldsymbol\delta_m+\epsilon_t
+\]
+
+である。shapeは観測値 \(X_t\) そのものの形ではなく、AR方程式へ追加するconditional-mean interventionの時間形状である。
+
+### Step
+
+\[
+g_{\mathrm{step}}(t;a)=I(t\ge a)
+\]
+
+onset後に一定入力が継続する。
+
+### Ramp
+
+実装上は、
+
+\[
+g_{\mathrm{ramp}}(t;a)=
+\begin{cases}
+0 & t<a\\
+\dfrac{t-a+1}{L-a} & t\ge a
+\end{cases}
+\]
+
+である。onset時点で \(1/(L-a)\) から始まり、window末尾で1になる。onset時点を厳密に0とするpure slope-change basisではない点は、実装上の定義として明記する。
+
+### Exponential rise
+
+half-life parameterを \(H=10\) とし、
+
+\[
+g_{\mathrm{rise}}(t;a)=
+\begin{cases}
+0 & t<a\\
+1-2^{-(t-a+1)/H} & t\ge a
+\end{cases}
+\]
+
+とする。入力は0付近から1へ漸近する。
+
+### Exponential decay
+
+\[
+g_{\mathrm{decay}}(t;a)=
+\begin{cases}
+0 & t<a\\
+2^{-(t-a)/H} & t\ge a
+\end{cases}
+\]
+
+onset時点で1、10点後に0.5となる一過性入力である。
+
+### Step + ramp
+
+`step_ramp`は5番目の単一shapeではなく、2本のbasisを持つ複合modelである。
+
+\[
+\mathbf g_{\mathrm{step+ramp}}(t;a)=
+\begin{bmatrix}
+g_{\mathrm{step}}(t;a)\\
+g_{\mathrm{ramp}}(t;a)
+\end{bmatrix}
+\]
+
+\[
+u_t=
+\delta_{\mathrm{step}}g_{\mathrm{step}}(t;a)
++\delta_{\mathrm{ramp}}g_{\mathrm{ramp}}(t;a)
+\]
+
+とし、即時的なlevel changeとその後のslope changeを別係数で表す。`step_ramp`は \(\delta_{\mathrm{ramp}}=0\) でstep、\(\delta_{\mathrm{step}}=0\) でrampを含む。そのため解釈しやすい最小のlevel+slope拡張である一方、step/ramp単体とmodel familyが重複する。この追加は理論的必然ではなく設計選択であり、`adaptive_direct_no_step_ramp` で寄与を検証する。
+
+## Intervention shapeと観測応答の違い
+
+AR(1)で正常状態からのずれを \(Y_h\) とすると、
+
+\[
+Y_h=\phi Y_{h-1}+u_h
+\]
+
+より、
+
+\[
+Y_h=\sum_{j=0}^{h}\phi^{h-j}u_j
+\]
+
+である。観測応答はintervention basisをAR dynamicsでfilterした形になる。例えばstep入力 \(u_j=\delta\) に対し、
+
+\[
+Y_h=\delta\frac{1-\phi^{h+1}}{1-\phi}
+\]
+
+となるため、step入力でも観測上はexponential riseのように見える。`exp_rise`は、AR自体の持続性とは別にinterventionそのものが遅く立ち上がる仮説である。両者は完全に識別可能とは限らず、shape間の相関は現在のmodel libraryの制約である。
+
+## Shape/onsetの周辺化
+
+各shapeの事前確率は等しく、onset priorは、
+
+\[
+p(a)\propto e^{-0.15a}
+\]
+
+である。H1全体の周辺尤度は、
+
+\[
+p(D\mid H_1)
+=\sum_m\sum_a p(m)p(a)p(D\mid m,a,H_1)
+\]
+
+とし、15候補の最大値ではなく重み付き平均を使う。診断JSONのMAP shape/onsetは、
+
+\[
+(m^*,a^*)=\arg\max_{m,a}p(m,a\mid D,H_1)
+\]
+
+であり説明用の代表候補である。最終scoreはMAP候補だけではなく15候補の周辺化を使う。
+
+## 計算量と数値等価な高速化
+
+正式candidateは1 metricあたり実faultと1回、normal-only pseudo-faultと3回の計4回、それぞれH0+15候補を評価する。従来実装では375ケースの純Python時間が2803.29秒であった。高速化では仮説、prior、周辺尤度、scoreを変更せず、次を実施した。
+
+- Python loopによるconditional-AR design作成をsliding-windowのNumPy処理へ置換
+- 同じ長さ、shape、onset、half-lifeのintervention basisをLRU cacheで再利用
+- 15候補で共通する \(X^\top X\)、\(X^\top y\)、\(y^\top y\) を一度だけ計算
+- 実faultではMAP候補だけ詳細posteriorを作成し、pseudo-faultでは不要な係数変換・spectral-radius・診断dict生成を省略
+- benchmark case単位のprocess並列を追加し、Adaptive Direct専用実行は既定4 workersとする
+
+`re1_tt__ts-auth-service_cpu__1`の1241 metricsを用いた1ケースsmokeで、旧artifactの17.07秒に対し高速化後は2.66秒で、6.42倍の高速化だった。service rankingは完全一致し、metric scoreの最大絶対差は \(2.66\times10^{-13}\) だった。これは小規模smokeであり、375ケースのwall-clock改善率は正式再実行後に確定する。

@@ -6,6 +6,8 @@ PROJECT_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
 
 cd "${PROJECT_ROOT}"
 
+WORKERS="${AMBER_WORKERS:-1}"
+
 case "${1:-}" in
     ""|--rcaeval)
         # RCAEval RE1 Zenodo v2正式アブレーション（375ケース × 11 variants）。
@@ -64,6 +66,7 @@ case "${1:-}" in
         ;;
     --adaptive-direct-ar-bayes-factor)
         # 応答形状・遅延周辺化とnormal-only校正をまとめて検証する。
+        WORKERS="${AMBER_WORKERS:-4}"
         CONFIGS=(
             "configs/ablation/rcaeval_re1_zenodo_v2/adaptive_direct_ar_bayes_factor.yaml"
         )
@@ -71,6 +74,7 @@ case "${1:-}" in
         ;;
     --adaptive-direct-rollback)
         # 統合candidateから1要素ずつ外すロールバック・アブレーション。
+        WORKERS="${AMBER_WORKERS:-4}"
         CONFIGS=(
             "configs/ablation/rcaeval_re1_zenodo_v2/adaptive_direct_no_null_calibration.yaml"
             "configs/ablation/rcaeval_re1_zenodo_v2/adaptive_direct_fixed_onset.yaml"
@@ -108,7 +112,7 @@ for CONFIG in "${CONFIGS[@]}"; do
     echo "Running ablation: ${CONFIG}"
     echo "========================================"
 
-    zsh scripts/run_main.sh "${GRANULARITY}" "${CONFIG}"
+    zsh scripts/run_main.sh "${GRANULARITY}" "${CONFIG}" "${WORKERS}"
 done
 
 python3 src/aggregate_results.py \
