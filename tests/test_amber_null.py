@@ -3,7 +3,7 @@ import pandas as pd
 import pytest
 
 from models.amber import AMBER
-from models.ar_bayes_factor import ARBayesFactorPrior
+from models.ar_bayes_factor import ARBayesFactorPrior, ARRegimeShiftPrior
 
 
 def test_unchanged_metric_has_finite_score():
@@ -168,6 +168,56 @@ def test_adaptive_direct_ar_bayes_factor_uses_normal_only_calibration():
     )
 
 
+def test_bsrc_ar_bayes_factor_ranks_sparse_regime_change_first():
+    rng = np.random.default_rng(59)
+    normal = {"stable_cpu": [], "changed_cpu": []}
+    abnormal = {"stable_cpu": [], "changed_cpu": []}
+    state = {"stable_cpu": 0.0, "changed_cpu": 0.0}
+    for _ in range(300):
+        for metric in normal:
+            state[metric] = 0.6 * state[metric] + rng.normal(0.0, 0.5)
+            normal[metric].append(state[metric])
+    for _ in range(300):
+        for metric in abnormal:
+            intercept = 0.8 if metric == "changed_cpu" else 0.0
+            state[metric] = (
+                intercept + 0.6 * state[metric] + rng.normal(0.0, 0.5)
+            )
+            abnormal[metric].append(state[metric])
+
+    model = AMBER(
+        ar_order=1,
+        residualization="ar_model",
+        scoring="bsrc_ar_bayes_factor",
+        winsor_quantile=None,
+        ar_bayes_prior=ARBayesFactorPrior(
+            intercept_precision=0.1,
+            lag_precision=10.0,
+            alpha=5.0,
+            beta=4.0,
+        ),
+        ar_regime_shift_prior=ARRegimeShiftPrior(
+            inclusion_probability=0.5,
+        ),
+    )
+    result = model.fit_predict(pd.DataFrame(normal), pd.DataFrame(abnormal))
+
+    assert result.iloc[0]["metric"] == "changed_cpu"
+    changed = next(
+        row for row in model.diagnostics_["metrics"]
+        if row["metric"] == "changed_cpu"
+    )
+    assert changed["ar_hypothesis"] == (
+        "normal_ar_continuation_vs_sparse_regime_change"
+    )
+    assert "intercept" in changed[
+        "ar_regime_parameter_inclusion_probability"
+    ]
+    assert model.diagnostics_["ar_regime_shift_prior"][
+        "variance_quadrature_points"
+    ] == 4
+
+
 @pytest.mark.parametrize(
     "kwargs",
     [
@@ -175,6 +225,7 @@ def test_adaptive_direct_ar_bayes_factor_uses_normal_only_calibration():
         {"residualization": "ar", "scoring": "ar_bayes_factor"},
         {"residualization": "ar", "scoring": "ar_intercept_bayes_factor"},
         {"residualization": "ar", "scoring": "ar_intervention_bayes_factor"},
+        {"residualization": "ar", "scoring": "bsrc_ar_bayes_factor"},
         {
             "residualization": "ar_model",
             "scoring": "ar_bayes_factor",

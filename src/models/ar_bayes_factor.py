@@ -1,15 +1,14 @@
-"""Bayesian shared-vs-separate autoregressive model comparison.
+"""Bayesian autoregressive model comparisons for AMBER.
 
-The null hypothesis uses one AR parameter set for the pre/post segments.  The
-alternative gives each segment an independent parameter set drawn from the
-same proper Normal-Inverse-Gamma prior.  The conditional AR likelihood is a
-Bayesian linear regression, so all marginal likelihoods are analytic.
+The conditional AR likelihood is Bayesian linear regression under a proper
+Normal-Inverse-Gamma prior. This supports analytic shared-vs-separate,
+intervention-response, and sparse parameter-regime comparisons.
 """
 from __future__ import annotations
 
 from dataclasses import asdict, dataclass
 from functools import lru_cache
-from math import lgamma, log, pi
+from math import lgamma, log, pi, sqrt
 from typing import Literal, Sequence
 
 import numpy as np
@@ -39,6 +38,35 @@ class ARBayesFactorPrior:
             raise ValueError("alpha must be positive")
         if self.beta <= 0:
             raise ValueError("beta must be positive")
+
+
+@dataclass(frozen=True)
+class ARRegimeShiftPrior:
+    """Sparse normal-anchored prior for BSRC-AR parameter changes.
+
+    Active coefficient changes use a Gaussian slab conditional on the shared
+    innovation variance. Independent Bernoulli indicators provide the spike
+    at zero. The post/pre innovation-variance ratio has a zero-centred normal
+    prior on the log scale and is integrated with Gauss--Hermite quadrature.
+    """
+
+    intercept_precision: float = 0.25
+    lag_precision: float = 1.0
+    inclusion_probability: float = 0.25
+    log_variance_sd: float = 0.7
+    variance_quadrature_points: int = 4
+
+    def __post_init__(self) -> None:
+        if self.intercept_precision <= 0:
+            raise ValueError("intercept_precision must be positive")
+        if self.lag_precision <= 0:
+            raise ValueError("lag_precision must be positive")
+        if not 0.0 < self.inclusion_probability < 1.0:
+            raise ValueError("inclusion_probability must lie in (0, 1)")
+        if self.log_variance_sd < 0:
+            raise ValueError("log_variance_sd must be non-negative")
+        if self.variance_quadrature_points <= 0:
+            raise ValueError("variance_quadrature_points must be positive")
 
 
 def _normal_only_standardize(
@@ -506,6 +534,338 @@ def _logsumexp(values: np.ndarray) -> float:
         raise ValueError("logsumexp requires at least one value")
     maximum = float(np.max(values))
     return maximum + float(np.log(np.sum(np.exp(values - maximum))))
+
+
+def _variance_ratio_quadrature(
+    log_sd: float,
+    points: int,
+) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
+    """Return log-ratios, ratios and normalized log prior weights."""
+    if log_sd < 0:
+        raise ValueError("log_sd must be non-negative")
+    if points <= 0:
+        raise ValueError("points must be positive")
+    if log_sd == 0:
+        return (
+            np.zeros(1, dtype=float),
+            np.ones(1, dtype=float),
+            np.zeros(1, dtype=float),
+        )
+    nodes, weights = np.polynomial.hermite.hermgauss(points)
+    log_ratios = sqrt(2.0) * log_sd * nodes
+    ratios = np.exp(log_ratios)
+    log_weights = np.log(weights) - 0.5 * log(pi)
+    log_weights -= _logsumexp(log_weights)
+    return log_ratios, ratios, log_weights
+
+
+def ar_shrinkage_regime_bayes_factor(
+    pre: np.ndarray,
+    post: np.ndarray,
+    *,
+    order: int = 3,
+    prior: ARBayesFactorPrior | None = None,
+    regime_prior: ARRegimeShiftPrior | None = None,
+    standardize: bool = True,
+    min_scale: float = 1e-6,
+    posterior_detail: Literal["full", "map", "none"] = "full",
+) -> dict[str, object]:
+    """Compare normal continuation with a sparse AR parameter regime change.
+
+    H0 uses one AR coefficient vector and innovation variance for the normal
+    and post periods.  H1 keeps a normal-regime coefficient vector and adds
+    post-boundary changes to a sparse subset of the intercept/lag parameters.
+    It also integrates a post/pre innovation-variance ratio.  The coefficient
+    subset and variance ratio are model-averaged, so no response-shape basis or
+    post-derived empirical-null correction is used.
+
+    The normal-period marginal likelihood is common to both hypotheses.  The
+    returned H0/H1 marginal values are therefore conditional posterior-
+    predictive log densities for the post period given the normal period.
+    """
+    if order < 0:
+        raise ValueError("order must be non-negative")
+    if posterior_detail not in {"full", "map", "none"}:
+        raise ValueError(f"Unknown posterior_detail={posterior_detail}")
+    pre = np.asarray(pre, dtype=float)
+    post = np.asarray(post, dtype=float)
+    if pre.ndim != 1 or post.ndim != 1:
+        raise ValueError("pre and post must be one-dimensional")
+    if pre.size <= order:
+        raise ValueError(f"Need more than ar_order={order} pre observations")
+    if post.size == 0:
+        raise ValueError("post segment must not be empty")
+
+    model_prior = prior or ARBayesFactorPrior()
+    shift_prior = regime_prior or ARRegimeShiftPrior(
+        inclusion_probability=min(0.5, 1.0 / (order + 1))
+    )
+    if standardize:
+        scaled_pre, scaled_post, center, scale = _normal_only_standardize(
+            pre, post, min_scale
+        )
+    else:
+        scaled_pre, scaled_post = pre.copy(), post.copy()
+        center, scale = 0.0, 1.0
+
+    pre_design, pre_target = _ar_design(scaled_pre, order)
+    post_design, post_target = _ar_design(
+        scaled_post, order, history=scaled_pre
+    )
+    if pre_target.size == 0 or post_target.size == 0:
+        raise ValueError("No finite conditional-AR rows in one or both segments")
+
+    dimension = order + 1
+    coefficient_names = ["intercept"] + [
+        f"lag_{index}" for index in range(1, order + 1)
+    ]
+    base_prior_mean = np.concatenate([
+        [model_prior.intercept_mean],
+        np.full(order, model_prior.lag_mean, dtype=float),
+    ])
+    base_prior_precision = np.concatenate([
+        [model_prior.intercept_precision],
+        np.full(order, model_prior.lag_precision, dtype=float),
+    ])
+    shift_precisions = np.concatenate([
+        [shift_prior.intercept_precision],
+        np.full(order, shift_prior.lag_precision, dtype=float),
+    ])
+
+    log_pre, posterior_normal = _bayesian_ar_log_marginal(
+        pre_design, pre_target, model_prior
+    )
+    pooled_design = np.vstack([pre_design, post_design])
+    pooled_target = np.concatenate([pre_target, post_target])
+    log_joint_h0, posterior_h0 = _bayesian_ar_log_marginal(
+        pooled_design, pooled_target, model_prior
+    )
+    log_predictive_h0 = float(log_joint_h0 - log_pre)
+
+    pre_gram = pre_design.T @ pre_design
+    post_gram = post_design.T @ post_design
+    pre_cross = pre_design.T @ pre_target
+    post_cross = post_design.T @ post_target
+    pre_square = float(pre_target @ pre_target)
+    post_square = float(post_target @ post_target)
+    log_ratios, variance_ratios, log_variance_weights = (
+        _variance_ratio_quadrature(
+            shift_prior.log_variance_sd,
+            shift_prior.variance_quadrature_points,
+        )
+    )
+
+    inclusion = shift_prior.inclusion_probability
+    log_inclusion = log(inclusion)
+    log_exclusion = log(1.0 - inclusion)
+    candidate_log_marginals: list[float] = []
+    candidate_log_weights: list[float] = []
+    candidate_states: list[tuple[
+        tuple[int, ...], float, float, np.ndarray, float, float,
+    ]] = []
+    for mask_value in range(1 << dimension):
+        selected = tuple(
+            index for index in range(dimension)
+            if mask_value & (1 << index)
+        )
+        mask_log_weight = (
+            len(selected) * log_inclusion
+            + (dimension - len(selected)) * log_exclusion
+        )
+        selected_array = np.asarray(selected, dtype=int)
+        for log_ratio, variance_ratio, variance_log_weight in zip(
+            log_ratios,
+            variance_ratios,
+            log_variance_weights,
+            strict=True,
+        ):
+            inverse_ratio = 1.0 / float(variance_ratio)
+            base_gram = pre_gram + inverse_ratio * post_gram
+            base_cross = pre_cross + inverse_ratio * post_cross
+            target_square = pre_square + inverse_ratio * post_square
+            if selected:
+                post_shift = post_design[:, selected_array]
+                base_shift_cross = (
+                    inverse_ratio * post_design.T @ post_shift
+                )
+                shift_gram = inverse_ratio * post_shift.T @ post_shift
+                gram = np.block([
+                    [base_gram, base_shift_cross],
+                    [base_shift_cross.T, shift_gram],
+                ])
+                target_cross = np.concatenate([
+                    base_cross,
+                    inverse_ratio * post_shift.T @ post_target,
+                ])
+                candidate_prior_mean = np.concatenate([
+                    base_prior_mean, np.zeros(len(selected), dtype=float),
+                ])
+                candidate_prior_precision = np.concatenate([
+                    base_prior_precision, shift_precisions[selected_array],
+                ])
+            else:
+                gram = base_gram
+                target_cross = base_cross
+                candidate_prior_mean = base_prior_mean
+                candidate_prior_precision = base_prior_precision
+
+            log_marginal, mean, alpha_n, beta_n = (
+                _bayesian_regression_log_marginal_from_sufficient_statistics(
+                    gram,
+                    target_cross,
+                    target_square,
+                    pre_target.size + post_target.size,
+                    prior_mean=candidate_prior_mean,
+                    prior_precision=candidate_prior_precision,
+                    alpha=model_prior.alpha,
+                    beta=model_prior.beta,
+                )
+            )
+            # Whitening post rows by sqrt(variance_ratio) changes the density
+            # normalization by this Jacobian term.
+            log_marginal -= 0.5 * post_target.size * float(log_ratio)
+            candidate_log_marginals.append(float(log_marginal))
+            candidate_log_weights.append(
+                float(mask_log_weight + variance_log_weight)
+            )
+            if posterior_detail != "none":
+                candidate_states.append((
+                    selected,
+                    float(log_ratio),
+                    float(variance_ratio),
+                    mean,
+                    alpha_n,
+                    beta_n,
+                ))
+
+    log_marginals = np.asarray(candidate_log_marginals, dtype=float)
+    log_weights = np.asarray(candidate_log_weights, dtype=float)
+    log_joint_h1 = (
+        _logsumexp(log_marginals + log_weights)
+        - _logsumexp(log_weights)
+    )
+    log_predictive_h1 = float(log_joint_h1 - log_pre)
+
+    candidates: list[dict[str, object]] = []
+    posterior_map: dict[str, object] | None = None
+    inclusion_posterior = {
+        name: 0.0 for name in coefficient_names
+    }
+    variance_ratio_mean: float | None = None
+    if posterior_detail != "none":
+        normalizer = _logsumexp(log_marginals + log_weights)
+        probabilities = np.exp(log_marginals + log_weights - normalizer)
+        map_index = int(np.argmax(probabilities))
+        variance_ratio_mean = float(
+            np.sum(probabilities * np.asarray([
+                state[2] for state in candidate_states
+            ], dtype=float))
+        )
+        for index, (
+            selected,
+            log_ratio,
+            variance_ratio,
+            mean,
+            alpha_n,
+            beta_n,
+        ) in enumerate(candidate_states):
+            probability = float(probabilities[index])
+            for selected_index in selected:
+                inclusion_posterior[coefficient_names[selected_index]] += (
+                    probability
+                )
+            candidate: dict[str, object] = {
+                "changed_parameters": [
+                    coefficient_names[selected_index]
+                    for selected_index in selected
+                ],
+                "log_variance_ratio": log_ratio,
+                "variance_ratio": variance_ratio,
+                "log_prior_weight": float(log_weights[index]),
+                "log_marginal": float(log_marginals[index]),
+                "posterior_model_probability": probability,
+            }
+            if posterior_detail == "full" or index == map_index:
+                base_mean = mean[:dimension]
+                change_mean = np.zeros(dimension, dtype=float)
+                if selected:
+                    change_mean[np.asarray(selected, dtype=int)] = mean[
+                        dimension:
+                    ]
+                post_mean = base_mean + change_mean
+                pre_variance = (
+                    float(beta_n / (alpha_n - 1.0))
+                    if alpha_n > 1.0 else None
+                )
+                post_variance = (
+                    float(variance_ratio * pre_variance)
+                    if pre_variance is not None else None
+                )
+                pre_summary = _posterior_summary(
+                    base_mean, alpha_n, beta_n, pre_target.size
+                )
+                post_summary = _posterior_summary(
+                    post_mean, alpha_n,
+                    beta_n * variance_ratio, post_target.size,
+                )
+                candidate.update({
+                    "pre_rows": int(pre_target.size),
+                    "post_rows": int(post_target.size),
+                    "base_coefficient_mean": base_mean.astype(float).tolist(),
+                    "coefficient_change_mean": (
+                        change_mean.astype(float).tolist()
+                    ),
+                    "post_coefficient_mean": post_mean.astype(float).tolist(),
+                    "pre_innovation_variance_mean": pre_variance,
+                    "post_innovation_variance_mean": post_variance,
+                    "pre_spectral_radius_at_mean": (
+                        pre_summary["spectral_radius_at_mean"]
+                    ),
+                    "post_spectral_radius_at_mean": (
+                        post_summary["spectral_radius_at_mean"]
+                    ),
+                    "pre_long_run_mean_at_mean": (
+                        pre_summary["long_run_mean_at_mean"]
+                    ),
+                    "post_long_run_mean_at_mean": (
+                        post_summary["long_run_mean_at_mean"]
+                    ),
+                    "alpha": alpha_n,
+                    "beta": beta_n,
+                })
+            candidates.append(candidate)
+        candidates.sort(
+            key=lambda item: float(item["posterior_model_probability"]),
+            reverse=True,
+        )
+        posterior_map = candidates[0]
+
+    return {
+        "schema_version": 1,
+        "hypothesis": "normal_ar_continuation_vs_sparse_regime_change",
+        "ar_order": order,
+        "known_change_boundary": True,
+        "predictive_rows": int(post_target.size),
+        "log_bayes_factor": float(log_predictive_h1 - log_predictive_h0),
+        "log_marginal_h0": log_predictive_h0,
+        "log_marginal_h1": log_predictive_h1,
+        "log_joint_h0": float(log_joint_h0),
+        "log_joint_h1": float(log_joint_h1),
+        "log_marginal_normal": float(log_pre),
+        "normalization": {
+            "normal_only": bool(standardize),
+            "center": center,
+            "scale": scale,
+        },
+        "prior": asdict(model_prior),
+        "regime_shift_prior": asdict(shift_prior),
+        "posterior_normal": posterior_normal,
+        "posterior_h0": posterior_h0,
+        "posterior_models": candidates,
+        "posterior_map": posterior_map,
+        "parameter_change_inclusion_probability": inclusion_posterior,
+        "posterior_variance_ratio_mean": variance_ratio_mean,
+    }
 
 
 @lru_cache(maxsize=256)

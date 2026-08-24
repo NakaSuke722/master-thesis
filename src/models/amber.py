@@ -16,9 +16,11 @@ import pandas as pd
 
 from models.ar_bayes_factor import (
     ARBayesFactorPrior,
+    ARRegimeShiftPrior,
     ar_change_bayes_factor,
     ar_intervention_bayes_factor,
     ar_intercept_shift_bayes_factor,
+    ar_shrinkage_regime_bayes_factor,
 )
 
 
@@ -357,7 +359,8 @@ class AMBER:
 
     The standard modes compare Gaussian distributions after raw/AR
     residualization.  ``ar_model`` scoring modes instead make AR part of the
-    hypothesis: either every AR parameter or only the intercept can differ.
+    hypothesis: every AR parameter, only the intercept, a structured response,
+    or a sparse subset of AR regime parameters can differ.
 
     The RCA score is
         log BF= log m(z_normal) + log m(z_abnormal) - log m(z_normal and z_abnormal),
@@ -381,6 +384,7 @@ class AMBER:
         scoring: Literal[
             "bayes_factor", "glrt", "ar_bayes_factor",
             "ar_intercept_bayes_factor", "ar_intervention_bayes_factor",
+            "bsrc_ar_bayes_factor",
         ] = "bayes_factor",
         ar_stationarity: Literal["none", "root_projection"] = "none",
         stationarity_radius: float = 0.98,
@@ -388,6 +392,7 @@ class AMBER:
         horizon_aware_uncertainty: bool = False,
         forecast_error_covariance: Literal["diagonal", "full"] = "diagonal",
         ar_bayes_prior: ARBayesFactorPrior | None = None,
+        ar_regime_shift_prior: ARRegimeShiftPrior | None = None,
         ar_intervention_shapes: Sequence[str] = (
             "step", "ramp", "exp_rise", "exp_decay", "step_ramp",
         ),
@@ -423,7 +428,7 @@ class AMBER:
 
         ar_model_scores = {
             "ar_bayes_factor", "ar_intercept_bayes_factor",
-            "ar_intervention_bayes_factor",
+            "ar_intervention_bayes_factor", "bsrc_ar_bayes_factor",
         }
         if scoring not in {"bayes_factor", "glrt", *ar_model_scores}:
             raise ValueError(f"Unknown scoring={scoring}")
@@ -528,6 +533,11 @@ class AMBER:
         self.horizon_aware_uncertainty = horizon_aware_uncertainty
         self.forecast_error_covariance = forecast_error_covariance
         self.ar_bayes_prior = ar_bayes_prior or ARBayesFactorPrior()
+        self.ar_regime_shift_prior = (
+            ar_regime_shift_prior or ARRegimeShiftPrior(
+                inclusion_probability=min(0.5, 1.0 / (ar_order + 1))
+            )
+        )
         self.ar_intervention_shapes = intervention_shapes
         self.ar_intervention_onset_offsets = intervention_onsets
         self.ar_intervention_half_life = float(ar_intervention_half_life)
@@ -603,7 +613,7 @@ class AMBER:
     def _score_metric(self, normal_y: np.ndarray, abnormal_y: np.ndarray) -> dict[str, object]:
         if self.scoring in {
             "ar_bayes_factor", "ar_intercept_bayes_factor",
-            "ar_intervention_bayes_factor",
+            "ar_intervention_bayes_factor", "bsrc_ar_bayes_factor",
         }:
             normal_y = np.asarray(normal_y, dtype=float)
             abnormal_y = np.asarray(abnormal_y, dtype=float)
@@ -637,6 +647,16 @@ class AMBER:
                     comparison = ar_intercept_shift_bayes_factor(
                         normal_y, abnormal_y, order=self.ar_order,
                         prior=self.ar_bayes_prior, min_scale=self.min_scale,
+                    )
+                elif self.scoring == "bsrc_ar_bayes_factor":
+                    comparison = ar_shrinkage_regime_bayes_factor(
+                        normal_y,
+                        abnormal_y,
+                        order=self.ar_order,
+                        prior=self.ar_bayes_prior,
+                        regime_prior=self.ar_regime_shift_prior,
+                        min_scale=self.min_scale,
+                        posterior_detail="map",
                     )
                 else:
                     comparison = ar_intervention_bayes_factor(
@@ -703,8 +723,9 @@ class AMBER:
                     "standardized_residual_abnormal": [],
                 }
             raw_score = float(comparison["log_bayes_factor"])
-            observed_rows = int(comparison.get("posterior_h0", {}).get(
-                "n_rows", 1
+            observed_rows = int(comparison.get(
+                "predictive_rows",
+                comparison.get("posterior_h0", {}).get("n_rows", 1),
             ))
             raw_score_rate = raw_score / observed_rows
             if self.ar_null_calibration_mode == "per_row_excess":
@@ -729,6 +750,10 @@ class AMBER:
 
             intervention_shape_posterior = None
             intervention_onset_posterior = None
+            regime_changed_parameters = None
+            regime_variance_ratio = None
+            regime_parameter_inclusion = None
+            regime_map_probability = None
             if self.scoring == "ar_bayes_factor":
                 pre = comparison["posterior_pre"]
                 post = comparison["posterior_post"]
@@ -766,6 +791,47 @@ class AMBER:
                 intervention_shape = None
                 intervention_onset = None
                 intervention_probability = None
+            elif self.scoring == "bsrc_ar_bayes_factor":
+                shared = comparison["posterior_h0"]
+                alternative = comparison["posterior_map"]
+                pre_coefficients = alternative["base_coefficient_mean"]
+                post_coefficients = alternative["post_coefficient_mean"]
+                pre_variance = alternative[
+                    "pre_innovation_variance_mean"
+                ]
+                post_variance = alternative[
+                    "post_innovation_variance_mean"
+                ]
+                pre_radius = alternative[
+                    "pre_spectral_radius_at_mean"
+                ]
+                post_radius = alternative[
+                    "post_spectral_radius_at_mean"
+                ]
+                pre_long_run_mean = alternative[
+                    "pre_long_run_mean_at_mean"
+                ]
+                post_long_run_mean = alternative[
+                    "post_long_run_mean_at_mean"
+                ]
+                pre_rows = alternative["pre_rows"]
+                post_rows = alternative["post_rows"]
+                intercept_shift = alternative[
+                    "coefficient_change_mean"
+                ][0]
+                intervention_shape = None
+                intervention_onset = None
+                intervention_probability = None
+                regime_changed_parameters = alternative[
+                    "changed_parameters"
+                ]
+                regime_variance_ratio = alternative["variance_ratio"]
+                regime_parameter_inclusion = comparison[
+                    "parameter_change_inclusion_probability"
+                ]
+                regime_map_probability = alternative[
+                    "posterior_model_probability"
+                ]
             else:
                 shared = comparison["posterior_h0"]
                 alternative = comparison["posterior_map"]
@@ -823,6 +889,14 @@ class AMBER:
                 ),
                 "ar_intervention_onset_posterior": (
                     intervention_onset_posterior
+                ),
+                "ar_regime_map_changed_parameters": (
+                    regime_changed_parameters
+                ),
+                "ar_regime_map_variance_ratio": regime_variance_ratio,
+                "ar_regime_map_probability": regime_map_probability,
+                "ar_regime_parameter_inclusion_probability": (
+                    regime_parameter_inclusion
                 ),
                 "normal_scale": float(comparison["normalization"]["scale"]),
                 "abnormal_mean_z": np.nan,
@@ -1162,7 +1236,12 @@ class AMBER:
                     if self.scoring in {
                         "ar_bayes_factor", "ar_intercept_bayes_factor",
                         "ar_intervention_bayes_factor",
+                        "bsrc_ar_bayes_factor",
                     } else None
+                ),
+                "ar_regime_shift_prior": (
+                    asdict(self.ar_regime_shift_prior)
+                    if self.scoring == "bsrc_ar_bayes_factor" else None
                 ),
                 "metrics": diagnostic_records,
             }
@@ -1239,7 +1318,12 @@ class AMBER:
                 if self.scoring in {
                     "ar_bayes_factor", "ar_intercept_bayes_factor",
                     "ar_intervention_bayes_factor",
+                    "bsrc_ar_bayes_factor",
                 } else None
+            ),
+            "ar_regime_shift_prior": (
+                asdict(self.ar_regime_shift_prior)
+                if self.scoring == "bsrc_ar_bayes_factor" else None
             ),
             "metrics": diagnostic_records,
             "services": service_df.to_dict(orient="records"),

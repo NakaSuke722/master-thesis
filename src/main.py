@@ -190,7 +190,10 @@ def run_experiment(
         import pandas as pd
 
         from models.amber import AMBER, NIG
-        from models.ar_bayes_factor import ARBayesFactorPrior
+        from models.ar_bayes_factor import (
+            ARBayesFactorPrior,
+            ARRegimeShiftPrior,
+        )
 
         if benchmark_case is not None:
             (
@@ -255,6 +258,30 @@ def run_experiment(
             alpha=float(ar_bayes_prior_params.get("alpha", 2.0)),
             beta=float(ar_bayes_prior_params.get("beta", 1.0)),
         )
+        regime_shift_params = params.get("ar_regime_shift_prior", {})
+        ar_regime_shift_prior = ARRegimeShiftPrior(
+            intercept_precision=float(
+                regime_shift_params.get("intercept_precision", 0.25)
+            ),
+            lag_precision=float(
+                regime_shift_params.get("lag_precision", 1.0)
+            ),
+            inclusion_probability=float(
+                regime_shift_params.get(
+                    "inclusion_probability",
+                    min(
+                        0.5,
+                        1.0 / (int(params.get("ar_order", 3)) + 1),
+                    ),
+                )
+            ),
+            log_variance_sd=float(
+                regime_shift_params.get("log_variance_sd", 0.7)
+            ),
+            variance_quadrature_points=int(
+                regime_shift_params.get("variance_quadrature_points", 4)
+            ),
+        )
 
         rca_model = AMBER(
             ar_order=int(params.get("ar_order", 3)),
@@ -293,6 +320,7 @@ def run_experiment(
                 "forecast_error_covariance", "diagonal"
             ),
             ar_bayes_prior=ar_bayes_prior,
+            ar_regime_shift_prior=ar_regime_shift_prior,
             ar_intervention_shapes=params.get(
                 "ar_intervention_shapes",
                 ["step", "ramp", "exp_rise", "exp_decay", "step_ramp"],

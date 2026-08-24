@@ -2,6 +2,7 @@ import numpy as np
 
 from models.ar_bayes_factor import (
     ARBayesFactorPrior,
+    ARRegimeShiftPrior,
     _ar_design,
     _ar_design_with_indices,
     _bayesian_regression_log_marginal,
@@ -10,6 +11,7 @@ from models.ar_bayes_factor import (
     ar_change_bayes_factor,
     ar_intervention_bayes_factor,
     ar_intercept_shift_bayes_factor,
+    ar_shrinkage_regime_bayes_factor,
 )
 
 
@@ -278,6 +280,138 @@ def test_intervention_basis_is_cached_and_read_only():
     assert not first.flags.writeable
 
 
+def test_bsrc_ar_distinguishes_sparse_regime_change_types():
+    prior = ARBayesFactorPrior(
+        intercept_precision=0.1,
+        lag_precision=10.0,
+        alpha=5.0,
+        beta=4.0,
+    )
+    regime_prior = ARRegimeShiftPrior(inclusion_probability=0.5)
+    pre_same, post_same = _simulate(13)
+    pre_mean, post_mean = _simulate(13, post_mean=2.0)
+    pre_phi, post_phi = _simulate(13, post_phi=-0.2)
+    pre_var, post_var = _simulate(13, post_sigma=1.2)
+
+    same = ar_shrinkage_regime_bayes_factor(
+        pre_same, post_same, order=1, prior=prior,
+        regime_prior=regime_prior,
+    )
+    mean = ar_shrinkage_regime_bayes_factor(
+        pre_mean, post_mean, order=1, prior=prior,
+        regime_prior=regime_prior,
+    )
+    dynamics = ar_shrinkage_regime_bayes_factor(
+        pre_phi, post_phi, order=1, prior=prior,
+        regime_prior=regime_prior,
+    )
+    variance = ar_shrinkage_regime_bayes_factor(
+        pre_var, post_var, order=1, prior=prior,
+        regime_prior=regime_prior,
+    )
+
+    assert same["log_bayes_factor"] < 0.0
+    assert mean["log_bayes_factor"] > 10.0
+    assert dynamics["log_bayes_factor"] > 10.0
+    assert variance["log_bayes_factor"] > 10.0
+    assert mean["parameter_change_inclusion_probability"]["intercept"] > 0.99
+    assert dynamics["parameter_change_inclusion_probability"]["lag_1"] > 0.99
+    assert variance["posterior_variance_ratio_mean"] > 2.0
+
+
+def test_bsrc_ar_model_average_is_normalized_and_predictive():
+    pre, post = _simulate(53, post_mean=1.0)
+    result = ar_shrinkage_regime_bayes_factor(
+        pre,
+        post,
+        order=2,
+        regime_prior=ARRegimeShiftPrior(
+            inclusion_probability=1.0 / 3.0,
+            variance_quadrature_points=4,
+        ),
+    )
+
+    assert len(result["posterior_models"]) == (2 ** 3) * 4
+    assert np.isclose(sum(
+        model["posterior_model_probability"]
+        for model in result["posterior_models"]
+    ), 1.0)
+    assert np.isclose(
+        result["log_bayes_factor"],
+        result["log_marginal_h1"] - result["log_marginal_h0"],
+    )
+    assert np.isclose(
+        result["log_marginal_h0"],
+        result["log_joint_h0"] - result["log_marginal_normal"],
+    )
+    assert result["posterior_map"]["pre_rows"] == pre.size - 2
+    assert result["posterior_map"]["post_rows"] == post.size
+
+
+def test_bsrc_ar_weighted_sufficient_statistics_match_full_design():
+    prior = ARBayesFactorPrior(
+        intercept_precision=0.1,
+        lag_precision=10.0,
+        alpha=5.0,
+        beta=4.0,
+    )
+    regime_prior = ARRegimeShiftPrior(
+        intercept_precision=0.25,
+        lag_precision=1.0,
+        inclusion_probability=0.5,
+        log_variance_sd=0.7,
+        variance_quadrature_points=2,
+    )
+    pre, post = _simulate(67, post_mean=1.0)
+    result = ar_shrinkage_regime_bayes_factor(
+        pre, post, order=1, prior=prior, regime_prior=regime_prior,
+    )
+    candidate = next(
+        model for model in result["posterior_models"]
+        if model["changed_parameters"] == ["intercept"]
+    )
+
+    scaled_pre, scaled_post, _, _ = _normal_only_standardize(
+        pre, post, 1e-6
+    )
+    pre_design, pre_target = _ar_design(scaled_pre, 1)
+    post_design, post_target = _ar_design(
+        scaled_post, 1, history=scaled_pre
+    )
+    ratio = candidate["variance_ratio"]
+    pre_candidate = np.column_stack([
+        pre_design, np.zeros(pre_design.shape[0]),
+    ])
+    post_candidate = np.column_stack([
+        post_design, post_design[:, 0],
+    ]) / np.sqrt(ratio)
+    design = np.vstack([pre_candidate, post_candidate])
+    target = np.concatenate([pre_target, post_target / np.sqrt(ratio)])
+    log_marginal, _, _, _ = _bayesian_regression_log_marginal(
+        design,
+        target,
+        prior_mean=np.zeros(3),
+        prior_precision=np.array([0.1, 10.0, 0.25]),
+        alpha=5.0,
+        beta=4.0,
+    )
+    log_marginal -= 0.5 * post_target.size * np.log(ratio)
+
+    assert np.isclose(candidate["log_marginal"], log_marginal)
+
+
+def test_bsrc_ar_default_prior_supports_zero_order_model():
+    rng = np.random.default_rng(61)
+    result = ar_shrinkage_regime_bayes_factor(
+        rng.normal(size=100),
+        rng.normal(size=80),
+        order=0,
+    )
+
+    assert np.isfinite(result["log_bayes_factor"])
+    assert result["regime_shift_prior"]["inclusion_probability"] == 0.5
+
+
 def test_normal_only_scaling_does_not_change_when_post_is_rescaled():
     pre, post = _simulate(31)
     baseline = ar_change_bayes_factor(pre, post, order=1)
@@ -308,6 +442,13 @@ def test_proper_prior_keeps_constant_metric_score_finite():
         order=3,
     )
     assert np.isfinite(intervention_result["log_bayes_factor"])
+
+    regime_result = ar_shrinkage_regime_bayes_factor(
+        np.ones(100),
+        np.ones(80),
+        order=3,
+    )
+    assert np.isfinite(regime_result["log_bayes_factor"])
 
 
 def test_prior_validation_rejects_improper_precision():
