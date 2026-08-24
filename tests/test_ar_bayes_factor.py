@@ -1,4 +1,5 @@
 import numpy as np
+import pytest
 
 from models.ar_bayes_factor import (
     ARBayesFactorPrior,
@@ -406,6 +407,55 @@ def test_bsrc_ar_variance_spike_slab_detects_variance_only_change():
 
     assert result["log_bayes_factor"] > 10.0
     assert result["posterior_variance_change_probability"] > 0.99
+
+
+def test_bsrc_ar_component_endpoints_are_valid_models():
+    pre, post = _simulate(83, post_mean=1.0)
+    coefficient_only = ar_shrinkage_regime_bayes_factor(
+        pre,
+        post,
+        order=1,
+        regime_prior=ARRegimeShiftPrior(
+            inclusion_probability=0.25,
+            variance_inclusion_probability=0.0,
+            variance_quadrature_points=8,
+        ),
+    )
+    variance_only = ar_shrinkage_regime_bayes_factor(
+        pre,
+        post,
+        order=1,
+        regime_prior=ARRegimeShiftPrior(
+            inclusion_probability=0.0,
+            variance_inclusion_probability=1.0,
+            variance_quadrature_points=8,
+        ),
+    )
+
+    assert len(coefficient_only["posterior_models"]) == 3
+    assert all(
+        model["changed_parameters"]
+        and not model["variance_change_active"]
+        and model["variance_ratio"] == 1.0
+        for model in coefficient_only["posterior_models"]
+    )
+    assert len(variance_only["posterior_models"]) == 8
+    assert all(
+        not model["changed_parameters"]
+        and model["variance_change_active"]
+        for model in variance_only["posterior_models"]
+    )
+
+
+def test_bsrc_ar_rejects_an_h1_with_no_possible_change():
+    with pytest.raises(
+        ValueError,
+        match="At least one regime-change inclusion probability",
+    ):
+        ARRegimeShiftPrior(
+            inclusion_probability=0.0,
+            variance_inclusion_probability=0.0,
+        )
 
 
 def test_bsrc_ar_weighted_sufficient_statistics_match_full_design():

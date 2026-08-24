@@ -153,6 +153,78 @@ EXPECTED_VARIANTS = {
             "variance_quadrature_points": 8,
         },
     },
+    "bsrc_ar_variance_spike_slab_q4": {
+        "residualization": "ar_model",
+        "scoring": "bsrc_ar_bayes_factor",
+        "winsor_quantile": None,
+        "ar_bayes_prior": {
+            "intercept_mean": 0.0, "lag_mean": 0.0,
+            "intercept_precision": 0.1, "lag_precision": 10.0,
+            "alpha": 5.0, "beta": 4.0,
+        },
+        "ar_regime_shift_prior": {
+            "intercept_precision": 0.25,
+            "lag_precision": 1.0,
+            "inclusion_probability": 0.25,
+            "variance_inclusion_probability": 0.25,
+            "log_variance_sd": 0.7,
+            "variance_quadrature_points": 4,
+        },
+    },
+    "bsrc_ar_variance_slab_q8": {
+        "residualization": "ar_model",
+        "scoring": "bsrc_ar_bayes_factor",
+        "winsor_quantile": None,
+        "ar_bayes_prior": {
+            "intercept_mean": 0.0, "lag_mean": 0.0,
+            "intercept_precision": 0.1, "lag_precision": 10.0,
+            "alpha": 5.0, "beta": 4.0,
+        },
+        "ar_regime_shift_prior": {
+            "intercept_precision": 0.25,
+            "lag_precision": 1.0,
+            "inclusion_probability": 0.25,
+            "variance_inclusion_probability": 1.0,
+            "log_variance_sd": 0.7,
+            "variance_quadrature_points": 8,
+        },
+    },
+    "bsrc_ar_coefficient_only": {
+        "residualization": "ar_model",
+        "scoring": "bsrc_ar_bayes_factor",
+        "winsor_quantile": None,
+        "ar_bayes_prior": {
+            "intercept_mean": 0.0, "lag_mean": 0.0,
+            "intercept_precision": 0.1, "lag_precision": 10.0,
+            "alpha": 5.0, "beta": 4.0,
+        },
+        "ar_regime_shift_prior": {
+            "intercept_precision": 0.25,
+            "lag_precision": 1.0,
+            "inclusion_probability": 0.25,
+            "variance_inclusion_probability": 0.0,
+            "log_variance_sd": 0.7,
+            "variance_quadrature_points": 8,
+        },
+    },
+    "bsrc_ar_variance_only": {
+        "residualization": "ar_model",
+        "scoring": "bsrc_ar_bayes_factor",
+        "winsor_quantile": None,
+        "ar_bayes_prior": {
+            "intercept_mean": 0.0, "lag_mean": 0.0,
+            "intercept_precision": 0.1, "lag_precision": 10.0,
+            "alpha": 5.0, "beta": 4.0,
+        },
+        "ar_regime_shift_prior": {
+            "intercept_precision": 0.25,
+            "lag_precision": 1.0,
+            "inclusion_probability": 0.0,
+            "variance_inclusion_probability": 1.0,
+            "log_variance_sd": 0.7,
+            "variance_quadrature_points": 8,
+        },
+    },
 }
 
 
@@ -195,3 +267,20 @@ def test_adaptive_rollbacks_each_change_exactly_one_model_axis():
         }
 
         assert actual_axes == expected_axes
+
+
+def test_bsrc_variance_spike_and_quadrature_form_a_two_by_two_ablation():
+    names = {
+        (1.0, 4): "bsrc_ar_bayes_factor",
+        (1.0, 8): "bsrc_ar_variance_slab_q8",
+        (0.25, 4): "bsrc_ar_variance_spike_slab_q4",
+        (0.25, 8): "bsrc_ar_variance_spike_slab",
+    }
+
+    for (variance_inclusion, quadrature_points), name in names.items():
+        config = load_config(ABLATION_DIR / f"{name}.yaml")
+        prior = config["model"]["params"]["ar_regime_shift_prior"]
+        assert prior.get("variance_inclusion_probability", 1.0) == (
+            variance_inclusion
+        )
+        assert prior["variance_quadrature_points"] == quadrature_points

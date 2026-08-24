@@ -88,3 +88,16 @@ metricごとに次を追加する。
 `results/ablation/rcaeval_re1/bsrc_ar_variance_spike_slab/`
 
 375ケースの実行は本実装ターンでは行わない。Stage Aと同じ再生成済みprocessedデータでユーザーが実行する。
+
+## 375ケース結果
+
+| Dataset | AC@1 | AC@3 | AC@5 | Avg@5 |
+|---|---:|---:|---:|---:|
+| re1_ob | 0.440 | 0.728 | 0.832 | 0.6688 |
+| re1_ss | 0.752 | 0.888 | 0.936 | 0.8672 |
+| re1_tt | 0.496 | 0.680 | 0.752 | 0.6528 |
+| macro | 0.5627 | 0.7653 | 0.8400 | 0.7296 |
+
+同じ入力修正後のv1はmacroでAC@1 0.6453、AC@3 0.8080、AC@5 0.8907、Avg@5 0.7893であった。v2はすべての主要指標で低下した。
+
+v1→v2では、variance spike-and-slabの導入とGauss--Hermite quadratureの4点→8点を同時に変更した。したがって、この結果だけでは理論修正自体が悪いのか、積分近似の変更が悪いのか判定できない。2×2のrollbackとcoefficient-only / variance-onlyのcomponent ablationを追加する。

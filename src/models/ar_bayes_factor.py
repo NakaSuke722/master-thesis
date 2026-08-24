@@ -65,11 +65,19 @@ class ARRegimeShiftPrior:
             raise ValueError("intercept_precision must be positive")
         if self.lag_precision <= 0:
             raise ValueError("lag_precision must be positive")
-        if not 0.0 < self.inclusion_probability < 1.0:
-            raise ValueError("inclusion_probability must lie in (0, 1)")
+        if not 0.0 <= self.inclusion_probability <= 1.0:
+            raise ValueError("inclusion_probability must lie in [0, 1]")
         if not 0.0 <= self.variance_inclusion_probability <= 1.0:
             raise ValueError(
                 "variance_inclusion_probability must lie in [0, 1]"
+            )
+        if (
+            self.inclusion_probability == 0.0
+            and self.variance_inclusion_probability == 0.0
+        ):
+            raise ValueError(
+                "At least one regime-change inclusion probability "
+                "must be positive"
             )
         if self.log_variance_sd < 0:
             raise ValueError("log_variance_sd must be non-negative")
@@ -691,22 +699,29 @@ def ar_shrinkage_regime_bayes_factor(
         )
 
     inclusion = shift_prior.inclusion_probability
-    log_inclusion = log(inclusion)
-    log_exclusion = log(1.0 - inclusion)
+    if inclusion == 0.0:
+        mask_values: Sequence[int] = (0,)
+    elif inclusion == 1.0:
+        mask_values = ((1 << dimension) - 1,)
+    else:
+        mask_values = range(1 << dimension)
     candidate_log_marginals: list[float] = []
     candidate_log_weights: list[float] = []
     candidate_states: list[tuple[
         tuple[int, ...], bool, float, float, np.ndarray, float, float,
     ]] = []
-    for mask_value in range(1 << dimension):
+    for mask_value in mask_values:
         selected = tuple(
             index for index in range(dimension)
             if mask_value & (1 << index)
         )
-        mask_log_weight = (
-            len(selected) * log_inclusion
-            + (dimension - len(selected)) * log_exclusion
-        )
+        if inclusion in {0.0, 1.0}:
+            mask_log_weight = 0.0
+        else:
+            mask_log_weight = (
+                len(selected) * log(inclusion)
+                + (dimension - len(selected)) * log(1.0 - inclusion)
+            )
         selected_array = np.asarray(selected, dtype=int)
         for (
             variance_change_active,

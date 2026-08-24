@@ -17,6 +17,7 @@ else
 fi
 
 WORKERS="${AMBER_WORKERS:-1}"
+AGGREGATE_CONFIGS=()
 
 case "${1:-}" in
     ""|--rcaeval)
@@ -112,6 +113,26 @@ case "${1:-}" in
         )
         GRANULARITY="service"
         ;;
+    --bsrc-ar-components)
+        # v1→v2の低下をvariance spike、積分点、change typeに分解する。
+        WORKERS="${AMBER_WORKERS:-4}"
+        CONFIGS=(
+            "configs/ablation/rcaeval_re1_zenodo_v2/bsrc_ar_variance_spike_slab_q4.yaml"
+            "configs/ablation/rcaeval_re1_zenodo_v2/bsrc_ar_variance_slab_q8.yaml"
+            "configs/ablation/rcaeval_re1_zenodo_v2/bsrc_ar_coefficient_only.yaml"
+            "configs/ablation/rcaeval_re1_zenodo_v2/bsrc_ar_variance_only.yaml"
+        )
+        # 取得済みv1/v2も最後の比較summaryに再利用する。
+        AGGREGATE_CONFIGS=(
+            "configs/ablation/rcaeval_re1_zenodo_v2/bsrc_ar_bayes_factor.yaml"
+            "configs/ablation/rcaeval_re1_zenodo_v2/bsrc_ar_variance_slab_q8.yaml"
+            "configs/ablation/rcaeval_re1_zenodo_v2/bsrc_ar_variance_spike_slab_q4.yaml"
+            "configs/ablation/rcaeval_re1_zenodo_v2/bsrc_ar_variance_spike_slab.yaml"
+            "configs/ablation/rcaeval_re1_zenodo_v2/bsrc_ar_coefficient_only.yaml"
+            "configs/ablation/rcaeval_re1_zenodo_v2/bsrc_ar_variance_only.yaml"
+        )
+        GRANULARITY="service"
+        ;;
     --baro)
         # 既存BARO pilotの再現用設定は専用ディレクトリから実行する。
         CONFIGS=(
@@ -122,12 +143,16 @@ case "${1:-}" in
         GRANULARITY="metric"
         ;;
     *)
-        echo "Usage: $0 [--rcaeval|--counterfactual-ar|--ar-redesign|--full-covariance-ar|--direct-ar-bayes-factor|--intercept-shift-ar-bayes-factor|--adaptive-direct-ar-bayes-factor|--adaptive-direct-rollback|--bsrc-ar|--bsrc-ar-v2|--baro]" >&2
+        echo "Usage: $0 [--rcaeval|--counterfactual-ar|--ar-redesign|--full-covariance-ar|--direct-ar-bayes-factor|--intercept-shift-ar-bayes-factor|--adaptive-direct-ar-bayes-factor|--adaptive-direct-rollback|--bsrc-ar|--bsrc-ar-v2|--bsrc-ar-components|--baro]" >&2
         exit 2
         ;;
 esac
 
-for CONFIG in "${CONFIGS[@]}"; do
+if (( ${#AGGREGATE_CONFIGS[@]} == 0 )); then
+    AGGREGATE_CONFIGS=("${CONFIGS[@]}")
+fi
+
+for CONFIG in "${CONFIGS[@]}" "${AGGREGATE_CONFIGS[@]}"; do
     if [[ ! -f "${CONFIG}" ]]; then
         echo "Config file not found: ${CONFIG}" >&2
         exit 1
@@ -144,5 +169,5 @@ for CONFIG in "${CONFIGS[@]}"; do
 done
 
 "${PYTHON_BIN}" src/aggregate_results.py \
-    --configs "${CONFIGS[@]}" \
+    --configs "${AGGREGATE_CONFIGS[@]}" \
     --granularity "${GRANULARITY}"

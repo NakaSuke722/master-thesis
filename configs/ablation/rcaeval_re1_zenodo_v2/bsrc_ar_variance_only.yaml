@@ -1,0 +1,65 @@
+benchmark:
+  name: "rcaeval_re1"
+
+experiment:
+  category: "ablation"
+  name: "bsrc_ar_variance_only"
+
+data:
+  source:
+    provider: "Zenodo"
+    record: "14590730"
+    doi: "10.5281/zenodo.14590730"
+    version: "v2"
+  normal_window_points: 600
+  abnormal_window_points: 600
+
+model:
+  target: "amber"
+  preprocess_strategy: "default"
+  params:
+    residualization: "ar_model"
+    scoring: "bsrc_ar_bayes_factor"
+    ar_order: 3
+    ridge: 1.0e-3
+    min_scale: 1.0e-6
+    relative_scale_floor: 1.0e-3
+    winsor_quantile: null
+    ar_bayes_prior:
+      intercept_mean: 0.0
+      lag_mean: 0.0
+      intercept_precision: 0.1
+      lag_precision: 10.0
+      alpha: 5.0
+      beta: 4.0
+    ar_regime_shift_prior:
+      intercept_precision: 0.25
+      lag_precision: 1.0
+      # coefficient change maskは常にall-spikeとする。
+      inclusion_probability: 0.0
+      variance_inclusion_probability: 1.0
+      log_variance_sd: 0.7
+      variance_quadrature_points: 8
+    prior:
+      m: 0.0
+      kappa: 1.0e-3
+      alpha: 2.0
+      beta: 1.0
+
+paths:
+  raw_data_dir: "data/raw/rcaeval_zenodo_v2"
+  processed_data_dir: "data/processed/rcaeval_zenodo_v2"
+  results_root: "results"
+output:
+  amber_diagnostics: "summary"
+evaluation:
+  k_values: [1, 3, 5]
+  granularity: "service"
+  service_aggregation:
+    method: "mean_top3"
+  metric_aggregation:
+    method: "max"
+datasets:
+  - re1_ob
+  - re1_ss
+  - re1_tt
