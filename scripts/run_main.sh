@@ -5,6 +5,16 @@ SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 PROJECT_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
 cd "${PROJECT_ROOT}"
 
+if [[ -n "${AMBER_PYTHON:-}" ]]; then
+    PYTHON_BIN="${AMBER_PYTHON}"
+elif [[ -x "${PROJECT_ROOT}/venv/bin/python" ]]; then
+    PYTHON_BIN="${PROJECT_ROOT}/venv/bin/python"
+elif [[ -x "${PROJECT_ROOT}/.venv/bin/python" ]]; then
+    PYTHON_BIN="${PROJECT_ROOT}/.venv/bin/python"
+else
+    PYTHON_BIN="$(command -v python3)"
+fi
+
 GRANULARITY_ARG="${1:-}"
 
 CONFIG="${2:-configs/main/rcaeval_re1_zenodo_v2.yaml}"
@@ -38,13 +48,13 @@ export PYTHONPATH="${PROJECT_ROOT}/src${PYTHONPATH:+:${PYTHONPATH}}"
 START_TIME=$(date +%s)
 
 if [[ -n "${GRANULARITY}" ]]; then
-    python3 src/runner.py \
+    "${PYTHON_BIN}" src/runner.py \
         --config "${CONFIG}" \
         --granularity "${GRANULARITY}" \
         --workers "${WORKERS}" \
         --defer-success-notification
 else
-    python3 src/runner.py \
+    "${PYTHON_BIN}" src/runner.py \
         --config "${CONFIG}" \
         --workers "${WORKERS}" \
         --defer-success-notification
@@ -54,12 +64,12 @@ END_TIME=$(date +%s)
 ELAPSED_TIME=$((END_TIME - START_TIME))
 
 if [[ -n "${GRANULARITY}" ]]; then
-    python3 src/aggregate_results.py \
+    "${PYTHON_BIN}" src/aggregate_results.py \
         --config "${CONFIG}" \
         --granularity "${GRANULARITY}" \
         --total-time "${ELAPSED_TIME}"
 else
-    python3 src/aggregate_results.py \
+    "${PYTHON_BIN}" src/aggregate_results.py \
         --config "${CONFIG}" \
         --total-time "${ELAPSED_TIME}"
 fi

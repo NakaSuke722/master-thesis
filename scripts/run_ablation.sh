@@ -6,6 +6,16 @@ PROJECT_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
 
 cd "${PROJECT_ROOT}"
 
+if [[ -n "${AMBER_PYTHON:-}" ]]; then
+    PYTHON_BIN="${AMBER_PYTHON}"
+elif [[ -x "${PROJECT_ROOT}/venv/bin/python" ]]; then
+    PYTHON_BIN="${PROJECT_ROOT}/venv/bin/python"
+elif [[ -x "${PROJECT_ROOT}/.venv/bin/python" ]]; then
+    PYTHON_BIN="${PROJECT_ROOT}/.venv/bin/python"
+else
+    PYTHON_BIN="$(command -v python3)"
+fi
+
 WORKERS="${AMBER_WORKERS:-1}"
 
 case "${1:-}" in
@@ -115,6 +125,6 @@ for CONFIG in "${CONFIGS[@]}"; do
     zsh scripts/run_main.sh "${GRANULARITY}" "${CONFIG}" "${WORKERS}"
 done
 
-python3 src/aggregate_results.py \
+"${PYTHON_BIN}" src/aggregate_results.py \
     --configs "${CONFIGS[@]}" \
     --granularity "${GRANULARITY}"
