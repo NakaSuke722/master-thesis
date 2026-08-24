@@ -183,3 +183,18 @@ RCAEval smokeをartifact非保存で実行した。`re1_ob__cartservice_loss__1`
 正式結果だけでなく、normal-only pseudo-faultで絶対BF calibrationを確認する。偽証拠が多い場合はempirical quantileをスコアから差し引かず、Gaussian innovation、stationarity、AR orderなど生成モデルのmisspecificationとして診断する。
 
 Stage Aが成立した場合、Stage Bでservice-level hierarchical posteriorへ進み、`mean_top3`を廃止する。Stage Cではmetric measurement modelからlatent service stateを推定し、factor-augmented Structural VARのstructural innovation regime changeをroot-cause posteriorとして扱う。
+
+## 入力列修正後の375ケース結果
+
+`time.1`と完全無情報メトリクを共通前処理で除外し、processedデータを再生成した後にBSRC-AR Stage Aを375ケースで再実行した。
+
+| Dataset | AC@1 | AC@3 | AC@5 | Avg@5 |
+|---|---:|---:|---:|---:|
+| re1_ob | 0.552 | 0.728 | 0.856 | 0.7152 |
+| re1_ss | 0.792 | 0.904 | 0.968 | 0.8880 |
+| re1_tt | 0.592 | 0.792 | 0.848 | 0.7648 |
+| macro | 0.6453 | 0.8080 | 0.8907 | 0.7893 |
+
+修正前のmacro AC@1は0.5440であり、修正後は0.6453まで回復した。特にre1_obは0.264から0.552へ改善した。これはBSRC-ARの弱さの一部が、重複timestampと完全定数列に対するvariance-regime BFの過反応であったことを支持する。
+
+一方、現行H1は全candidateでvariance-ratio slabをactiveにするため、「AR coefficientだけが変化し、innovation varianceは不変」を表現できない。次のvariantでvariance change自体にspike-and-slab indicatorを追加する。

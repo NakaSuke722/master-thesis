@@ -135,6 +135,24 @@ EXPECTED_VARIANTS = {
             "variance_quadrature_points": 4,
         },
     },
+    "bsrc_ar_variance_spike_slab": {
+        "residualization": "ar_model",
+        "scoring": "bsrc_ar_bayes_factor",
+        "winsor_quantile": None,
+        "ar_bayes_prior": {
+            "intercept_mean": 0.0, "lag_mean": 0.0,
+            "intercept_precision": 0.1, "lag_precision": 10.0,
+            "alpha": 5.0, "beta": 4.0,
+        },
+        "ar_regime_shift_prior": {
+            "intercept_precision": 0.25,
+            "lag_precision": 1.0,
+            "inclusion_probability": 0.25,
+            "variance_inclusion_probability": 0.25,
+            "log_variance_sd": 0.7,
+            "variance_quadrature_points": 8,
+        },
+    },
 }
 
 

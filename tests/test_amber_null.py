@@ -218,6 +218,36 @@ def test_bsrc_ar_bayes_factor_ranks_sparse_regime_change_first():
     ] == 4
 
 
+def test_bsrc_ar_diagnostics_report_variance_spike_slab_posterior():
+    rng = np.random.default_rng(79)
+    normal = pd.DataFrame({"svc_cpu": rng.normal(0.0, 1.0, 300)})
+    abnormal = pd.DataFrame({"svc_cpu": rng.normal(0.0, 2.0, 300)})
+    model = AMBER(
+        ar_order=1,
+        residualization="ar_model",
+        scoring="bsrc_ar_bayes_factor",
+        winsor_quantile=None,
+        ar_regime_shift_prior=ARRegimeShiftPrior(
+            inclusion_probability=0.25,
+            variance_inclusion_probability=0.25,
+            variance_quadrature_points=8,
+        ),
+    )
+
+    model.fit_predict(normal, abnormal)
+    metric = model.diagnostics_["metrics"][0]
+
+    assert isinstance(
+        metric["ar_regime_map_variance_change_active"], bool
+    )
+    assert 0.0 <= metric[
+        "ar_regime_variance_change_probability"
+    ] <= 1.0
+    assert model.diagnostics_["ar_regime_shift_prior"][
+        "variance_inclusion_probability"
+    ] == 0.25
+
+
 @pytest.mark.parametrize(
     "kwargs",
     [

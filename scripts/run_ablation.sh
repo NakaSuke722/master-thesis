@@ -20,7 +20,7 @@ WORKERS="${AMBER_WORKERS:-1}"
 
 case "${1:-}" in
     ""|--rcaeval)
-        # RCAEval RE1 Zenodo v2正式アブレーション（375ケース × 12 variants）。
+        # RCAEval RE1 Zenodo v2正式アブレーション（375ケース × 13 variants）。
         CONFIGS=(
             "configs/ablation/rcaeval_re1_zenodo_v2/no_ar.yaml"
             "configs/ablation/rcaeval_re1_zenodo_v2/no_bayes.yaml"
@@ -34,6 +34,7 @@ case "${1:-}" in
             "configs/ablation/rcaeval_re1_zenodo_v2/intercept_shift_ar_bayes_factor.yaml"
             "configs/ablation/rcaeval_re1_zenodo_v2/adaptive_direct_ar_bayes_factor.yaml"
             "configs/ablation/rcaeval_re1_zenodo_v2/bsrc_ar_bayes_factor.yaml"
+            "configs/ablation/rcaeval_re1_zenodo_v2/bsrc_ar_variance_spike_slab.yaml"
         )
         GRANULARITY="service"
         ;;
@@ -103,6 +104,14 @@ case "${1:-}" in
         )
         GRANULARITY="service"
         ;;
+    --bsrc-ar-v2)
+        # coefficientとinnovation varianceの両方をspike-and-slab化する。
+        WORKERS="${AMBER_WORKERS:-4}"
+        CONFIGS=(
+            "configs/ablation/rcaeval_re1_zenodo_v2/bsrc_ar_variance_spike_slab.yaml"
+        )
+        GRANULARITY="service"
+        ;;
     --baro)
         # 既存BARO pilotの再現用設定は専用ディレクトリから実行する。
         CONFIGS=(
@@ -113,7 +122,7 @@ case "${1:-}" in
         GRANULARITY="metric"
         ;;
     *)
-        echo "Usage: $0 [--rcaeval|--counterfactual-ar|--ar-redesign|--full-covariance-ar|--direct-ar-bayes-factor|--intercept-shift-ar-bayes-factor|--adaptive-direct-ar-bayes-factor|--adaptive-direct-rollback|--bsrc-ar|--baro]" >&2
+        echo "Usage: $0 [--rcaeval|--counterfactual-ar|--ar-redesign|--full-covariance-ar|--direct-ar-bayes-factor|--intercept-shift-ar-bayes-factor|--adaptive-direct-ar-bayes-factor|--adaptive-direct-rollback|--bsrc-ar|--bsrc-ar-v2|--baro]" >&2
         exit 2
         ;;
 esac

@@ -348,6 +348,66 @@ def test_bsrc_ar_model_average_is_normalized_and_predictive():
     assert result["posterior_map"]["post_rows"] == post.size
 
 
+def test_bsrc_ar_variance_spike_slab_conditions_h1_on_a_change():
+    pre, post = _simulate(71, post_mean=1.0)
+    result = ar_shrinkage_regime_bayes_factor(
+        pre,
+        post,
+        order=1,
+        regime_prior=ARRegimeShiftPrior(
+            inclusion_probability=0.25,
+            variance_inclusion_probability=0.25,
+            variance_quadrature_points=4,
+        ),
+    )
+
+    # AR(1) has two coefficient indicators.  The variance slab contributes
+    # 4 masks * 4 quadrature nodes, while the r=1 spike contributes only the
+    # three non-empty coefficient masks.  The all-spike state is H0, not H1.
+    assert len(result["posterior_models"]) == 19
+    assert result["h1_excludes_all_spike_state"] is True
+    assert not any(
+        not model["changed_parameters"]
+        and not model["variance_change_active"]
+        for model in result["posterior_models"]
+    )
+    assert any(
+        model["changed_parameters"]
+        and not model["variance_change_active"]
+        and model["variance_ratio"] == 1.0
+        for model in result["posterior_models"]
+    )
+    assert any(
+        not model["changed_parameters"]
+        and model["variance_change_active"]
+        for model in result["posterior_models"]
+    )
+    assert np.isclose(sum(
+        model["posterior_model_probability"]
+        for model in result["posterior_models"]
+    ), 1.0)
+    assert 0.0 <= result[
+        "posterior_variance_change_probability"
+    ] <= 1.0
+
+
+def test_bsrc_ar_variance_spike_slab_detects_variance_only_change():
+    pre, post = _simulate(73, post_sigma=1.2)
+    result = ar_shrinkage_regime_bayes_factor(
+        pre,
+        post,
+        order=1,
+        regime_prior=ARRegimeShiftPrior(
+            inclusion_probability=0.25,
+            variance_inclusion_probability=0.25,
+            variance_quadrature_points=8,
+        ),
+    )
+
+    assert result["log_bayes_factor"] > 10.0
+    assert result["posterior_variance_change_probability"] > 0.99
+
+
 def test_bsrc_ar_weighted_sufficient_statistics_match_full_design():
     prior = ARBayesFactorPrior(
         intercept_precision=0.1,

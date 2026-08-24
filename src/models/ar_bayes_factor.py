@@ -46,13 +46,17 @@ class ARRegimeShiftPrior:
 
     Active coefficient changes use a Gaussian slab conditional on the shared
     innovation variance. Independent Bernoulli indicators provide the spike
-    at zero. The post/pre innovation-variance ratio has a zero-centred normal
+    at zero. The innovation variance has its own Bernoulli indicator: its spike
+    fixes the post/pre ratio to one, while its slab has a zero-centred normal
     prior on the log scale and is integrated with Gauss--Hermite quadrature.
+    ``variance_inclusion_probability=1`` preserves the original BSRC-AR model
+    in which every H1 candidate activates the variance-ratio slab.
     """
 
     intercept_precision: float = 0.25
     lag_precision: float = 1.0
     inclusion_probability: float = 0.25
+    variance_inclusion_probability: float = 1.0
     log_variance_sd: float = 0.7
     variance_quadrature_points: int = 4
 
@@ -63,6 +67,10 @@ class ARRegimeShiftPrior:
             raise ValueError("lag_precision must be positive")
         if not 0.0 < self.inclusion_probability < 1.0:
             raise ValueError("inclusion_probability must lie in (0, 1)")
+        if not 0.0 <= self.variance_inclusion_probability <= 1.0:
+            raise ValueError(
+                "variance_inclusion_probability must lie in [0, 1]"
+            )
         if self.log_variance_sd < 0:
             raise ValueError("log_variance_sd must be non-negative")
         if self.variance_quadrature_points <= 0:
@@ -575,7 +583,9 @@ def ar_shrinkage_regime_bayes_factor(
     H0 uses one AR coefficient vector and innovation variance for the normal
     and post periods.  H1 keeps a normal-regime coefficient vector and adds
     post-boundary changes to a sparse subset of the intercept/lag parameters.
-    It also integrates a post/pre innovation-variance ratio.  The coefficient
+    A separate spike-and-slab indicator either fixes the post/pre innovation-
+    variance ratio to one or activates a log-normal variance-ratio slab.  H1 is
+    conditioned on at least one coefficient or variance change.  The change
     subset and variance ratio are model-averaged, so no response-shape basis or
     post-derived empirical-null correction is used.
 
@@ -655,13 +665,38 @@ def ar_shrinkage_regime_bayes_factor(
         )
     )
 
+    variance_inclusion = shift_prior.variance_inclusion_probability
+    variance_states: list[tuple[bool, float, float, float]] = []
+    if variance_inclusion < 1.0:
+        variance_states.append((
+            False,
+            0.0,
+            1.0,
+            log(1.0 - variance_inclusion),
+        ))
+    if variance_inclusion > 0.0:
+        variance_states.extend(
+            (
+                True,
+                float(log_ratio),
+                float(variance_ratio),
+                float(log(variance_inclusion) + variance_log_weight),
+            )
+            for log_ratio, variance_ratio, variance_log_weight in zip(
+                log_ratios,
+                variance_ratios,
+                log_variance_weights,
+                strict=True,
+            )
+        )
+
     inclusion = shift_prior.inclusion_probability
     log_inclusion = log(inclusion)
     log_exclusion = log(1.0 - inclusion)
     candidate_log_marginals: list[float] = []
     candidate_log_weights: list[float] = []
     candidate_states: list[tuple[
-        tuple[int, ...], float, float, np.ndarray, float, float,
+        tuple[int, ...], bool, float, float, np.ndarray, float, float,
     ]] = []
     for mask_value in range(1 << dimension):
         selected = tuple(
@@ -673,12 +708,17 @@ def ar_shrinkage_regime_bayes_factor(
             + (dimension - len(selected)) * log_exclusion
         )
         selected_array = np.asarray(selected, dtype=int)
-        for log_ratio, variance_ratio, variance_log_weight in zip(
-            log_ratios,
-            variance_ratios,
-            log_variance_weights,
-            strict=True,
-        ):
+        for (
+            variance_change_active,
+            log_ratio,
+            variance_ratio,
+            variance_log_weight,
+        ) in variance_states:
+            # The all-spike state is H0 itself.  Excluding it and normalizing
+            # the remaining prior weights defines H1 conditional on at least
+            # one genuine regime change.
+            if not selected and not variance_change_active:
+                continue
             inverse_ratio = 1.0 / float(variance_ratio)
             base_gram = pre_gram + inverse_ratio * post_gram
             base_cross = pre_cross + inverse_ratio * post_cross
@@ -731,6 +771,7 @@ def ar_shrinkage_regime_bayes_factor(
             if posterior_detail != "none":
                 candidate_states.append((
                     selected,
+                    variance_change_active,
                     float(log_ratio),
                     float(variance_ratio),
                     mean,
@@ -752,17 +793,24 @@ def ar_shrinkage_regime_bayes_factor(
         name: 0.0 for name in coefficient_names
     }
     variance_ratio_mean: float | None = None
+    variance_change_probability: float | None = None
     if posterior_detail != "none":
         normalizer = _logsumexp(log_marginals + log_weights)
         probabilities = np.exp(log_marginals + log_weights - normalizer)
         map_index = int(np.argmax(probabilities))
         variance_ratio_mean = float(
             np.sum(probabilities * np.asarray([
-                state[2] for state in candidate_states
+                state[3] for state in candidate_states
+            ], dtype=float))
+        )
+        variance_change_probability = float(
+            np.sum(probabilities * np.asarray([
+                state[1] for state in candidate_states
             ], dtype=float))
         )
         for index, (
             selected,
+            variance_change_active,
             log_ratio,
             variance_ratio,
             mean,
@@ -779,6 +827,7 @@ def ar_shrinkage_regime_bayes_factor(
                     coefficient_names[selected_index]
                     for selected_index in selected
                 ],
+                "variance_change_active": variance_change_active,
                 "log_variance_ratio": log_ratio,
                 "variance_ratio": variance_ratio,
                 "log_prior_weight": float(log_weights[index]),
@@ -845,6 +894,7 @@ def ar_shrinkage_regime_bayes_factor(
         "hypothesis": "normal_ar_continuation_vs_sparse_regime_change",
         "ar_order": order,
         "known_change_boundary": True,
+        "h1_excludes_all_spike_state": True,
         "predictive_rows": int(post_target.size),
         "log_bayes_factor": float(log_predictive_h1 - log_predictive_h0),
         "log_marginal_h0": log_predictive_h0,
@@ -864,6 +914,9 @@ def ar_shrinkage_regime_bayes_factor(
         "posterior_models": candidates,
         "posterior_map": posterior_map,
         "parameter_change_inclusion_probability": inclusion_posterior,
+        "posterior_variance_change_probability": (
+            variance_change_probability
+        ),
         "posterior_variance_ratio_mean": variance_ratio_mean,
     }
 

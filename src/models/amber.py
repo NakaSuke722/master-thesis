@@ -752,6 +752,8 @@ class AMBER:
             intervention_onset_posterior = None
             regime_changed_parameters = None
             regime_variance_ratio = None
+            regime_variance_change_active = None
+            regime_variance_change_probability = None
             regime_parameter_inclusion = None
             regime_map_probability = None
             if self.scoring == "ar_bayes_factor":
@@ -826,6 +828,12 @@ class AMBER:
                     "changed_parameters"
                 ]
                 regime_variance_ratio = alternative["variance_ratio"]
+                regime_variance_change_active = alternative[
+                    "variance_change_active"
+                ]
+                regime_variance_change_probability = comparison[
+                    "posterior_variance_change_probability"
+                ]
                 regime_parameter_inclusion = comparison[
                     "parameter_change_inclusion_probability"
                 ]
@@ -894,6 +902,12 @@ class AMBER:
                     regime_changed_parameters
                 ),
                 "ar_regime_map_variance_ratio": regime_variance_ratio,
+                "ar_regime_map_variance_change_active": (
+                    regime_variance_change_active
+                ),
+                "ar_regime_variance_change_probability": (
+                    regime_variance_change_probability
+                ),
                 "ar_regime_map_probability": regime_map_probability,
                 "ar_regime_parameter_inclusion_probability": (
                     regime_parameter_inclusion

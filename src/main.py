@@ -275,6 +275,12 @@ def run_experiment(
                     ),
                 )
             ),
+            variance_inclusion_probability=float(
+                regime_shift_params.get(
+                    "variance_inclusion_probability",
+                    1.0,
+                )
+            ),
             log_variance_sd=float(
                 regime_shift_params.get("log_variance_sd", 0.7)
             ),
