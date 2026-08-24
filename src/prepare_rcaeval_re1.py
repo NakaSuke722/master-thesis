@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import re
 from pathlib import Path
 
 import numpy as np
@@ -38,6 +39,17 @@ def preprocess_metrics(
 
     work = work.ffill().fillna(0)
 
+    # pandas renames duplicate CSV headers such as a second ``time`` column
+    # to ``time.1``.  These aliases are timestamps, not RCA metrics, and must
+    # not reach a ranking model as if they were services.
+    time_aliases = [
+        column
+        for column in work.columns
+        if column != "time"
+        and re.fullmatch(r"time\.\d+", str(column), flags=re.IGNORECASE)
+    ]
+    work = work.drop(columns=time_aliases)
+
     # RCAEval/BARO系評価で利用してきた
     # latency-90へ統一する。
     work = work.loc[
@@ -73,6 +85,21 @@ def preprocess_metrics(
             "Duplicate metric names after "
             f"canonicalization: {duplicates}"
         )
+
+    # A series that is constant over the complete case cannot distinguish
+    # normal from abnormal behavior.  Drop only complete-case constants: a
+    # metric that is constant during normal operation but changes after the
+    # fault remains available for RCA.
+    metric_columns = [
+        column for column in work.columns
+        if column != "time"
+    ]
+    no_information_metrics = [
+        column
+        for column in metric_columns
+        if work[column].nunique(dropna=False) <= 1
+    ]
+    work = work.drop(columns=no_information_metrics)
 
     return work.reset_index(drop=True)
 
@@ -120,6 +147,29 @@ def split_normal_abnormal(
     abnormal = abnormal.drop(
         columns=["time"]
     ).reset_index(drop=True)
+
+    # Judge information content on the exact windows passed to RCA models.
+    # A metric may vary outside these windows while being identical throughout
+    # both selected segments, in which case it is still uninformative for this
+    # case.  Conversely, normal-only constants that change after injection are
+    # retained because the concatenated series has multiple values.
+    combined = pd.concat(
+        [normal, abnormal],
+        ignore_index=True,
+    )
+    no_information_metrics = [
+        column
+        for column in combined.columns
+        if combined[column].nunique(dropna=False) <= 1
+    ]
+    normal = normal.drop(columns=no_information_metrics)
+    abnormal = abnormal.drop(columns=no_information_metrics)
+
+    if normal.shape[1] == 0:
+        raise ValueError(
+            "No informative RCAEval metrics remain "
+            "after preprocessing."
+        )
 
     return normal, abnormal
 
@@ -240,6 +290,13 @@ def prepare_case(
                 },
                 "drop_latency_50": True,
                 "rename_latency_90": True,
+                "drop_time_aliases": True,
+                "drop_complete_case_constant_metrics": (
+                    True
+                ),
+                "drop_selected_window_constant_metrics": (
+                    True
+                ),
                 "normal_window_points": (
                     normal_window_points
                 ),
