@@ -133,6 +133,14 @@ case "${1:-}" in
         )
         GRANULARITY="service"
         ;;
+    --bsrc-ar-adaptive)
+        # 固定GH node依存を除き、分散比slabを事後適応GHで連続積分する。
+        WORKERS="${AMBER_WORKERS:-4}"
+        CONFIGS=(
+            "configs/ablation/rcaeval_re1_zenodo_v2/bsrc_ar_adaptive_variance.yaml"
+        )
+        GRANULARITY="service"
+        ;;
     --baro)
         # 既存BARO pilotの再現用設定は専用ディレクトリから実行する。
         CONFIGS=(
@@ -143,7 +151,7 @@ case "${1:-}" in
         GRANULARITY="metric"
         ;;
     *)
-        echo "Usage: $0 [--rcaeval|--counterfactual-ar|--ar-redesign|--full-covariance-ar|--direct-ar-bayes-factor|--intercept-shift-ar-bayes-factor|--adaptive-direct-ar-bayes-factor|--adaptive-direct-rollback|--bsrc-ar|--bsrc-ar-v2|--bsrc-ar-components|--baro]" >&2
+        echo "Usage: $0 [--rcaeval|--counterfactual-ar|--ar-redesign|--full-covariance-ar|--direct-ar-bayes-factor|--intercept-shift-ar-bayes-factor|--adaptive-direct-ar-bayes-factor|--adaptive-direct-rollback|--bsrc-ar|--bsrc-ar-v2|--bsrc-ar-components|--bsrc-ar-adaptive|--baro]" >&2
         exit 2
         ;;
 esac

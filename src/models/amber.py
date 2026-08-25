@@ -756,6 +756,7 @@ class AMBER:
             regime_variance_change_probability = None
             regime_parameter_inclusion = None
             regime_map_probability = None
+            regime_variance_integration = None
             if self.scoring == "ar_bayes_factor":
                 pre = comparison["posterior_pre"]
                 post = comparison["posterior_post"]
@@ -840,6 +841,9 @@ class AMBER:
                 regime_map_probability = alternative[
                     "posterior_model_probability"
                 ]
+                regime_variance_integration = alternative[
+                    "variance_integration"
+                ]
             else:
                 shared = comparison["posterior_h0"]
                 alternative = comparison["posterior_map"]
@@ -909,6 +913,9 @@ class AMBER:
                     regime_variance_change_probability
                 ),
                 "ar_regime_map_probability": regime_map_probability,
+                "ar_regime_variance_integration": (
+                    regime_variance_integration
+                ),
                 "ar_regime_parameter_inclusion_probability": (
                     regime_parameter_inclusion
                 ),

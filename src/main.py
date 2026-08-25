@@ -287,6 +287,14 @@ def run_experiment(
             variance_quadrature_points=int(
                 regime_shift_params.get("variance_quadrature_points", 4)
             ),
+            variance_integration=regime_shift_params.get(
+                "variance_integration", "fixed_gh"
+            ),
+            variance_integration_tolerance=float(
+                regime_shift_params.get(
+                    "variance_integration_tolerance", 1e-6
+                )
+            ),
         )
 
         rca_model = AMBER(

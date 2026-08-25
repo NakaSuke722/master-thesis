@@ -4,6 +4,7 @@ pandas>=2.1
 
 # Modeling and evaluation
 scikit-learn>=1.3
+scipy>=1.11
 
 # Datasets
 #huggingface_hub==1.24.0

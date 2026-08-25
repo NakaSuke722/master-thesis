@@ -1,0 +1,22 @@
+analysis:
+  processed_root: "data/processed/rcaeval_zenodo_v2"
+  fit_fractions: [0.4, 0.5, 0.6]
+  ar_order: 3
+  service_aggregation: "mean_top3"
+  strong_evidence_log_bf: 2.302585092994046
+  ar_bayes_prior:
+    intercept_mean: 0.0
+    lag_mean: 0.0
+    intercept_precision: 0.1
+    lag_precision: 10.0
+    alpha: 5.0
+    beta: 4.0
+  ar_regime_shift_prior:
+    intercept_precision: 0.25
+    lag_precision: 1.0
+    inclusion_probability: 0.25
+    variance_inclusion_probability: 0.25
+    log_variance_sd: 0.7
+    variance_integration: "adaptive_gh"
+    variance_quadrature_points: 11
+    variance_integration_tolerance: 1.0e-6

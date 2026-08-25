@@ -9,9 +9,10 @@ from __future__ import annotations
 from dataclasses import asdict, dataclass
 from functools import lru_cache
 from math import lgamma, log, pi, sqrt
-from typing import Literal, Sequence
+from typing import Callable, Literal, Sequence
 
 import numpy as np
+from scipy.optimize import minimize_scalar
 
 
 @dataclass(frozen=True)
@@ -48,7 +49,8 @@ class ARRegimeShiftPrior:
     innovation variance. Independent Bernoulli indicators provide the spike
     at zero. The innovation variance has its own Bernoulli indicator: its spike
     fixes the post/pre ratio to one, while its slab has a zero-centred normal
-    prior on the log scale and is integrated with Gauss--Hermite quadrature.
+    prior on the log scale and is integrated with fixed or adaptive
+    Gauss--Hermite quadrature.
     ``variance_inclusion_probability=1`` preserves the original BSRC-AR model
     in which every H1 candidate activates the variance-ratio slab.
     """
@@ -59,6 +61,8 @@ class ARRegimeShiftPrior:
     variance_inclusion_probability: float = 1.0
     log_variance_sd: float = 0.7
     variance_quadrature_points: int = 4
+    variance_integration: Literal["fixed_gh", "adaptive_gh"] = "fixed_gh"
+    variance_integration_tolerance: float = 1e-6
 
     def __post_init__(self) -> None:
         if self.intercept_precision <= 0:
@@ -83,6 +87,21 @@ class ARRegimeShiftPrior:
             raise ValueError("log_variance_sd must be non-negative")
         if self.variance_quadrature_points <= 0:
             raise ValueError("variance_quadrature_points must be positive")
+        if self.variance_integration not in {"fixed_gh", "adaptive_gh"}:
+            raise ValueError(
+                "variance_integration must be fixed_gh or adaptive_gh"
+            )
+        if (
+            self.variance_integration == "adaptive_gh"
+            and self.variance_quadrature_points < 3
+        ):
+            raise ValueError(
+                "adaptive_gh requires at least three quadrature points"
+            )
+        if self.variance_integration_tolerance <= 0:
+            raise ValueError(
+                "variance_integration_tolerance must be positive"
+            )
 
 
 def _normal_only_standardize(
@@ -575,6 +594,121 @@ def _variance_ratio_quadrature(
     return log_ratios, ratios, log_weights
 
 
+def _adaptive_gauss_hermite_log_integral(
+    log_likelihood: Callable[[float], float],
+    *,
+    log_sd: float,
+    points: int,
+    tolerance: float,
+) -> dict[str, object]:
+    """Integrate a variance-ratio likelihood against its log-normal prior.
+
+    The integration variable is ``eta = log(sigma_post^2 / sigma_pre^2)``.
+    Unlike fixed Gauss--Hermite quadrature, the nodes are centred and scaled
+    using the posterior mode and local curvature.  The expanding search
+    interval is only an optimization device; it does not truncate the prior
+    or the integral.
+    """
+    if log_sd < 0:
+        raise ValueError("log_sd must be non-negative")
+    if points < 3:
+        raise ValueError("adaptive quadrature requires at least three points")
+    if tolerance <= 0:
+        raise ValueError("tolerance must be positive")
+    if log_sd == 0:
+        value = float(log_likelihood(0.0))
+        return {
+            "log_integral": value,
+            "mode_log_ratio": 0.0,
+            "mode_ratio": 1.0,
+            "posterior_mean_ratio": 1.0,
+            "curvature": None,
+            "quadrature_points": 1,
+            "search_expansions": 0,
+        }
+
+    log_normalizer = log(log_sd * sqrt(2.0 * pi))
+
+    def log_integrand(eta: float) -> float:
+        return float(
+            log_likelihood(float(eta))
+            - 0.5 * (float(eta) / log_sd) ** 2
+            - log_normalizer
+        )
+
+    # The Gaussian prior guarantees decaying tails. Expand until both ends
+    # lie below the value at zero, then optimize inside the resulting bracket.
+    half_width = max(1.0, 4.0 * log_sd)
+    center_value = log_integrand(0.0)
+    expansions = 0
+    while expansions < 20:
+        left_value = log_integrand(-half_width)
+        right_value = log_integrand(half_width)
+        if left_value < center_value and right_value < center_value:
+            break
+        half_width *= 2.0
+        expansions += 1
+    else:
+        raise FloatingPointError(
+            "Could not bracket the adaptive variance-ratio posterior mode"
+        )
+
+    optimum = minimize_scalar(
+        lambda eta: -log_integrand(float(eta)),
+        bounds=(-half_width, half_width),
+        method="bounded",
+        options={"xatol": tolerance},
+    )
+    if not optimum.success or not np.isfinite(optimum.fun):
+        raise FloatingPointError(
+            "Adaptive variance-ratio posterior mode optimization failed"
+        )
+    mode = float(optimum.x)
+
+    # A local finite-difference Hessian sets the adaptive node scale. Trying
+    # several step sizes avoids declaring failure due only to round-off.
+    mode_value = log_integrand(mode)
+    curvature = np.nan
+    base_step = max(1e-4, sqrt(tolerance) * (1.0 + abs(mode)))
+    for multiplier in (1.0, 3.0, 10.0, 30.0):
+        step = base_step * multiplier
+        second_derivative = (
+            log_integrand(mode + step)
+            - 2.0 * mode_value
+            + log_integrand(mode - step)
+        ) / (step * step)
+        candidate = -float(second_derivative)
+        if np.isfinite(candidate) and candidate > 1e-10:
+            curvature = candidate
+            break
+    if not np.isfinite(curvature):
+        raise FloatingPointError(
+            "Adaptive variance-ratio posterior has invalid local curvature"
+        )
+
+    nodes, weights = np.polynomial.hermite.hermgauss(points)
+    scale = sqrt(2.0 / float(curvature))
+    etas = mode + scale * nodes
+    log_terms = np.asarray([
+        log(weight) + log_integrand(float(eta)) + float(node * node)
+        for node, weight, eta in zip(nodes, weights, etas, strict=True)
+    ])
+    log_integral = 0.5 * log(2.0 / float(curvature)) + _logsumexp(
+        log_terms
+    )
+    posterior_weights = np.exp(log_terms - _logsumexp(log_terms))
+    posterior_mean_ratio = float(np.sum(posterior_weights * np.exp(etas)))
+    return {
+        "log_integral": float(log_integral),
+        "mode_log_ratio": mode,
+        "mode_ratio": float(np.exp(mode)),
+        "posterior_mean_ratio": posterior_mean_ratio,
+        "curvature": float(curvature),
+        "quadrature_points": points,
+        "search_expansions": expansions,
+    }
+
+
 def ar_shrinkage_regime_bayes_factor(
     pre: np.ndarray,
     post: np.ndarray,
@@ -666,38 +800,7 @@ def ar_shrinkage_regime_bayes_factor(
     post_cross = post_design.T @ post_target
     pre_square = float(pre_target @ pre_target)
     post_square = float(post_target @ post_target)
-    log_ratios, variance_ratios, log_variance_weights = (
-        _variance_ratio_quadrature(
-            shift_prior.log_variance_sd,
-            shift_prior.variance_quadrature_points,
-        )
-    )
-
     variance_inclusion = shift_prior.variance_inclusion_probability
-    variance_states: list[tuple[bool, float, float, float]] = []
-    if variance_inclusion < 1.0:
-        variance_states.append((
-            False,
-            0.0,
-            1.0,
-            log(1.0 - variance_inclusion),
-        ))
-    if variance_inclusion > 0.0:
-        variance_states.extend(
-            (
-                True,
-                float(log_ratio),
-                float(variance_ratio),
-                float(log(variance_inclusion) + variance_log_weight),
-            )
-            for log_ratio, variance_ratio, variance_log_weight in zip(
-                log_ratios,
-                variance_ratios,
-                log_variance_weights,
-                strict=True,
-            )
-        )
-
     inclusion = shift_prior.inclusion_probability
     if inclusion == 0.0:
         mask_values: Sequence[int] = (0,)
@@ -707,9 +810,97 @@ def ar_shrinkage_regime_bayes_factor(
         mask_values = range(1 << dimension)
     candidate_log_marginals: list[float] = []
     candidate_log_weights: list[float] = []
-    candidate_states: list[tuple[
-        tuple[int, ...], bool, float, float, np.ndarray, float, float,
-    ]] = []
+    candidate_states: list[dict[str, object]] = []
+
+    def evaluate_candidate(
+        selected: tuple[int, ...],
+        log_ratio: float,
+    ) -> tuple[float, np.ndarray, float, float]:
+        variance_ratio = float(np.exp(log_ratio))
+        inverse_ratio = 1.0 / variance_ratio
+        base_gram = pre_gram + inverse_ratio * post_gram
+        base_cross = pre_cross + inverse_ratio * post_cross
+        target_square = pre_square + inverse_ratio * post_square
+        selected_array = np.asarray(selected, dtype=int)
+        if selected:
+            post_shift = post_design[:, selected_array]
+            base_shift_cross = inverse_ratio * post_design.T @ post_shift
+            shift_gram = inverse_ratio * post_shift.T @ post_shift
+            gram = np.block([
+                [base_gram, base_shift_cross],
+                [base_shift_cross.T, shift_gram],
+            ])
+            target_cross = np.concatenate([
+                base_cross,
+                inverse_ratio * post_shift.T @ post_target,
+            ])
+            candidate_prior_mean = np.concatenate([
+                base_prior_mean, np.zeros(len(selected), dtype=float),
+            ])
+            candidate_prior_precision = np.concatenate([
+                base_prior_precision, shift_precisions[selected_array],
+            ])
+        else:
+            gram = base_gram
+            target_cross = base_cross
+            candidate_prior_mean = base_prior_mean
+            candidate_prior_precision = base_prior_precision
+
+        log_marginal, mean, alpha_n, beta_n = (
+            _bayesian_regression_log_marginal_from_sufficient_statistics(
+                gram,
+                target_cross,
+                target_square,
+                pre_target.size + post_target.size,
+                prior_mean=candidate_prior_mean,
+                prior_precision=candidate_prior_precision,
+                alpha=model_prior.alpha,
+                beta=model_prior.beta,
+            )
+        )
+        # Whitening post rows by sqrt(variance_ratio) changes the density
+        # normalization by this Jacobian term.
+        log_marginal -= 0.5 * post_target.size * float(log_ratio)
+        return float(log_marginal), mean, alpha_n, beta_n
+
+    def append_candidate(
+        *,
+        selected: tuple[int, ...],
+        variance_change_active: bool,
+        log_ratio: float,
+        variance_ratio_mean: float,
+        log_marginal: float,
+        log_weight: float,
+        mean: np.ndarray,
+        alpha_n: float,
+        beta_n: float,
+        integration: dict[str, object],
+    ) -> None:
+        candidate_log_marginals.append(float(log_marginal))
+        candidate_log_weights.append(float(log_weight))
+        if posterior_detail != "none":
+            candidate_states.append({
+                "selected": selected,
+                "variance_change_active": variance_change_active,
+                "log_ratio": float(log_ratio),
+                "variance_ratio": float(np.exp(log_ratio)),
+                "variance_ratio_mean": float(variance_ratio_mean),
+                "mean": mean,
+                "alpha": float(alpha_n),
+                "beta": float(beta_n),
+                "integration": integration,
+            })
+
+    fixed_quadrature: tuple[np.ndarray, np.ndarray, np.ndarray] | None = None
+    if (
+        variance_inclusion > 0.0
+        and shift_prior.variance_integration == "fixed_gh"
+    ):
+        fixed_quadrature = _variance_ratio_quadrature(
+            shift_prior.log_variance_sd,
+            shift_prior.variance_quadrature_points,
+        )
+
     for mask_value in mask_values:
         selected = tuple(
             index for index in range(dimension)
@@ -722,77 +913,106 @@ def ar_shrinkage_regime_bayes_factor(
                 len(selected) * log(inclusion)
                 + (dimension - len(selected)) * log(1.0 - inclusion)
             )
-        selected_array = np.asarray(selected, dtype=int)
-        for (
-            variance_change_active,
-            log_ratio,
-            variance_ratio,
-            variance_log_weight,
-        ) in variance_states:
-            # The all-spike state is H0 itself.  Excluding it and normalizing
-            # the remaining prior weights defines H1 conditional on at least
-            # one genuine regime change.
-            if not selected and not variance_change_active:
-                continue
-            inverse_ratio = 1.0 / float(variance_ratio)
-            base_gram = pre_gram + inverse_ratio * post_gram
-            base_cross = pre_cross + inverse_ratio * post_cross
-            target_square = pre_square + inverse_ratio * post_square
-            if selected:
-                post_shift = post_design[:, selected_array]
-                base_shift_cross = (
-                    inverse_ratio * post_design.T @ post_shift
-                )
-                shift_gram = inverse_ratio * post_shift.T @ post_shift
-                gram = np.block([
-                    [base_gram, base_shift_cross],
-                    [base_shift_cross.T, shift_gram],
-                ])
-                target_cross = np.concatenate([
-                    base_cross,
-                    inverse_ratio * post_shift.T @ post_target,
-                ])
-                candidate_prior_mean = np.concatenate([
-                    base_prior_mean, np.zeros(len(selected), dtype=float),
-                ])
-                candidate_prior_precision = np.concatenate([
-                    base_prior_precision, shift_precisions[selected_array],
-                ])
-            else:
-                gram = base_gram
-                target_cross = base_cross
-                candidate_prior_mean = base_prior_mean
-                candidate_prior_precision = base_prior_precision
+        # The all-spike state is H0 itself. Excluding it and normalizing the
+        # remaining weights defines H1 conditional on a genuine change.
+        if variance_inclusion < 1.0 and selected:
+            log_marginal, mean, alpha_n, beta_n = evaluate_candidate(
+                selected, 0.0
+            )
+            append_candidate(
+                selected=selected,
+                variance_change_active=False,
+                log_ratio=0.0,
+                variance_ratio_mean=1.0,
+                log_marginal=log_marginal,
+                log_weight=(
+                    mask_log_weight + log(1.0 - variance_inclusion)
+                ),
+                mean=mean,
+                alpha_n=alpha_n,
+                beta_n=beta_n,
+                integration={
+                    "method": "spike",
+                    "quadrature_points": 0,
+                    "mode_log_ratio": 0.0,
+                    "curvature": None,
+                },
+            )
 
-            log_marginal, mean, alpha_n, beta_n = (
-                _bayesian_regression_log_marginal_from_sufficient_statistics(
-                    gram,
-                    target_cross,
-                    target_square,
-                    pre_target.size + post_target.size,
-                    prior_mean=candidate_prior_mean,
-                    prior_precision=candidate_prior_precision,
-                    alpha=model_prior.alpha,
-                    beta=model_prior.beta,
+        if variance_inclusion <= 0.0:
+            continue
+        if shift_prior.variance_integration == "fixed_gh":
+            assert fixed_quadrature is not None
+            log_ratios, variance_ratios, log_variance_weights = (
+                fixed_quadrature
+            )
+            for log_ratio, variance_ratio, variance_log_weight in zip(
+                log_ratios,
+                variance_ratios,
+                log_variance_weights,
+                strict=True,
+            ):
+                log_marginal, mean, alpha_n, beta_n = evaluate_candidate(
+                    selected, float(log_ratio)
                 )
+                append_candidate(
+                    selected=selected,
+                    variance_change_active=True,
+                    log_ratio=float(log_ratio),
+                    variance_ratio_mean=float(variance_ratio),
+                    log_marginal=log_marginal,
+                    log_weight=(
+                        mask_log_weight
+                        + log(variance_inclusion)
+                        + float(variance_log_weight)
+                    ),
+                    mean=mean,
+                    alpha_n=alpha_n,
+                    beta_n=beta_n,
+                    integration={
+                        "method": "fixed_gh",
+                        "quadrature_points": (
+                            shift_prior.variance_quadrature_points
+                        ),
+                        "mode_log_ratio": float(log_ratio),
+                        "curvature": None,
+                    },
+                )
+        else:
+            integration = _adaptive_gauss_hermite_log_integral(
+                lambda eta: evaluate_candidate(selected, eta)[0],
+                log_sd=shift_prior.log_variance_sd,
+                points=shift_prior.variance_quadrature_points,
+                tolerance=shift_prior.variance_integration_tolerance,
             )
-            # Whitening post rows by sqrt(variance_ratio) changes the density
-            # normalization by this Jacobian term.
-            log_marginal -= 0.5 * post_target.size * float(log_ratio)
-            candidate_log_marginals.append(float(log_marginal))
-            candidate_log_weights.append(
-                float(mask_log_weight + variance_log_weight)
+            mode_log_ratio = float(integration["mode_log_ratio"])
+            _, mean, alpha_n, beta_n = evaluate_candidate(
+                selected, mode_log_ratio
             )
-            if posterior_detail != "none":
-                candidate_states.append((
-                    selected,
-                    variance_change_active,
-                    float(log_ratio),
-                    float(variance_ratio),
-                    mean,
-                    alpha_n,
-                    beta_n,
-                ))
+            append_candidate(
+                selected=selected,
+                variance_change_active=True,
+                log_ratio=mode_log_ratio,
+                variance_ratio_mean=float(
+                    integration["posterior_mean_ratio"]
+                ),
+                log_marginal=float(integration["log_integral"]),
+                log_weight=mask_log_weight + log(variance_inclusion),
+                mean=mean,
+                alpha_n=alpha_n,
+                beta_n=beta_n,
+                integration={
+                    "method": "adaptive_gh",
+                    "quadrature_points": integration[
+                        "quadrature_points"
+                    ],
+                    "mode_log_ratio": mode_log_ratio,
+                    "curvature": integration["curvature"],
+                    "search_expansions": integration[
+                        "search_expansions"
+                    ],
+                },
+            )
 
     log_marginals = np.asarray(candidate_log_marginals, dtype=float)
     log_weights = np.asarray(candidate_log_weights, dtype=float)
@@ -815,23 +1035,27 @@ def ar_shrinkage_regime_bayes_factor(
         map_index = int(np.argmax(probabilities))
         variance_ratio_mean = float(
             np.sum(probabilities * np.asarray([
-                state[3] for state in candidate_states
+                state["variance_ratio_mean"] for state in candidate_states
             ], dtype=float))
         )
         variance_change_probability = float(
             np.sum(probabilities * np.asarray([
-                state[1] for state in candidate_states
+                state["variance_change_active"]
+                for state in candidate_states
             ], dtype=float))
         )
-        for index, (
-            selected,
-            variance_change_active,
-            log_ratio,
-            variance_ratio,
-            mean,
-            alpha_n,
-            beta_n,
-        ) in enumerate(candidate_states):
+        variance_change_probability = float(np.clip(
+            variance_change_probability, 0.0, 1.0
+        ))
+        for index, state in enumerate(candidate_states):
+            selected = state["selected"]
+            variance_change_active = state["variance_change_active"]
+            log_ratio = state["log_ratio"]
+            variance_ratio = state["variance_ratio"]
+            mean = state["mean"]
+            alpha_n = state["alpha"]
+            beta_n = state["beta"]
+            integration = state["integration"]
             probability = float(probabilities[index])
             for selected_index in selected:
                 inclusion_posterior[coefficient_names[selected_index]] += (
@@ -848,6 +1072,7 @@ def ar_shrinkage_regime_bayes_factor(
                 "log_prior_weight": float(log_weights[index]),
                 "log_marginal": float(log_marginals[index]),
                 "posterior_model_probability": probability,
+                "variance_integration": integration,
             }
             if posterior_detail == "full" or index == map_index:
                 base_mean = mean[:dimension]
@@ -903,6 +1128,10 @@ def ar_shrinkage_regime_bayes_factor(
             reverse=True,
         )
         posterior_map = candidates[0]
+        inclusion_posterior = {
+            name: float(np.clip(probability, 0.0, 1.0))
+            for name, probability in inclusion_posterior.items()
+        }
 
     return {
         "schema_version": 1,
@@ -910,6 +1139,7 @@ def ar_shrinkage_regime_bayes_factor(
         "ar_order": order,
         "known_change_boundary": True,
         "h1_excludes_all_spike_state": True,
+        "variance_integration": shift_prior.variance_integration,
         "predictive_rows": int(post_target.size),
         "log_bayes_factor": float(log_predictive_h1 - log_predictive_h0),
         "log_marginal_h0": log_predictive_h0,

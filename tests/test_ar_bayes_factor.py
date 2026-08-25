@@ -6,9 +6,11 @@ from models.ar_bayes_factor import (
     ARRegimeShiftPrior,
     _ar_design,
     _ar_design_with_indices,
+    _adaptive_gauss_hermite_log_integral,
     _bayesian_regression_log_marginal,
     _intervention_basis,
     _normal_only_standardize,
+    _variance_ratio_quadrature,
     ar_change_bayes_factor,
     ar_intervention_bayes_factor,
     ar_intercept_shift_bayes_factor,
@@ -445,6 +447,74 @@ def test_bsrc_ar_component_endpoints_are_valid_models():
         and model["variance_change_active"]
         for model in variance_only["posterior_models"]
     )
+
+
+def test_bsrc_adaptive_variance_integration_converges_and_is_integrated():
+    pre, post = _simulate(97, post_sigma=1.8)
+    results = []
+    for points in (7, 11, 15):
+        results.append(ar_shrinkage_regime_bayes_factor(
+            pre,
+            post,
+            order=1,
+            regime_prior=ARRegimeShiftPrior(
+                inclusion_probability=0.25,
+                variance_inclusion_probability=0.25,
+                variance_integration="adaptive_gh",
+                variance_quadrature_points=points,
+            ),
+        ))
+
+    assert np.isclose(
+        results[1]["log_bayes_factor"],
+        results[2]["log_bayes_factor"],
+        atol=1e-6,
+    )
+    # AR(1): 3 non-empty coefficient masks at the variance spike plus one
+    # integrated variance slab for each of the four coefficient masks.
+    assert len(results[1]["posterior_models"]) == 7
+    assert results[1]["variance_integration"] == "adaptive_gh"
+    assert results[1]["posterior_map"]["variance_integration"]["method"] == (
+        "adaptive_gh"
+    )
+
+
+def test_adaptive_quadrature_integrates_a_normalized_log_normal_prior():
+    result = _adaptive_gauss_hermite_log_integral(
+        lambda eta: 0.0,
+        log_sd=0.7,
+        points=11,
+        tolerance=1e-8,
+    )
+
+    assert np.isclose(result["log_integral"], 0.0, atol=1e-10)
+    assert np.isclose(result["mode_log_ratio"], 0.0, atol=1e-8)
+    assert np.isclose(result["curvature"], 1.0 / 0.7 ** 2, rtol=1e-5)
+    assert np.isclose(
+        result["posterior_mean_ratio"], np.exp(0.5 * 0.7 ** 2),
+        rtol=1e-10,
+    )
+
+
+def test_bsrc_adaptive_variance_mode_is_not_bounded_by_fixed_q4_nodes():
+    rng = np.random.default_rng(101)
+    pre = rng.normal(size=300)
+    post = rng.normal(scale=4.0, size=300)
+    result = ar_shrinkage_regime_bayes_factor(
+        pre,
+        post,
+        order=0,
+        regime_prior=ARRegimeShiftPrior(
+            inclusion_probability=0.0,
+            variance_inclusion_probability=1.0,
+            variance_integration="adaptive_gh",
+            variance_quadrature_points=11,
+        ),
+    )
+    _, fixed_q4_ratios, _ = _variance_ratio_quadrature(0.7, 4)
+
+    assert result["posterior_map"]["variance_ratio"] > max(fixed_q4_ratios)
+    assert result["posterior_variance_ratio_mean"] > max(fixed_q4_ratios)
 
 
 def test_bsrc_ar_rejects_an_h1_with_no_possible_change():
