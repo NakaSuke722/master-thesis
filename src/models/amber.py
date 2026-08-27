@@ -386,6 +386,7 @@ class AMBER:
             "ar_intercept_bayes_factor", "ar_intervention_bayes_factor",
             "bsrc_ar_bayes_factor",
         ] = "bayes_factor",
+        ar_input_scaling: Literal["none", "normal_standard"] = "none",
         ar_stationarity: Literal["none", "root_projection"] = "none",
         stationarity_radius: float = 0.98,
         counterfactual_bounds: Literal["normal_range", "none"] = "normal_range",
@@ -437,6 +438,18 @@ class AMBER:
             raise ValueError(
                 "AR-model Bayes-factor scoring and ar_model residualization "
                 "must be selected together"
+            )
+
+        if ar_input_scaling not in {"none", "normal_standard"}:
+            raise ValueError(f"Unknown ar_input_scaling={ar_input_scaling}")
+
+        if (
+            ar_input_scaling != "none"
+            and residualization not in {"ar", "counterfactual_ar"}
+        ):
+            raise ValueError(
+                "ar_input_scaling requires ar or counterfactual_ar "
+                "residualization"
             )
 
         if scoring in ar_model_scores and winsor_quantile is not None:
@@ -527,6 +540,7 @@ class AMBER:
         self.metric_result_: pd.DataFrame | None = None
         self.residualization = residualization
         self.scoring = scoring
+        self.ar_input_scaling = ar_input_scaling
         self.ar_stationarity = ar_stationarity
         self.stationarity_radius = stationarity_radius
         self.counterfactual_bounds = counterfactual_bounds
@@ -973,6 +987,55 @@ class AMBER:
                 "standardized_residual_normal": [],
                 "standardized_residual_abnormal": [],
             }
+
+        raw_normal_y = normal_y.copy()
+        raw_abnormal_y = abnormal_y.copy()
+        ar_input_center = 0.0
+        ar_input_scale = 1.0
+        if (
+            self.ar_input_scaling == "normal_standard"
+            and self.residualization in {"ar", "counterfactual_ar"}
+        ):
+            # Fit every metric in a dimensionless normal-only coordinate
+            # system.  For Y=aX+b with a>0, both windows map to exactly the
+            # same standardized series, so the fixed ridge penalty has the
+            # same meaning regardless of the recorded unit.
+            ar_input_center = float(np.mean(raw_normal_y))
+            normal_is_constant = bool(
+                np.min(raw_normal_y) == np.max(raw_normal_y)
+            )
+            ar_input_scale = (
+                0.0
+                if normal_is_constant
+                else float(np.std(raw_normal_y, ddof=0))
+            )
+            if not np.isfinite(ar_input_scale) or ar_input_scale <= 0.0:
+                # A scale cannot be learned from a constant normal window
+                # without using abnormal data.  Formal preprocessing removes
+                # these metrics; keep the model safe if one reaches this API.
+                return {
+                    "score": -np.inf,
+                    "evidence_weight": 0.0,
+                    "normal_scale": np.nan,
+                    "normal_scale_original_units": np.nan,
+                    "abnormal_mean_z": np.nan,
+                    "abnormal_sd_z": np.nan,
+                    "ar_coefficients": [],
+                    "ar_input_scaling": self.ar_input_scaling,
+                    "ar_input_center": ar_input_center,
+                    "ar_input_scale": ar_input_scale,
+                    "ar_input_degenerate": True,
+                    "raw_normal": raw_normal_y.astype(float).tolist(),
+                    "raw_abnormal": raw_abnormal_y.astype(float).tolist(),
+                    "ar_prediction_normal": [],
+                    "ar_prediction_abnormal": [],
+                    "ar_residual_normal": [],
+                    "ar_residual_abnormal": [],
+                    "standardized_residual_normal": [],
+                    "standardized_residual_abnormal": [],
+                }
+            normal_y = (raw_normal_y - ar_input_center) / ar_input_scale
+            abnormal_y = (raw_abnormal_y - ar_input_center) / ar_input_scale
         
         counterfactual_clipped_count: int | None = None
         spectral_radius_before: float | None = None
@@ -1123,9 +1186,25 @@ class AMBER:
                 z_a,
             )
 
+        if self.ar_input_scaling == "normal_standard":
+            diagnostic_normal_prediction = (
+                normal_prediction * ar_input_scale + ar_input_center
+            )
+            diagnostic_abnormal_prediction = (
+                abnormal_prediction * ar_input_scale + ar_input_center
+            )
+            diagnostic_r_n = r_n * ar_input_scale
+            diagnostic_r_a = r_a * ar_input_scale
+        else:
+            diagnostic_normal_prediction = normal_prediction
+            diagnostic_abnormal_prediction = abnormal_prediction
+            diagnostic_r_n = r_n
+            diagnostic_r_a = r_a
+
         return {
             "score": score,
             "normal_scale": scale,
+            "normal_scale_original_units": scale * ar_input_scale,
             "abnormal_mean_z": float(np.mean(z_a)),
             "abnormal_sd_z": float(np.std(z_a, ddof=1)) if z_a.size > 1 else 0.0,
             "log_marginal_h0": float(log_h0),
@@ -1139,6 +1218,10 @@ class AMBER:
             "ar_spectral_radius_before": spectral_radius_before,
             "ar_spectral_radius_after": spectral_radius_after,
             "ar_stationarity_constrained": stationarity_constrained,
+            "ar_input_scaling": self.ar_input_scaling,
+            "ar_input_center": ar_input_center,
+            "ar_input_scale": ar_input_scale,
+            "ar_input_degenerate": False,
             "counterfactual_bounds": (
                 self.counterfactual_bounds
                 if self.residualization == "counterfactual_ar"
@@ -1164,12 +1247,12 @@ class AMBER:
             # prediction/residual series begin at ar_order; for raw they align
             # one-to-one with the raw series and predictions are unavailable.
             "ar_coefficients": coef.astype(float).tolist(),
-            "raw_normal": normal_y.astype(float).tolist(),
-            "raw_abnormal": abnormal_y.astype(float).tolist(),
-            "ar_prediction_normal": normal_prediction.astype(float).tolist(),
-            "ar_prediction_abnormal": abnormal_prediction.astype(float).tolist(),
-            "ar_residual_normal": r_n.astype(float).tolist(),
-            "ar_residual_abnormal": r_a.astype(float).tolist(),
+            "raw_normal": raw_normal_y.astype(float).tolist(),
+            "raw_abnormal": raw_abnormal_y.astype(float).tolist(),
+            "ar_prediction_normal": diagnostic_normal_prediction.astype(float).tolist(),
+            "ar_prediction_abnormal": diagnostic_abnormal_prediction.astype(float).tolist(),
+            "ar_residual_normal": diagnostic_r_n.astype(float).tolist(),
+            "ar_residual_abnormal": diagnostic_r_a.astype(float).tolist(),
             "standardized_residual_normal": z_n.astype(float).tolist(),
             "standardized_residual_abnormal": z_a.astype(float).tolist(),
         }
@@ -1233,6 +1316,7 @@ class AMBER:
                 "residualization": self.residualization,
                 "scoring": self.scoring,
                 "ar_order": self.ar_order,
+                "ar_input_scaling": self.ar_input_scaling,
                 "ar_stationarity": self.ar_stationarity,
                 "stationarity_radius": self.stationarity_radius,
                 "counterfactual_bounds": self.counterfactual_bounds,
@@ -1315,6 +1399,7 @@ class AMBER:
             "residualization": self.residualization,
             "scoring": self.scoring,
             "ar_order": self.ar_order,
+            "ar_input_scaling": self.ar_input_scaling,
             "ar_stationarity": self.ar_stationarity,
             "stationarity_radius": self.stationarity_radius,
             "counterfactual_bounds": self.counterfactual_bounds,

@@ -168,6 +168,113 @@ def test_stationary_counterfactual_is_clip_free_and_uncertainty_aware():
     assert len(metric["forecast_uncertainty_multiplier"]) == len(abnormal)
 
 
+@pytest.mark.parametrize(
+    ("multiplier", "offset"),
+    [(1000.0, 0.0), (0.001, 0.0), (0.001, 100.0)],
+)
+def test_normal_standard_ar_is_affine_unit_invariant(multiplier, offset):
+    time = np.arange(120, dtype=float)
+    normal = pd.DataFrame({
+        "root_cpu": np.sin(time / 5.0) + 0.01 * time,
+        "root_mem": 2.0 * np.cos(time / 9.0) + 0.02 * time,
+        "other_cpu": np.sin(time / 7.0) - 0.005 * time,
+        "other_mem": np.cos(time / 11.0) + 0.003 * time,
+    })
+    abnormal_time = np.arange(40, dtype=float)
+    abnormal = pd.DataFrame({
+        "root_cpu": normal["root_cpu"].iloc[-1] + 3.0 + 0.02 * abnormal_time,
+        "root_mem": normal["root_mem"].iloc[-1] + 2.0 + 0.01 * abnormal_time,
+        "other_cpu": np.sin((time[-1] + 1 + abnormal_time) / 7.0),
+        "other_mem": np.cos((time[-1] + 1 + abnormal_time) / 11.0),
+    })
+    common = dict(
+        ar_order=3,
+        ridge=1e-3,
+        winsor_quantile=None,
+        aggregate="service",
+        service_aggregation="mean_top3",
+        residualization="counterfactual_ar",
+        ar_input_scaling="normal_standard",
+        ar_stationarity="root_projection",
+        stationarity_radius=0.98,
+        counterfactual_bounds="none",
+        horizon_aware_uncertainty=True,
+    )
+    baseline = AMBER(**common)
+    transformed = AMBER(**common)
+
+    baseline_result = baseline.fit_predict(normal, abnormal)
+    transformed_result = transformed.fit_predict(
+        normal * multiplier + offset,
+        abnormal * multiplier + offset,
+    )
+
+    assert transformed_result["service"].tolist() == (
+        baseline_result["service"].tolist()
+    )
+    np.testing.assert_allclose(
+        transformed_result["score"].to_numpy(dtype=float),
+        baseline_result["score"].to_numpy(dtype=float),
+        rtol=1e-8,
+        atol=1e-8,
+    )
+    baseline_metrics = {
+        row["metric"]: row for row in baseline.diagnostics_["metrics"]
+    }
+    transformed_metrics = {
+        row["metric"]: row for row in transformed.diagnostics_["metrics"]
+    }
+    for metric, baseline_metric in baseline_metrics.items():
+        transformed_metric = transformed_metrics[metric]
+        assert transformed_metric["ar_coefficients"] == pytest.approx(
+            baseline_metric["ar_coefficients"], rel=1e-8, abs=1e-8
+        )
+        assert transformed_metric["forecast_uncertainty_multiplier"] == (
+            pytest.approx(
+                baseline_metric["forecast_uncertainty_multiplier"],
+                rel=1e-8,
+                abs=1e-8,
+            )
+        )
+        assert transformed_metric["ar_input_center"] == pytest.approx(
+            multiplier * baseline_metric["ar_input_center"] + offset
+        )
+        assert transformed_metric["ar_input_scale"] == pytest.approx(
+            multiplier * baseline_metric["ar_input_scale"]
+        )
+
+
+def test_normal_standard_ar_rejects_non_ar_residualization():
+    with pytest.raises(ValueError, match="ar_input_scaling requires"):
+        AMBER(residualization="raw", ar_input_scaling="normal_standard")
+
+
+def test_normal_standard_ar_skips_constant_normal_metric_without_abnormal_leakage():
+    normal = pd.DataFrame({
+        "service_cpu": np.full(20, 123_456_789.0),
+    })
+    abnormal = pd.DataFrame({
+        "service_cpu": np.full(10, 123_456_999.0),
+    })
+
+    for multiplier in (1.0, 0.001, 1000.0):
+        model = AMBER(
+            ar_order=1,
+            winsor_quantile=None,
+            residualization="counterfactual_ar",
+            ar_input_scaling="normal_standard",
+        )
+        result = model.fit_predict(
+            normal * multiplier,
+            abnormal * multiplier,
+        )
+
+        assert np.isnan(result.loc[0, "score"])
+        metric = model.diagnostics_["metrics"][0]
+        assert metric["ar_input_degenerate"] is True
+        assert metric["ar_input_scale"] == 0.0
+
+
 def test_horizon_uncertainty_rejects_non_counterfactual_mode():
     with pytest.raises(ValueError, match="requires counterfactual_ar"):
         AMBER(residualization="ar", horizon_aware_uncertainty=True)

@@ -92,6 +92,11 @@ def _build_model(params: dict[str, Any], mode: str) -> AMBER:
         ),
         residualization=overrides["residualization"],
         scoring="bayes_factor",
+        ar_input_scaling=(
+            params.get("ar_input_scaling", "none")
+            if overrides["residualization"] in {"ar", "counterfactual_ar"}
+            else "none"
+        ),
         ar_stationarity=overrides.get("ar_stationarity", "none"),
         stationarity_radius=float(overrides.get("stationarity_radius", 0.98)),
         counterfactual_bounds=overrides.get("counterfactual_bounds", "normal_range"),

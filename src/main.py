@@ -316,6 +316,10 @@ def run_experiment(
                 "scoring",
                 "bayes_factor",
             ),
+            ar_input_scaling=params.get(
+                "ar_input_scaling",
+                "none",
+            ),
             ar_stationarity=params.get(
                 "ar_stationarity",
                 "none",

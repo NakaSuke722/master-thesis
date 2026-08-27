@@ -28,9 +28,11 @@ from models.amber import AMBER, NIG
 
 DEFAULT_CONFIG = Path(
     "configs/ablation/rcaeval_re1_zenodo_v2/"
-    "stationary_counterfactual_ar_uncertainty.yaml"
+    "stationary_counterfactual_ar_uncertainty_unit_invariant.yaml"
 )
-DEFAULT_OUTPUT_ROOT = Path("results/analysis/ar_unit_invariance")
+DEFAULT_OUTPUT_ROOT = Path(
+    "results/analysis/ar_unit_invariance_normal_standard"
+)
 
 
 @dataclass(frozen=True)
@@ -85,6 +87,7 @@ def _build_model(config: dict[str, Any]) -> AMBER:
         ),
         residualization=params.get("residualization", "ar"),
         scoring=params.get("scoring", "bayes_factor"),
+        ar_input_scaling=params.get("ar_input_scaling", "none"),
         ar_stationarity=params.get("ar_stationarity", "none"),
         stationarity_radius=float(params.get("stationarity_radius", 0.98)),
         counterfactual_bounds=params.get("counterfactual_bounds", "normal_range"),
@@ -165,10 +168,13 @@ def _compare_metric_diagnostics(
         if base_coef.size and base_coef.shape == changed_coef.shape:
             coefficient_pairs += 1
             lag_differences.extend(np.abs(base_coef[1:] - changed_coef[1:]))
-            expected_intercept = (
-                transform.scale * base_coef[0]
-                + transform.offset * (1.0 - float(np.sum(base_coef[1:])))
-            )
+            if base.get("ar_input_scaling") == "normal_standard":
+                expected_intercept = base_coef[0]
+            else:
+                expected_intercept = (
+                    transform.scale * base_coef[0]
+                    + transform.offset * (1.0 - float(np.sum(base_coef[1:])))
+                )
             intercept_relative_errors.append(
                 abs(changed_coef[0] - expected_intercept)
                 / max(1.0, abs(expected_intercept))
@@ -176,7 +182,11 @@ def _compare_metric_diagnostics(
 
         base_scale = float(base.get("normal_scale") or np.nan)
         changed_scale = float(changed.get("normal_scale") or np.nan)
-        expected_scale = transform.scale * base_scale
+        expected_scale = (
+            base_scale
+            if base.get("ar_input_scaling") == "normal_standard"
+            else transform.scale * base_scale
+        )
         if np.isfinite(expected_scale) and expected_scale > 0 and np.isfinite(changed_scale):
             scale_relative_errors.append(abs(changed_scale - expected_scale) / expected_scale)
 
@@ -264,7 +274,10 @@ def _compare_results(
         "mean_service_rank_displacement": float(np.mean(service_displacements)),
         "max_service_rank_displacement": int(max(service_displacements, default=0)),
         "service_scores_allclose": bool(np.allclose(
-            original_scores, changed_scores, rtol=1e-6, atol=1e-8,
+            # Affine offsets can lose a few low-order float64 bits when a
+            # small signal is represented around a large level.  This remains
+            # far below a rank-relevant Bayes-factor difference.
+            original_scores, changed_scores, rtol=1e-5, atol=1e-7,
             equal_nan=True,
         )),
         "max_abs_service_score_diff": _finite_max(score_difference),
@@ -416,7 +429,7 @@ def _write_markdown(path: Path, report: dict[str, Any]) -> None:
     lines.extend([
         "",
         "`root_rank_delta = baseline_root_rank - transformed_root_rank`; a non-zero value is unit sensitivity, not a performance gain or loss.",
-        "`Scores close` uses `rtol=1e-6, atol=1e-8`; ranking equality is checked exactly.",
+        "`Scores close` uses `rtol=1e-5, atol=1e-7` to allow float64 cancellation after affine offsets; ranking equality is checked exactly.",
     ])
     path.write_text("\n".join(lines) + "\n", encoding="utf-8")
 
@@ -458,7 +471,7 @@ def analyze(
         "transformations": [asdict(transform) for transform in transforms],
         "invariance_target": {
             "service_ranking": "exact equality",
-            "service_scores": "rtol=1e-6, atol=1e-8",
+            "service_scores": "rtol=1e-5, atol=1e-7",
             "root_rank_delta": (
                 "baseline_root_rank - transformed_root_rank; non-zero means "
                 "sensitivity to the numerical unit"

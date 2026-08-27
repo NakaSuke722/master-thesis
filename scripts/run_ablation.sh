@@ -63,6 +63,13 @@ case "${1:-}" in
         )
         GRANULARITY="service"
         ;;
+    --unit-invariant-ar)
+        # 正常期間metric-wise標準化による単位不変Counterfactual ARだけを実行する。
+        CONFIGS=(
+            "configs/ablation/rcaeval_re1_zenodo_v2/stationary_counterfactual_ar_uncertainty_unit_invariant.yaml"
+        )
+        GRANULARITY="service"
+        ;;
     --direct-ar-bayes-factor)
         # shared AR対separate ARの直接Bayes Factorだけを実行する。
         CONFIGS=(
@@ -151,7 +158,7 @@ case "${1:-}" in
         GRANULARITY="metric"
         ;;
     *)
-        echo "Usage: $0 [--rcaeval|--counterfactual-ar|--ar-redesign|--full-covariance-ar|--direct-ar-bayes-factor|--intercept-shift-ar-bayes-factor|--adaptive-direct-ar-bayes-factor|--adaptive-direct-rollback|--bsrc-ar|--bsrc-ar-v2|--bsrc-ar-components|--bsrc-ar-adaptive|--baro]" >&2
+        echo "Usage: $0 [--rcaeval|--counterfactual-ar|--ar-redesign|--full-covariance-ar|--unit-invariant-ar|--direct-ar-bayes-factor|--intercept-shift-ar-bayes-factor|--adaptive-direct-ar-bayes-factor|--adaptive-direct-rollback|--bsrc-ar|--bsrc-ar-v2|--bsrc-ar-components|--bsrc-ar-adaptive|--baro]" >&2
         exit 2
         ;;
 esac

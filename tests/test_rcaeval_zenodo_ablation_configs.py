@@ -70,6 +70,13 @@ EXPECTED_VARIANTS = {
         "counterfactual_bounds": "none", "horizon_aware_uncertainty": True,
         "forecast_error_covariance": "diagonal",
     },
+    "stationary_counterfactual_ar_uncertainty_unit_invariant": {
+        "residualization": "counterfactual_ar", "scoring": "bayes_factor",
+        "ar_input_scaling": "normal_standard",
+        "ar_stationarity": "root_projection", "stationarity_radius": 0.98,
+        "counterfactual_bounds": "none", "horizon_aware_uncertainty": True,
+        "forecast_error_covariance": "diagonal",
+    },
     "stationary_counterfactual_ar_full_covariance": {
         "residualization": "counterfactual_ar", "scoring": "bayes_factor",
         "ar_stationarity": "root_projection", "stationarity_radius": 0.98,

@@ -28,6 +28,7 @@ def test_pseudo_fault_calibration_splits_normal_window_and_writes_summary(tmp_pa
             "min_scale": 1e-6,
             "relative_scale_floor": 1e-3,
             "winsor_quantile": None,
+            "ar_input_scaling": "normal_standard",
             "prior": {"m": 0, "kappa": 0.001, "alpha": 2, "beta": 1},
         }}
     }), encoding="utf-8")

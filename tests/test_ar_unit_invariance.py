@@ -137,6 +137,7 @@ def test_analysis_scores_synthetic_case_and_writes_artifacts(tmp_path):
             "params": {
                 "residualization": "counterfactual_ar",
                 "scoring": "bayes_factor",
+                "ar_input_scaling": "normal_standard",
                 "ar_order": 2,
                 "ridge": 0.001,
                 "ar_stationarity": "root_projection",
@@ -165,6 +166,9 @@ def test_analysis_scores_synthetic_case_and_writes_artifacts(tmp_path):
 
     assert report["n_cases"] == 1
     assert report["summaries"][0]["transformation"] == "scaled"
+    assert report["summaries"][0]["identical_service_ranking_fraction"] == 1.0
+    assert report["summaries"][0]["score_allclose_fraction"] == 1.0
+    assert report["summaries"][0]["lag_coefficients_allclose_fraction"] == 1.0
     assert (output / "case_comparisons.csv").is_file()
     assert (output / "summary.json").is_file()
     assert (output / "summary.md").is_file()
