@@ -1,0 +1,53 @@
+benchmark:
+  name: "rcaeval_re1"
+
+experiment:
+  category: "baselines"
+  # This is the known-onset RobustScorer used by RCAEval's BARO adapter,
+  # not the end-to-end BARO pipeline with Multivariate BOCPD.
+  name: "baro_robust_scorer_known_onset"
+
+data:
+  source:
+    provider: "Zenodo"
+    record: "14590730"
+    doi: "10.5281/zenodo.14590730"
+    version: "v2"
+  normal_window_points: 600
+  abnormal_window_points: 600
+
+model:
+  # Keep the model identifier distinct from the legacy dataset directory
+  # data/raw/baro.
+  target: "baro_robust_scorer"
+  preprocess_strategy: "default"
+  params:
+    protocol: "known_onset_robust_scorer"
+    # Official BARO/RCAEval DataFrame implementation: max((x - median) / IQR).
+    # The paper's max absolute deviation remains available as max_absolute,
+    # but changing it defines a different sensitivity protocol.
+    score_mode: "max_signed"
+    source_repository: "https://github.com/phamquiluan/baro"
+    source_commit: "e35f4ec1095e5cac891d52de9ad18a5b32a37ec8"
+    rcaeval_reference_commit: "526cdd5818ea9d8c2a34e869ebd637bc6b4fa4b8"
+
+paths:
+  raw_data_dir: "data/raw/rcaeval_zenodo_v2"
+  processed_data_dir: "data/processed/rcaeval_zenodo_v2"
+  results_root: "results"
+
+evaluation:
+  k_values: [1, 3, 5]
+  granularity: "service"
+  # BARO creates a service ranking by taking services in metric-rank order
+  # and removing duplicates. This is equivalent to max metric score per
+  # service, not AMBER's mean_top3 aggregation.
+  service_aggregation:
+    method: "baro_metric_order_deduplication"
+  metric_aggregation:
+    method: "max"
+
+datasets:
+  - re1_ob
+  - re1_ss
+  - re1_tt

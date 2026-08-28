@@ -126,7 +126,20 @@ bash scripts/run_ablation.sh
 bash scripts/run_baselines.sh
 ```
 
-比較手法ごとの設定は `configs/baselines/`、結果は `results/baselines/` に保存します。
+現在の比較手法は BARO RobustScorer です。上記のデフォルト実行は
+`configs/baselines/baro.yaml` を使い、RCAEval RE1 Zenodo v2 の375ケースを
+service-level で評価します。並列数を指定する場合は次の通りです。
+
+```bash
+bash scripts/run_baselines.sh service configs/baselines/baro.yaml 4
+```
+
+この実験名は `baro_robust_scorer_known_onset`、モデル識別子は
+`baro_robust_scorer` です。`data/raw/baro` に置く旧BARO pilotデータセットとは
+別物です。ここではAMBERと条件を揃えるため障害開始時刻を既知とし、
+Multivariate BOCPDを含むend-to-end BAROではなく、公式RCAEval実装と同じ
+RobustScorerを使います。結果は
+`results/baselines/rcaeval_re1/baro_robust_scorer_known_onset/` に保存します。
 
 ### 感度分析
 

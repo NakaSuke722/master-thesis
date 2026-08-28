@@ -186,6 +186,79 @@ def run_experiment(
 
         predicted_ranking = rca_model.fit_predict(df_normal, df_abnormal, dataset_name=dataset,)
 
+    elif target_model == "baro_robust_scorer":
+        from models.baselines import BARORobustScorer
+
+        if benchmark_case is not None:
+            (
+                df_normal,
+                df_abnormal,
+                benchmark_case_info,
+            ) = load_benchmark_processed_case(
+                benchmark=benchmark_case.benchmark,
+                dataset=benchmark_case.dataset,
+                case_id=benchmark_case.case_id,
+                strategy=strategy,
+                processed_root=processed_root,
+            )
+        else:
+            df_normal, df_abnormal, _ = load_processed_case(
+                dataset=dataset,
+                fault_type=fault,
+                run_id=run,
+                strategy=strategy,
+                processed_root=processed_root,
+                load_graph_info=False,
+            )
+
+        params = config["model"].get("params", {})
+        rca_model = BARORobustScorer(
+            score_mode=params.get("score_mode", "max_signed")
+        )
+        if granularity == "service":
+            predicted_ranking = rca_model.predict(
+                df_normal,
+                df_abnormal,
+                granularity="service",
+            )
+        else:
+            metric_result = rca_model.predict(
+                df_normal,
+                df_abnormal,
+                granularity="metric",
+            )
+            metric_method = config["evaluation"].get(
+                "metric_aggregation", {}
+            ).get("method", "max")
+            predicted_ranking = aggregate_canonical_metrics(
+                metric_result,
+                method=metric_method,
+            )
+
+        if benchmark_case is not None:
+            if granularity == "service":
+                evaluation_ground_truth = (
+                    benchmark_case.root_cause_service
+                )
+            elif benchmark_case.root_cause_metrics is not None:
+                evaluation_ground_truth = list(
+                    benchmark_case.root_cause_metrics
+                )
+            else:
+                raise ValueError(
+                    "Metric-level ground truth is unavailable for "
+                    f"{benchmark_case.benchmark}: {benchmark_case.case_id}"
+                )
+        else:
+            evaluation_ground_truth = make_evaluation_ground_truth(
+                ground_truth,
+                granularity,
+                config["evaluation"].get(
+                    "fine_grained_fault_to_metric",
+                    {},
+                ),
+            )
+
     elif target_model == "amber":
         import pandas as pd
 
@@ -549,6 +622,11 @@ def run_experiment(
         )
         if diagnostics is not None:
             results["amber_diagnostics"] = diagnostics
+
+    if target_model == "baro_robust_scorer":
+        results["baro_robust_scorer_diagnostics"] = (
+            rca_model.diagnostics_
+        )
 
     output_dir = case_result_dir(
         config,
