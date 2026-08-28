@@ -70,6 +70,13 @@ EXPECTED_VARIANTS = {
         "counterfactual_bounds": "none", "horizon_aware_uncertainty": True,
         "forecast_error_covariance": "diagonal",
     },
+    "stationary_counterfactual_ar_uncertainty_unit_invariance_control": {
+        "residualization": "counterfactual_ar", "scoring": "bayes_factor",
+        "ar_input_scaling": "none",
+        "ar_stationarity": "root_projection", "stationarity_radius": 0.98,
+        "counterfactual_bounds": "none", "horizon_aware_uncertainty": True,
+        "forecast_error_covariance": "diagonal",
+    },
     "stationary_counterfactual_ar_uncertainty_unit_invariant": {
         "residualization": "counterfactual_ar", "scoring": "bayes_factor",
         "ar_input_scaling": "normal_standard",
@@ -279,6 +286,31 @@ def test_zenodo_ablation_result_paths_are_benchmark_scoped():
         assert experiment_dir(config) == Path(
             "results/ablation/rcaeval_re1"
         ) / name
+
+
+def test_unit_invariance_matched_pair_differs_only_in_ar_input_scaling():
+    control = load_config(
+        ABLATION_DIR
+        / "stationary_counterfactual_ar_uncertainty_unit_invariance_control.yaml"
+    )
+    treatment = load_config(
+        ABLATION_DIR
+        / "stationary_counterfactual_ar_uncertainty_unit_invariant.yaml"
+    )
+
+    control_comparable = deepcopy(control)
+    treatment_comparable = deepcopy(treatment)
+    control_comparable["experiment"]["name"] = "matched"
+    treatment_comparable["experiment"]["name"] = "matched"
+    control_comparable["model"]["params"].pop("ar_input_scaling")
+    treatment_comparable["model"]["params"].pop("ar_input_scaling")
+
+    assert control_comparable == treatment_comparable
+    assert control["model"]["params"]["ar_input_scaling"] == "none"
+    assert (
+        treatment["model"]["params"]["ar_input_scaling"]
+        == "normal_standard"
+    )
 
 
 def test_adaptive_rollbacks_each_change_exactly_one_model_axis():

@@ -70,6 +70,14 @@ case "${1:-}" in
         )
         GRANULARITY="service"
         ;;
+    --unit-invariant-ar-matched)
+        # 現行コード・現行processed dataで、AR入力標準化の有無だけを比較する。
+        CONFIGS=(
+            "configs/ablation/rcaeval_re1_zenodo_v2/stationary_counterfactual_ar_uncertainty_unit_invariance_control.yaml"
+            "configs/ablation/rcaeval_re1_zenodo_v2/stationary_counterfactual_ar_uncertainty_unit_invariant.yaml"
+        )
+        GRANULARITY="service"
+        ;;
     --direct-ar-bayes-factor)
         # shared AR対separate ARの直接Bayes Factorだけを実行する。
         CONFIGS=(
@@ -158,7 +166,7 @@ case "${1:-}" in
         GRANULARITY="metric"
         ;;
     *)
-        echo "Usage: $0 [--rcaeval|--counterfactual-ar|--ar-redesign|--full-covariance-ar|--unit-invariant-ar|--direct-ar-bayes-factor|--intercept-shift-ar-bayes-factor|--adaptive-direct-ar-bayes-factor|--adaptive-direct-rollback|--bsrc-ar|--bsrc-ar-v2|--bsrc-ar-components|--bsrc-ar-adaptive|--baro]" >&2
+        echo "Usage: $0 [--rcaeval|--counterfactual-ar|--ar-redesign|--full-covariance-ar|--unit-invariant-ar|--unit-invariant-ar-matched|--direct-ar-bayes-factor|--intercept-shift-ar-bayes-factor|--adaptive-direct-ar-bayes-factor|--adaptive-direct-rollback|--bsrc-ar|--bsrc-ar-v2|--bsrc-ar-components|--bsrc-ar-adaptive|--baro]" >&2
         exit 2
         ;;
 esac
