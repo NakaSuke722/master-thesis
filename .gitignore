@@ -57,6 +57,7 @@ results/ablation/**/*.json
 results/baselines/**/*.json
 results/sensitivity/**/*.json
 results/analysis/**/*.json
+results/analysis/**/*.csv
 results/debug/**
 
 # Legacy result structure
