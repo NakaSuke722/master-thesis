@@ -1,0 +1,39 @@
+benchmark:
+  name: "rcaeval_re1"
+experiment:
+  category: "sensitivity"
+  name: "unit_invariant_r0_98_p11"
+data:
+  source: {provider: "Zenodo", record: "14590730", doi: "10.5281/zenodo.14590730", version: "v2"}
+  normal_window_points: 600
+  abnormal_window_points: 600
+model:
+  target: "amber"
+  preprocess_strategy: "default"
+  params:
+    residualization: "counterfactual_ar"
+    scoring: "bayes_factor"
+    ar_order: 11
+    ridge: 1.0e-3
+    ar_input_scaling: "normal_standard"
+    ar_stationarity: "root_projection"
+    stationarity_radius: 0.98
+    counterfactual_bounds: "none"
+    horizon_aware_uncertainty: true
+    forecast_error_covariance: "diagonal"
+    min_scale: 1.0e-6
+    relative_scale_floor: 1.0e-3
+    winsor_quantile: null
+    prior: {m: 0.0, kappa: 1.0e-3, alpha: 2.0, beta: 1.0}
+paths:
+  raw_data_dir: "data/raw/rcaeval_zenodo_v2"
+  processed_data_dir: "data/processed/rcaeval_zenodo_v2"
+  results_root: "results"
+output:
+  amber_diagnostics: "summary"
+evaluation:
+  k_values: [1, 3, 5]
+  granularity: "service"
+  service_aggregation: {method: "mean_top3"}
+  metric_aggregation: {method: "max"}
+datasets: [re1_ob, re1_ss, re1_tt]
