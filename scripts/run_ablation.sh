@@ -78,6 +78,19 @@ case "${1:-}" in
         )
         GRANULARITY="service"
         ;;
+    --final-ar-sensitivity)
+        # 最終候補のradius、AR次数、horizon補正を単独軸で検証する。
+        WORKERS="${AMBER_WORKERS:-4}"
+        CONFIGS=(
+            "configs/sensitivity/rcaeval_re1_zenodo_v2/unit_invariant_r0_98_p3.yaml"
+            "configs/sensitivity/rcaeval_re1_zenodo_v2/unit_invariant_r0_95_p3.yaml"
+            "configs/sensitivity/rcaeval_re1_zenodo_v2/unit_invariant_r0_99_p3.yaml"
+            "configs/sensitivity/rcaeval_re1_zenodo_v2/unit_invariant_r0_98_p1.yaml"
+            "configs/sensitivity/rcaeval_re1_zenodo_v2/unit_invariant_r0_98_p5.yaml"
+            "configs/sensitivity/rcaeval_re1_zenodo_v2/unit_invariant_no_horizon_uncertainty.yaml"
+        )
+        GRANULARITY="service"
+        ;;
     --direct-ar-bayes-factor)
         # shared AR対separate ARの直接Bayes Factorだけを実行する。
         CONFIGS=(
@@ -166,7 +179,7 @@ case "${1:-}" in
         GRANULARITY="metric"
         ;;
     *)
-        echo "Usage: $0 [--rcaeval|--counterfactual-ar|--ar-redesign|--full-covariance-ar|--unit-invariant-ar|--unit-invariant-ar-matched|--direct-ar-bayes-factor|--intercept-shift-ar-bayes-factor|--adaptive-direct-ar-bayes-factor|--adaptive-direct-rollback|--bsrc-ar|--bsrc-ar-v2|--bsrc-ar-components|--bsrc-ar-adaptive|--baro]" >&2
+        echo "Usage: $0 [--rcaeval|--counterfactual-ar|--ar-redesign|--full-covariance-ar|--unit-invariant-ar|--unit-invariant-ar-matched|--final-ar-sensitivity|--direct-ar-bayes-factor|--intercept-shift-ar-bayes-factor|--adaptive-direct-ar-bayes-factor|--adaptive-direct-rollback|--bsrc-ar|--bsrc-ar-v2|--bsrc-ar-components|--bsrc-ar-adaptive|--baro]" >&2
         exit 2
         ;;
 esac

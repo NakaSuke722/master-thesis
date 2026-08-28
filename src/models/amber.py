@@ -120,6 +120,28 @@ def _ar_residuals(y: np.ndarray, coef: np.ndarray, order: int) -> np.ndarray:
     return target - X @ coef
 
 
+def _numerical_constant_threshold(
+    y: np.ndarray,
+    ulp_multiplier: float = 8.0,
+) -> tuple[bool, float, float]:
+    """Detect variation no larger than a few float64 representation steps.
+
+    The check is relative to the observed normal-window magnitude and uses no
+    abnormal-period information.  It catches decimal parsing noise such as
+    two nominally identical latency values differing by only 3--4 ULPs while
+    preserving genuinely low-variance metrics measured near zero.
+    """
+    values = np.asarray(y, dtype=float)
+    values = values[np.isfinite(values)]
+    if values.size == 0:
+        return True, 0.0, 0.0
+    span = float(np.max(values) - np.min(values))
+    reference = float(np.max(np.abs(values)))
+    ulp = float(np.spacing(reference))
+    threshold = ulp_multiplier * ulp
+    return bool(span <= threshold), span, threshold
+
+
 def _counterfactual_ar_forecast(
     history: np.ndarray,
     coef: np.ndarray,
@@ -1001,8 +1023,12 @@ class AMBER:
             # same standardized series, so the fixed ridge penalty has the
             # same meaning regardless of the recorded unit.
             ar_input_center = float(np.mean(raw_normal_y))
-            normal_is_constant = bool(
-                np.min(raw_normal_y) == np.max(raw_normal_y)
+            (
+                normal_is_constant,
+                ar_input_span,
+                ar_input_degenerate_threshold,
+            ) = _numerical_constant_threshold(
+                raw_normal_y,
             )
             ar_input_scale = (
                 0.0
@@ -1025,6 +1051,9 @@ class AMBER:
                     "ar_input_center": ar_input_center,
                     "ar_input_scale": ar_input_scale,
                     "ar_input_degenerate": True,
+                    "ar_input_degenerate_reason": "numerically_constant_normal",
+                    "ar_input_span": ar_input_span,
+                    "ar_input_degenerate_threshold": ar_input_degenerate_threshold,
                     "raw_normal": raw_normal_y.astype(float).tolist(),
                     "raw_abnormal": raw_abnormal_y.astype(float).tolist(),
                     "ar_prediction_normal": [],
@@ -1222,6 +1251,13 @@ class AMBER:
             "ar_input_center": ar_input_center,
             "ar_input_scale": ar_input_scale,
             "ar_input_degenerate": False,
+            "ar_input_degenerate_reason": None,
+            "ar_input_span": (
+                float(np.max(raw_normal_y) - np.min(raw_normal_y))
+            ),
+            "ar_input_degenerate_threshold": (
+                _numerical_constant_threshold(raw_normal_y)[2]
+            ),
             "counterfactual_bounds": (
                 self.counterfactual_bounds
                 if self.residualization == "counterfactual_ar"

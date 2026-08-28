@@ -9,6 +9,7 @@ from models.amber import (
     _ar_residuals,
     _ar_spectral_radius,
     _counterfactual_ar_forecast,
+    _numerical_constant_threshold,
     _project_ar_stationary,
     _whiten_ar_forecast_errors,
 )
@@ -273,6 +274,38 @@ def test_normal_standard_ar_skips_constant_normal_metric_without_abnormal_leakag
         metric = model.diagnostics_["metrics"][0]
         assert metric["ar_input_degenerate"] is True
         assert metric["ar_input_scale"] == 0.0
+
+
+def test_normal_standard_ar_skips_float64_ulp_noise_affine_invariantly():
+    base = np.array([0.2425, np.nextafter(0.2425, -np.inf)])
+    normal_values = np.tile(base, 20)
+    abnormal_values = np.linspace(0.2, 0.3, 20)
+
+    is_constant, span, threshold = _numerical_constant_threshold(normal_values)
+    assert is_constant is True
+    assert 0.0 < span <= threshold
+
+    for multiplier, offset in ((1.0, 0.0), (0.001, 0.0), (0.001, 100.0)):
+        model = AMBER(
+            ar_order=1,
+            winsor_quantile=None,
+            residualization="counterfactual_ar",
+            ar_input_scaling="normal_standard",
+        )
+        model.fit_predict(
+            pd.DataFrame({
+                "service_latency": normal_values * multiplier + offset,
+            }),
+            pd.DataFrame({
+                "service_latency": abnormal_values * multiplier + offset,
+            }),
+        )
+
+        metric = model.diagnostics_["metrics"][0]
+        assert metric["ar_input_degenerate"] is True
+        assert metric["ar_input_degenerate_reason"] == (
+            "numerically_constant_normal"
+        )
 
 
 def test_horizon_uncertainty_rejects_non_counterfactual_mode():

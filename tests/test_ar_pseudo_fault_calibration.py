@@ -1,9 +1,10 @@
 import json
 
 import pandas as pd
+import pytest
 import yaml
 
-from scripts.analyze_ar_pseudo_fault_calibration import analyze
+from scripts.analyze_ar_pseudo_fault_calibration import _build_model, analyze
 
 
 def test_pseudo_fault_calibration_splits_normal_window_and_writes_summary(tmp_path):
@@ -42,3 +43,45 @@ def test_pseudo_fault_calibration_splits_normal_window_and_writes_summary(tmp_pa
     assert report["modes"] == ["raw", "counterfactual_ar"]
     assert (tmp_path / "out" / "case_calibration.csv").is_file()
     assert (tmp_path / "out" / "summary.md").is_file()
+
+
+def test_pseudo_fault_calibration_rejects_nonpositive_workers(tmp_path):
+    with pytest.raises(ValueError, match="workers must be positive"):
+        analyze(
+            tmp_path,
+            tmp_path / "missing.yaml",
+            tmp_path / "out",
+            workers=0,
+        )
+
+
+def test_configured_mode_preserves_sensitivity_axes():
+    model = _build_model({
+        "residualization": "counterfactual_ar",
+        "ar_order": 5,
+        "ar_input_scaling": "normal_standard",
+        "ar_stationarity": "root_projection",
+        "stationarity_radius": 0.95,
+        "counterfactual_bounds": "none",
+        "horizon_aware_uncertainty": False,
+        "forecast_error_covariance": "diagonal",
+    }, "configured")
+
+    assert model.residualization == "counterfactual_ar"
+    assert model.ar_order == 5
+    assert model.stationarity_radius == 0.95
+    assert model.horizon_aware_uncertainty is False
+
+
+def test_named_modes_do_not_leak_unrelated_configured_axes():
+    model = _build_model({
+        "residualization": "counterfactual_ar",
+        "ar_stationarity": "root_projection",
+        "stationarity_radius": 0.95,
+        "horizon_aware_uncertainty": True,
+    }, "raw")
+
+    assert model.residualization == "raw"
+    assert model.ar_stationarity == "none"
+    assert model.stationarity_radius == 0.98
+    assert model.horizon_aware_uncertainty is False

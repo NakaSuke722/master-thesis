@@ -50,6 +50,18 @@ Ridge AR、root projection、Counterfactual再帰、horizon uncertainty、残差
 
 正常windowが完全に定数のmetricでは、異常期間を使わずに尺度を定義できない。この場合はscore対象外とする。浮動小数点の標準偏差が偽の微小分散を作らないよう、定数判定はnormalの最小値と最大値の一致で先に行う。
 
+### 最終追補: ULPに基づく数値的定数判定
+
+全375ケースの再診断で、`re1_tt__ts-train-service_delay__2`に含まれる名目上定数のlatency列が、`0.001X+100`後に3--4 ULPだけ揺らぎ、定数判定を通過することが判明した。これは時系列変動ではなくfloat64表現上の丸めである。
+
+そこで正常windowのspanを、そのwindowの最大絶対値におけるfloat64間隔と比較し、
+
+```text
+max(X) - min(X) <= 8 * spacing(max(abs(X)))
+```
+
+なら`numerically_constant_normal`として除外するよう変更した。異常期間は判定に使わない。修正後に375ケース×3変換、計1,125比較を再実行し、完全service順位、Top-1、root-service順位はいずれも100%一致した。`0.001X+100`のscore近似一致は99.5%だったが、不一致2ケースも低位bitの情報損失であり、順位差・stationarity制約反転は0だった。
+
 既存診断との意味を保つため、保存するraw系列、予測、残差は元のmetric単位へ戻し、`ar_input_center`、`ar_input_scale`、`normal_scale_original_units`を追加した。AR係数と内部`normal_scale`は無次元モデル空間の値である。
 
 ## 新variant

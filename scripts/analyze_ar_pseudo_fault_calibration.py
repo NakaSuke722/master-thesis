@@ -12,6 +12,8 @@ import argparse
 import csv
 import json
 from collections import defaultdict
+from concurrent.futures import ProcessPoolExecutor
+from itertools import repeat
 from pathlib import Path
 from typing import Any, Iterable
 
@@ -25,6 +27,10 @@ from models.amber import AMBER, NIG
 DEFAULT_MODES = ("raw", "ar", "counterfactual_ar")
 
 MODE_OVERRIDES: dict[str, dict[str, Any]] = {
+    # Preserve every residualization option from the supplied YAML. This is
+    # necessary for one-axis sensitivity runs; a hard-coded radius or horizon
+    # flag here would silently erase the intended treatment.
+    "configured": {},
     "raw": {"residualization": "raw"},
     "ar": {"residualization": "ar"},
     "counterfactual_ar": {"residualization": "counterfactual_ar"},
@@ -75,6 +81,11 @@ def _build_model(params: dict[str, Any], mode: str) -> AMBER:
     if mode not in MODE_OVERRIDES:
         raise ValueError(f"Unknown calibration mode: {mode}")
     overrides = MODE_OVERRIDES[mode]
+    configured = mode == "configured"
+    residualization = (
+        params.get("residualization", "ar")
+        if configured else overrides["residualization"]
+    )
     prior_params = params.get("prior", {})
     return AMBER(
         ar_order=int(params.get("ar_order", 3)),
@@ -90,21 +101,43 @@ def _build_model(params: dict[str, Any], mode: str) -> AMBER:
             alpha=float(prior_params.get("alpha", 2.0)),
             beta=float(prior_params.get("beta", 1.0)),
         ),
-        residualization=overrides["residualization"],
+        residualization=residualization,
         scoring="bayes_factor",
         ar_input_scaling=(
             params.get("ar_input_scaling", "none")
-            if overrides["residualization"] in {"ar", "counterfactual_ar"}
+            if residualization in {"ar", "counterfactual_ar"}
             else "none"
         ),
-        ar_stationarity=overrides.get("ar_stationarity", "none"),
-        stationarity_radius=float(overrides.get("stationarity_radius", 0.98)),
-        counterfactual_bounds=overrides.get("counterfactual_bounds", "normal_range"),
+        ar_stationarity=overrides.get(
+            "ar_stationarity",
+            params.get("ar_stationarity", "none") if configured else "none",
+        ),
+        stationarity_radius=float(overrides.get(
+            "stationarity_radius",
+            params.get("stationarity_radius", 0.98) if configured else 0.98,
+        )),
+        counterfactual_bounds=overrides.get(
+            "counterfactual_bounds",
+            (
+                params.get("counterfactual_bounds", "normal_range")
+                if configured else "normal_range"
+            ),
+        ),
         horizon_aware_uncertainty=bool(
-            overrides.get("horizon_aware_uncertainty", False)
+            overrides.get(
+                "horizon_aware_uncertainty",
+                (
+                    params.get("horizon_aware_uncertainty", False)
+                    if configured else False
+                ),
+            )
         ),
         forecast_error_covariance=overrides.get(
-            "forecast_error_covariance", "diagonal"
+            "forecast_error_covariance",
+            (
+                params.get("forecast_error_covariance", "diagonal")
+                if configured else "diagonal"
+            ),
         ),
     )
 
@@ -243,19 +276,32 @@ def analyze(
     *,
     modes: tuple[str, ...] = DEFAULT_MODES,
     fit_fraction: float = 0.5,
+    workers: int = 1,
     limit: int | None = None,
 ) -> dict[str, Any]:
+    if workers <= 0:
+        raise ValueError("workers must be positive")
     params = _load_model_params(config_path)
     case_dirs = _case_directories(processed_root)
     if limit is not None:
         case_dirs = case_dirs[:limit]
     if not case_dirs:
         raise ValueError(f"No processed RCAEval cases found under {processed_root}")
-    rows = [
-        row
-        for case_dir in case_dirs
-        for row in _score_case(case_dir, params, modes, fit_fraction)
-    ]
+    if workers == 1:
+        case_rows = [
+            _score_case(case_dir, params, modes, fit_fraction)
+            for case_dir in case_dirs
+        ]
+    else:
+        with ProcessPoolExecutor(max_workers=workers) as executor:
+            case_rows = list(executor.map(
+                _score_case,
+                case_dirs,
+                repeat(params),
+                repeat(modes),
+                repeat(fit_fraction),
+            ))
+    rows = [row for values in case_rows for row in values]
     summaries = [_summarize(rows, "overall", "overall")]
     for dataset in sorted({row["dataset"] for row in rows}):
         summaries.append(_summarize(
@@ -292,6 +338,7 @@ def main() -> None:
     )
     parser.add_argument("--modes", nargs="+", default=list(DEFAULT_MODES))
     parser.add_argument("--fit-fraction", type=float, default=0.5)
+    parser.add_argument("--workers", type=int, default=1)
     parser.add_argument("--limit", type=int)
     args = parser.parse_args()
     report = analyze(
@@ -300,6 +347,7 @@ def main() -> None:
         args.output_root,
         modes=tuple(args.modes),
         fit_fraction=args.fit_fraction,
+        workers=args.workers,
         limit=args.limit,
     )
     print(f"Scored {report['n_cases']} normal-only cases; wrote {args.output_root}")

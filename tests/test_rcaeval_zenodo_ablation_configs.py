@@ -9,6 +9,33 @@ PROJECT_ROOT = Path(__file__).resolve().parents[1]
 MAIN_CONFIG = PROJECT_ROOT / "configs/main/rcaeval_re1_zenodo_v2.yaml"
 ABLATION_DIR = PROJECT_ROOT / "configs/ablation/rcaeval_re1_zenodo_v2"
 
+FORMAL_ABLATION_BASE_PARAMS = {
+    "residualization": "ar",
+    "scoring": "bayes_factor",
+    "ar_order": 3,
+    "ridge": 1.0e-3,
+    "min_scale": 1.0e-6,
+    "relative_scale_floor": 1.0e-3,
+    "winsor_quantile": None,
+    "prior": {
+        "m": 0.0,
+        "kappa": 1.0e-3,
+        "alpha": 2.0,
+        "beta": 1.0,
+    },
+}
+
+FINAL_MAIN_PARAMS = {
+    **FORMAL_ABLATION_BASE_PARAMS,
+    "residualization": "counterfactual_ar",
+    "ar_input_scaling": "normal_standard",
+    "ar_stationarity": "root_projection",
+    "stationarity_radius": 0.98,
+    "counterfactual_bounds": "none",
+    "horizon_aware_uncertainty": True,
+    "forecast_error_covariance": "diagonal",
+}
+
 ADAPTIVE_DIRECT_OVERRIDES = {
     "residualization": "ar_model",
     "scoring": "ar_intervention_bayes_factor",
@@ -266,7 +293,13 @@ def test_legacy_hugging_face_rcaeval_main_config_is_removed():
     assert not (PROJECT_ROOT / "configs/main/rcaeval_re1.yaml").exists()
 
 
-def test_zenodo_ablation_configs_match_formal_main_except_variant_axes():
+def test_formal_main_uses_final_counterfactual_ar_candidate():
+    main = load_config(MAIN_CONFIG)
+
+    assert main["model"]["params"] == FINAL_MAIN_PARAMS
+
+
+def test_zenodo_ablation_configs_share_formal_conditions_and_declared_model_axes():
     main = load_config(MAIN_CONFIG)
 
     for name, overrides in EXPECTED_VARIANTS.items():
@@ -274,6 +307,10 @@ def test_zenodo_ablation_configs_match_formal_main_except_variant_axes():
 
         expected = deepcopy(main)
         expected["experiment"] = {"category": "ablation", "name": name}
+        # The historical ablation family is defined against the original
+        # observed-lag AR baseline. Promoting the validated final candidate to
+        # main must not silently mutate those archived experiment definitions.
+        expected["model"]["params"] = deepcopy(FORMAL_ABLATION_BASE_PARAMS)
         expected["model"]["params"].update(overrides)
 
         assert ablation == expected
