@@ -15,47 +15,59 @@ else
     PYTHON_BIN="$(command -v python3)"
 fi
 
-GRANULARITY_ARG="${1:-}"
-CONFIG="${2:-configs/baselines/baro.yaml}"
-WORKERS="${3:-${AMBER_WORKERS:-1}}"
+SELECTOR="${1:---all}"
+WORKERS="${2:-${AMBER_WORKERS:-1}}"
 
 if [[ ! "${WORKERS}" =~ '^[1-9][0-9]*$' ]]; then
     echo "workers must be a positive integer: ${WORKERS}" >&2
     exit 2
 fi
 
-case "${GRANULARITY_ARG}" in
-    "")
-        GRANULARITY=""
+case "${SELECTOR}" in
+    --all)
+        CONFIGS=(
+            configs/baselines/epsilon_diagnosis.yaml
+            configs/baselines/rcd.yaml
+            configs/baselines/circa.yaml
+            configs/baselines/run.yaml
+        )
         ;;
-    service|-service|--service)
-        GRANULARITY="service"
+    --epsilon-diagnosis)
+        CONFIGS=(configs/baselines/epsilon_diagnosis.yaml)
         ;;
-    metric|-metric|--metric)
-        GRANULARITY="metric"
+    --rcd)
+        CONFIGS=(configs/baselines/rcd.yaml)
+        ;;
+    --circa)
+        CONFIGS=(configs/baselines/circa.yaml)
+        ;;
+    --run)
+        CONFIGS=(configs/baselines/run.yaml)
+        ;;
+    --baro)
+        CONFIGS=(configs/baselines/baro.yaml)
         ;;
     *)
-        echo "Usage: $0 [service|metric] [config] [workers]" >&2
+        echo "Usage: $0 [--all|--epsilon-diagnosis|--rcd|--circa|--run|--baro] [workers]" >&2
         exit 2
         ;;
 esac
 
 export PYTHONPATH="${PROJECT_ROOT}/src${PYTHONPATH:+:${PYTHONPATH}}"
 
-START_TIME=$(date +%s)
-
-RUN_ARGS=(--config "${CONFIG}" --workers "${WORKERS}" --defer-success-notification)
-AGGREGATE_ARGS=(--config "${CONFIG}")
-if [[ -n "${GRANULARITY}" ]]; then
-    RUN_ARGS+=(--granularity "${GRANULARITY}")
-    AGGREGATE_ARGS+=(--granularity "${GRANULARITY}")
-fi
-
-"${PYTHON_BIN}" src/runner.py "${RUN_ARGS[@]}"
-
-END_TIME=$(date +%s)
-ELAPSED_TIME=$((END_TIME - START_TIME))
-
-"${PYTHON_BIN}" src/aggregate_results.py \
-    "${AGGREGATE_ARGS[@]}" \
-    --total-time "${ELAPSED_TIME}"
+for CONFIG in "${CONFIGS[@]}"; do
+    echo
+    echo "========================================"
+    echo "Running baseline: ${CONFIG}"
+    echo "========================================"
+    START_TIME=$(date +%s)
+    "${PYTHON_BIN}" src/runner.py \
+        --config "${CONFIG}" \
+        --workers "${WORKERS}" \
+        --defer-success-notification
+    END_TIME=$(date +%s)
+    ELAPSED_TIME=$((END_TIME - START_TIME))
+    "${PYTHON_BIN}" src/aggregate_results.py \
+        --config "${CONFIG}" \
+        --total-time "${ELAPSED_TIME}"
+done

@@ -1,0 +1,6 @@
+# Optional dependencies for graph/neural metric-based baselines.
+# Install after requirements.txt:
+#   venv/bin/python -m pip install -r requirements-baselines.txt
+causal-learn>=0.1.4.3,<0.2
+networkx>=3.2,<4
+torch>=2.2,<3

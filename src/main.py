@@ -259,6 +259,126 @@ def run_experiment(
                 ),
             )
 
+    elif target_model in {
+        "epsilon_diagnosis",
+        "rcd",
+        "circa",
+        "run",
+    }:
+        if benchmark_case is not None:
+            (
+                df_normal,
+                df_abnormal,
+                benchmark_case_info,
+            ) = load_benchmark_processed_case(
+                benchmark=benchmark_case.benchmark,
+                dataset=benchmark_case.dataset,
+                case_id=benchmark_case.case_id,
+                strategy=strategy,
+                processed_root=processed_root,
+            )
+        else:
+            df_normal, df_abnormal, _ = load_processed_case(
+                dataset=dataset,
+                fault_type=fault,
+                run_id=run,
+                strategy=strategy,
+                processed_root=processed_root,
+                load_graph_info=False,
+            )
+
+        params = config["model"].get("params", {})
+        if target_model == "epsilon_diagnosis":
+            from models.baselines import EpsilonDiagnosisScorer
+
+            rca_model = EpsilonDiagnosisScorer(
+                alpha=float(params.get("alpha", 0.01)),
+                bootstrap_time=int(params.get("bootstrap_time", 200)),
+                root_cause_top_k=int(params.get("root_cause_top_k", 5)),
+                seed=int(params.get("seed", current_seed)),
+            )
+        elif target_model == "rcd":
+            from models.baselines import RCDScorer
+
+            rca_model = RCDScorer(
+                gamma=int(params.get("gamma", 5)),
+                bins=int(params.get("bins", 5)),
+                localized=bool(params.get("localized", True)),
+                start_alpha=float(params.get("start_alpha", 0.001)),
+                local_alpha=float(params.get("local_alpha", 0.01)),
+                alpha_step=float(params.get("alpha_step", 0.1)),
+                alpha_limit=float(params.get("alpha_limit", 1.0)),
+                root_cause_top_k=int(params.get("root_cause_top_k", 5)),
+                seed=int(params.get("seed", current_seed)),
+            )
+        elif target_model == "circa":
+            from models.baselines import CIRCAScorer
+
+            rca_model = CIRCAScorer(
+                pc_alpha=float(params.get("pc_alpha", 0.05)),
+                stable=bool(params.get("stable", True)),
+                lookup_window=int(params.get("lookup_window", 120)),
+                detect_window=int(params.get("detect_window", 10)),
+                score_time_offset=int(params.get("score_time_offset", 300)),
+            )
+        else:
+            from models.baselines.run import RUNScorer
+
+            rca_model = RUNScorer(
+                seq_len=int(params.get("seq_len", 32)),
+                hidden_size=int(params.get("hidden_size", 128)),
+                moving_average_kernel=int(
+                    params.get("moving_average_kernel", 25)
+                ),
+                pretrain_epochs=int(params.get("pretrain_epochs", 1)),
+                epochs=int(params.get("epochs", 1)),
+                learning_rate=float(params.get("learning_rate", 0.001)),
+                batch_size=int(params.get("batch_size", 128)),
+                device=params.get("device", "cpu"),
+                seed=int(params.get("seed", current_seed)),
+            )
+
+        if granularity == "service":
+            predicted_ranking = rca_model.predict(
+                df_normal,
+                df_abnormal,
+                granularity="service",
+            )
+        else:
+            metric_result = rca_model.predict(
+                df_normal,
+                df_abnormal,
+                granularity="metric",
+            )
+            metric_method = config["evaluation"].get(
+                "metric_aggregation", {}
+            ).get("method", "max")
+            predicted_ranking = aggregate_canonical_metrics(
+                metric_result,
+                method=metric_method,
+            )
+
+        if benchmark_case is not None:
+            if granularity == "service":
+                evaluation_ground_truth = benchmark_case.root_cause_service
+            elif benchmark_case.root_cause_metrics is not None:
+                evaluation_ground_truth = list(
+                    benchmark_case.root_cause_metrics
+                )
+            else:
+                raise ValueError(
+                    "Metric-level ground truth is unavailable for "
+                    f"{benchmark_case.benchmark}: {benchmark_case.case_id}"
+                )
+        else:
+            evaluation_ground_truth = make_evaluation_ground_truth(
+                ground_truth,
+                granularity,
+                config["evaluation"].get(
+                    "fine_grained_fault_to_metric", {}
+                ),
+            )
+
     elif target_model == "amber":
         import pandas as pd
 
@@ -627,6 +747,14 @@ def run_experiment(
         results["baro_robust_scorer_diagnostics"] = (
             rca_model.diagnostics_
         )
+
+    if target_model in {
+        "epsilon_diagnosis",
+        "rcd",
+        "circa",
+        "run",
+    }:
+        results[f"{target_model}_diagnostics"] = rca_model.diagnostics_
 
     output_dir = case_result_dir(
         config,

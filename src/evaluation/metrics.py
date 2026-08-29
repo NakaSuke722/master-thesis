@@ -41,9 +41,6 @@ def evaluate_ranking(
     if k_values is None:
         k_values = [1, 3, 5]
 
-    if not predicted_ranking:
-        raise ValueError("predicted_ranking is empty")
-
     truths = _as_set(ground_truth)
     if not truths:
         raise ValueError("ground_truth is empty")

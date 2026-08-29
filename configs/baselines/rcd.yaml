@@ -1,0 +1,45 @@
+benchmark:
+  name: "rcaeval_re1"
+experiment:
+  category: "baselines"
+  name: "rcd_localized_known_onset"
+data:
+  source:
+    provider: "Zenodo"
+    record: "14590730"
+    doi: "10.5281/zenodo.14590730"
+    version: "v2"
+  normal_window_points: 600
+  abnormal_window_points: 600
+model:
+  target: "rcd"
+  preprocess_strategy: "default"
+  params:
+    protocol: "rcd_localized_multi_phase_known_onset"
+    gamma: 5
+    bins: 5
+    localized: true
+    start_alpha: 0.001
+    local_alpha: 0.01
+    alpha_step: 0.1
+    alpha_limit: 1.0
+    root_cause_top_k: 5
+    seed: 42
+    source_repository: "https://github.com/salesforce/PyRCA"
+    source_commit: "411310d589fac5cb8e7bdce67d33eadb091a1083"
+    rcaeval_reference_commit: "526cdd5818ea9d8c2a34e869ebd637bc6b4fa4b8"
+paths:
+  raw_data_dir: "data/raw/rcaeval_zenodo_v2"
+  processed_data_dir: "data/processed/rcaeval_zenodo_v2"
+  results_root: "results"
+evaluation:
+  k_values: [1, 3, 5]
+  granularity: "service"
+  service_aggregation:
+    method: "metric_order_deduplication"
+  metric_aggregation:
+    method: "max"
+datasets:
+  - re1_ob
+  - re1_ss
+  - re1_tt

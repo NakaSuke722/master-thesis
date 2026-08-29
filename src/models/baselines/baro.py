@@ -6,25 +6,7 @@ import numpy as np
 import pandas as pd
 from sklearn.preprocessing import RobustScaler
 
-
-_TIME_COLUMNS = {"time", "time.1", "timestamp"}
-
-
-def service_from_metric(metric: str) -> str:
-    """Match BARO's published conversion from metric to service name."""
-    return str(metric).split("_", 1)[0]
-
-
-def to_service_ranking(metric_ranking: list[str]) -> list[str]:
-    """Deduplicate services in metric-rank order, as BARO does."""
-    ranking: list[str] = []
-    seen: set[str] = set()
-    for metric in metric_ranking:
-        service = service_from_metric(metric)
-        if service not in seen:
-            ranking.append(service)
-            seen.add(service)
-    return ranking
+from .common import TIME_COLUMNS, service_from_metric, to_service_ranking
 
 
 @dataclass(frozen=True)
@@ -68,7 +50,7 @@ class BARORobustScorer:
 
         for column in normal.columns:
             name = str(column)
-            if name.lower() in _TIME_COLUMNS:
+            if name.lower() in TIME_COLUMNS:
                 excluded[name] = "time_column"
                 continue
             if column not in abnormal.columns:
