@@ -3,6 +3,7 @@ from __future__ import annotations
 import networkx as nx
 import numpy as np
 import pandas as pd
+import warnings
 
 from benchmarks.base import BenchmarkCase
 import main as main_module
@@ -64,6 +65,24 @@ def test_epsilon_diagnosis_is_seed_reproducible_and_bounded():
     )
 
 
+def test_epsilon_diagnosis_silences_constant_bootstrap_draw_warning():
+    normal = pd.DataFrame(
+        {
+            "a_cpu": [0.0, 0.0, 0.0, 1.0],
+            "b_cpu": [0.0, 0.0, 1.0, 0.0],
+            "c_cpu": [0.0, 1.0, 0.0, 0.0],
+        }
+    )
+    abnormal = normal.iloc[::-1].reset_index(drop=True)
+    with warnings.catch_warnings(record=True) as caught:
+        warnings.simplefilter("always")
+        EpsilonDiagnosisScorer(
+            bootstrap_time=50,
+            seed=1,
+        ).score_metrics(normal, abnormal)
+    assert not [item for item in caught if item.category is RuntimeWarning]
+
+
 def test_rcd_localized_f_node_finds_large_regime_shift():
     normal, abnormal = _shift_case()
     model = RCDScorer(seed=1)
@@ -82,7 +101,7 @@ def test_circa_rht_scores_each_node_with_explicit_windows(monkeypatch):
     monkeypatch.setattr(
         model,
         "_learn_graph",
-        lambda data: np.zeros((data.shape[1], data.shape[1])),
+        lambda data, **kwargs: np.zeros((data.shape[1], data.shape[1])),
     )
     result = model.score_metrics(normal, abnormal)
     assert result.iloc[0]["metric"] == "s2_cpu"
@@ -90,6 +109,23 @@ def test_circa_rht_scores_each_node_with_explicit_windows(monkeypatch):
     assert model.diagnostics_["graph_learning_scope"] == (
         "normal_and_abnormal"
     )
+
+
+def test_circa_pc_selection_removes_redundancy_and_preserves_services():
+    frame = pd.DataFrame(
+        {
+            "a_cpu": [0.0, 1.0, 2.0, 3.0],
+            "a_mem": [0.0, 1.0, 2.0, 3.0],
+            "a_latency": [3.0, 1.0, 4.0, 2.0],
+            "b_cpu": [1.0, 4.0, 2.0, 3.0],
+            "b_mem": [4.0, 0.0, 3.0, 2.0],
+        }
+    )
+    model = CIRCAScorer(pc_max_metrics=2)
+    selected, redundant, screened = model._select_pc_columns(frame)
+    assert redundant == {"a_mem": "a_cpu"}
+    assert selected == ["a_cpu", "b_cpu"]
+    assert screened == ["a_latency", "b_mem"]
 
 
 def test_run_adapter_executes_without_fixed_batch_or_cuda_assumptions():

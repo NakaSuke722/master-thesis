@@ -186,6 +186,7 @@ class RUNScorer:
         learning_rate: float = 0.001,
         batch_size: int = 128,
         device: str = "cpu",
+        torch_num_threads: int = 1,
         seed: int = 42,
     ) -> None:
         if seq_len < 2:
@@ -196,6 +197,8 @@ class RUNScorer:
             raise ValueError("moving_average_kernel cannot exceed seq_len")
         if min(hidden_size, batch_size) <= 0:
             raise ValueError("hidden_size and batch_size must be positive")
+        if torch_num_threads <= 0:
+            raise ValueError("torch_num_threads must be positive")
         if min(pretrain_epochs, epochs) < 0:
             raise ValueError("epoch counts cannot be negative")
         self.seq_len = int(seq_len)
@@ -206,12 +209,14 @@ class RUNScorer:
         self.learning_rate = float(learning_rate)
         self.batch_size = int(batch_size)
         self.device = device
+        self.torch_num_threads = int(torch_num_threads)
         self.seed = int(seed)
         self.metric_scores_: pd.DataFrame | None = None
         self.diagnostics_: dict | None = None
 
     def _resolve_device(self):
         torch, _, _ = _torch_modules()
+        torch.set_num_threads(self.torch_num_threads)
         if self.device == "auto":
             return torch.device("cuda" if torch.cuda.is_available() else "cpu")
         requested = torch.device(self.device)
@@ -361,6 +366,7 @@ class RUNScorer:
             "learning_rate": self.learning_rate,
             "batch_size": self.batch_size,
             "device": str(device),
+            "torch_num_threads": self.torch_num_threads,
             "seed": self.seed,
             "normal_samples": int(len(paired.normal)),
             "abnormal_samples": int(len(paired.abnormal)),

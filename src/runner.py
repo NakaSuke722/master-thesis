@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import argparse
+import json
 import os
 import shlex
 import sys
@@ -15,10 +16,36 @@ from experiments.config import (
     load_config,
     resolve_granularity,
 )
+from experiments.paths import case_result_dir
 from main import run_experiment
 from utils.slack_notify import (
     maybe_notify_slack,
 )
+
+
+def _is_completed_case_result(
+    path,
+    *,
+    config: dict,
+    granularity: str,
+    case,
+) -> bool:
+    """Accept only a readable result matching this experiment and case."""
+    if not path.is_file():
+        return False
+    try:
+        with path.open("r", encoding="utf-8") as file:
+            result = json.load(file)
+    except (OSError, json.JSONDecodeError):
+        return False
+    return (
+        result.get("case_id") == case.case_id
+        and result.get("model_used") == config["model"]["target"]
+        and result.get("experiment_name")
+        == config.get("experiment", {}).get("name")
+        and result.get("evaluation_granularity") == granularity
+        and isinstance(result.get("metrics"), dict)
+    )
 
 
 def _run_benchmark_case(
@@ -46,6 +73,7 @@ def run_benchmark(
     config_path: str,
     granularity: str,
     workers: int = 1,
+    resume: bool = False,
 ) -> list[str]:
 
     if workers <= 0:
@@ -75,6 +103,7 @@ def run_benchmark(
     )
 
     tasks: list[tuple[dict[str, Any], str, str, Any, int, int]] = []
+    existing: list[str] = []
 
     for dataset in datasets:
 
@@ -97,25 +126,41 @@ def run_benchmark(
 
         total = len(cases)
 
-        tasks.extend(
-            (
-                config,
-                config_path,
-                granularity,
-                case,
-                progress,
-                total,
+        skipped = 0
+        for progress, case in enumerate(cases, start=1):
+            output_file = (
+                case_result_dir(config, granularity, dataset)
+                / f"{case.case_id}.json"
             )
-            for progress, case in enumerate(
-                cases,
-                start=1,
+            if resume and _is_completed_case_result(
+                output_file,
+                config=config,
+                granularity=granularity,
+                case=case,
+            ):
+                existing.append(str(output_file))
+                skipped += 1
+                continue
+            tasks.append(
+                (
+                    config,
+                    config_path,
+                    granularity,
+                    case,
+                    progress,
+                    total,
+                )
             )
-        )
+        if skipped:
+            print(
+                f"Resume: skipped {skipped}/{total} existing cases "
+                f"for {dataset}"
+            )
 
     if workers == 1:
-        return [_run_benchmark_case(task) for task in tasks]
+        return existing + [_run_benchmark_case(task) for task in tasks]
     with ProcessPoolExecutor(max_workers=workers) as executor:
-        return list(executor.map(_run_benchmark_case, tasks))
+        return existing + list(executor.map(_run_benchmark_case, tasks))
 
 
 def run_legacy(
@@ -220,6 +265,7 @@ def run_all(
     config_path: str,
     granularity: str,
     workers: int = 1,
+    resume: bool = False,
 ) -> list[str]:
 
     if config.get(
@@ -231,6 +277,7 @@ def run_all(
             config_path,
             granularity,
             workers,
+            resume,
         )
 
     return run_legacy(
@@ -277,6 +324,12 @@ def main() -> None:
         help="Number of independent benchmark cases to run in parallel.",
     )
 
+    parser.add_argument(
+        "--resume",
+        action="store_true",
+        help="Skip benchmark case result files that already exist.",
+    )
+
     args = parser.parse_args()
     
     config = load_config(
@@ -318,6 +371,7 @@ def main() -> None:
             config_path=args.config,
             granularity=granularity,
             workers=args.workers,
+            resume=args.resume,
         )
 
     except KeyboardInterrupt:

@@ -43,3 +43,11 @@ def test_run_training_is_known_onset_and_normal_only():
     config = load_config(PROJECT_ROOT / "configs/baselines/run.yaml")
     assert config["model"]["params"]["training_scope"] == "normal_only"
     assert config["model"]["params"]["device"] == "cpu"
+
+
+def test_circa_declares_tractable_pc_adapter_rules():
+    config = load_config(PROJECT_ROOT / "configs/baselines/circa.yaml")
+    params = config["model"]["params"]
+    assert params["pc_redundancy_threshold"] == 0.999999999999
+    assert params["pc_max_conditioning_set"] == 1
+    assert params["pc_max_metrics"] == 60

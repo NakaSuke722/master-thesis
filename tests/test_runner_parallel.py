@@ -1,3 +1,5 @@
+import json
+
 import pytest
 
 from benchmarks.base import BenchmarkCase
@@ -8,7 +10,8 @@ def _config():
     return {
         "benchmark": {"name": "synthetic"},
         "datasets": ["dataset-a"],
-        "model": {"preprocess_strategy": "default"},
+        "experiment": {"name": "experiment"},
+        "model": {"target": "model", "preprocess_strategy": "default"},
         "paths": {"processed_data_dir": "processed"},
     }
 
@@ -86,3 +89,47 @@ def test_run_benchmark_parallel_uses_requested_worker_count(monkeypatch):
 def test_run_benchmark_rejects_non_positive_workers():
     with pytest.raises(ValueError, match="workers must be positive"):
         runner.run_benchmark(_config(), "config.yaml", "service", workers=0)
+
+
+def test_run_benchmark_resume_skips_existing_case(monkeypatch, tmp_path):
+    calls = []
+    cases = _cases()
+    monkeypatch.setattr(
+        runner, "list_benchmark_processed_cases", lambda **kwargs: cases
+    )
+    monkeypatch.setattr(
+        runner,
+        "case_result_dir",
+        lambda *args, **kwargs: tmp_path,
+    )
+    (tmp_path / "case-1.json").write_text(
+        json.dumps(
+            {
+                "case_id": "case-1",
+                "model_used": "model",
+                "experiment_name": "experiment",
+                "evaluation_granularity": "service",
+                "metrics": {"AC@1": 1},
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    def fake_run_experiment(**kwargs):
+        calls.append(kwargs["benchmark_case"].case_id)
+        return {}, str(tmp_path / f"{kwargs['benchmark_case'].case_id}.json")
+
+    monkeypatch.setattr(runner, "run_experiment", fake_run_experiment)
+    generated = runner.run_benchmark(
+        _config(),
+        "config.yaml",
+        "service",
+        workers=1,
+        resume=True,
+    )
+    assert calls == ["case-0", "case-2"]
+    assert generated == [
+        str(tmp_path / "case-1.json"),
+        str(tmp_path / "case-0.json"),
+        str(tmp_path / "case-2.json"),
+    ]

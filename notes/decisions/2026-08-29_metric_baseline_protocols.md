@@ -55,6 +55,11 @@
 - RCAEvalにはCIRCAが本来要求する運用上の構造グラフがないため、RCAEval adapterと同様、
   全case時系列からPCでmetric graphを学習する
 - PCは`alpha=0.05`、stable skeleton discoveryを用いる
+- RE1-SSのような高次元caseではfull PCが特異行列か計算量爆発で停止するため、
+  数値的重複（絶対相関0.999999999999以上）をPC入力から除外する
+- PC入力はserviceをround-robinして最大60 metricsとし、条件集合の最大次数を1に固定する。
+  選択にGTや異常スコアは使わない
+- PC入力から外れたmetricも候補から削除せず、親なしRHTで順位付けする
 - graphの各nodeを親metricで線形回帰し、正常時の回帰残差に対する異常時残差の
   最大絶対z-score（RHT）で順位付けする
 - RCAEval adapterと同じ`lookup_window=120`、`detect_window=10`、
@@ -117,7 +122,7 @@ venv/bin/python -m pip install -r requirements-baselines.txt
 
 - `results/baselines/rcaeval_re1/epsilon_diagnosis_known_onset/`
 - `results/baselines/rcaeval_re1/rcd_localized_known_onset/`
-- `results/baselines/rcaeval_re1/circa_pc_rht/`
+- `results/baselines/rcaeval_re1/circa_stratified_adaptive_pc_rht/`
 - `results/baselines/rcaeval_re1/run_neural_granger_known_onset/`
 
 ## 結果取得後の次アクション

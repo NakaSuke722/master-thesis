@@ -2,7 +2,7 @@ benchmark:
   name: "rcaeval_re1"
 experiment:
   category: "baselines"
-  name: "circa_pc_rht"
+  name: "circa_stratified_adaptive_pc_rht"
 data:
   source:
     provider: "Zenodo"
@@ -15,12 +15,21 @@ model:
   target: "circa"
   preprocess_strategy: "default"
   params:
-    protocol: "rcaeval_pc_graph_circa_rht"
+    protocol: "rcaeval_stratified_adaptive_pc_graph_circa_rht"
     pc_alpha: 0.05
     stable: true
     lookup_window: 120
     detect_window: 10
     score_time_offset: 300
+    # Fisher-Z requires invertible correlation submatrices. Remove only
+    # numerical duplicates from PC input; they remain RHT candidates.
+    pc_redundancy_threshold: 0.999999999999
+    # Full PC is intractable for the 275-metric RE1-SS cases. Use the
+    # standard PC-stable skeleton through conditioning order one.
+    pc_max_conditioning_set: 1
+    # Select without GT/anomaly scores and retain service coverage. Metrics
+    # outside the graph are still ranked by CIRCA's parentless RHT path.
+    pc_max_metrics: 60
     graph_learning_scope: "normal_and_abnormal"
     source_repository: "https://github.com/NetManAIOps/CIRCA"
     source_commit: "0215e1880096aa02a305c697f1c23cac4600ebd2"

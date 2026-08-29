@@ -64,6 +64,7 @@ for CONFIG in "${CONFIGS[@]}"; do
     "${PYTHON_BIN}" src/runner.py \
         --config "${CONFIG}" \
         --workers "${WORKERS}" \
+        --resume \
         --defer-success-notification
     END_TIME=$(date +%s)
     ELAPSED_TIME=$((END_TIME - START_TIME))

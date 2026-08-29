@@ -320,6 +320,13 @@ def run_experiment(
                 lookup_window=int(params.get("lookup_window", 120)),
                 detect_window=int(params.get("detect_window", 10)),
                 score_time_offset=int(params.get("score_time_offset", 300)),
+                pc_redundancy_threshold=float(
+                    params.get("pc_redundancy_threshold", 1 - 1e-12)
+                ),
+                pc_max_conditioning_set=int(
+                    params.get("pc_max_conditioning_set", 1)
+                ),
+                pc_max_metrics=int(params.get("pc_max_metrics", 60)),
             )
         else:
             from models.baselines.run import RUNScorer
@@ -335,6 +342,7 @@ def run_experiment(
                 learning_rate=float(params.get("learning_rate", 0.001)),
                 batch_size=int(params.get("batch_size", 128)),
                 device=params.get("device", "cpu"),
+                torch_num_threads=int(params.get("torch_num_threads", 1)),
                 seed=int(params.get("seed", current_seed)),
             )
 

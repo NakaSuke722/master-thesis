@@ -67,9 +67,13 @@ class EpsilonDiagnosisScorer:
         upper = np.triu_indices(n.shape[1], k=1)
         bootstrap_thresholds = []
         for bootstrap in range(self.bootstrap_time):
-            correlations = np.atleast_2d(
-                np.corrcoef(sampled[:, :, bootstrap], rowvar=False)
-            )
+            # A bootstrap draw can be constant even when its source metric is
+            # not. np.corrcoef then emits a benign divide warning and returns
+            # NaN; NaN is deliberately mapped to zero immediately below.
+            with np.errstate(divide="ignore", invalid="ignore"):
+                correlations = np.atleast_2d(
+                    np.corrcoef(sampled[:, :, bootstrap], rowvar=False)
+                )
             squared_pairs = np.nan_to_num(
                 correlations[upper] ** 2,
                 nan=0.0,
