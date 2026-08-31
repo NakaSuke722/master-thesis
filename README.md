@@ -123,18 +123,36 @@ bash scripts/run_ablation.sh
 ### 比較手法
 
 ```bash
-bash scripts/run_baselines.sh
+./scripts/run_baselines.sh
 ```
 
-現在の比較手法は BARO RobustScorer です。上記のデフォルト実行は
-`configs/baselines/baro.yaml` を使い、RCAEval RE1 Zenodo v2 の375ケースを
-service-level で評価します。並列数を指定する場合は次の通りです。
+デフォルトは ε-Diagnosis、RCD、CIRCA、RUN を順に実行します。
+RCAEval RE1 Zenodo v2 の375ケースをservice-levelで評価します。
+各手法の既存case結果は `--resume` で確認し、未完了caseだけを実行します。
+手法とcase並列数を指定する場合は次の通りです。
 
 ```bash
-bash scripts/run_baselines.sh service configs/baselines/baro.yaml 4
+./scripts/run_baselines.sh --run 4
+./scripts/run_baselines.sh --circa 1
+./scripts/run_baselines.sh --baro 4
 ```
 
-この実験名は `baro_robust_scorer_known_onset`、モデル識別子は
+RUNの推論が完了し、集計だけをやり直す場合は次を使います。
+このオプションではモデルを起動せず、大容量の診断情報も集計対象から除外します。
+
+```bash
+./scripts/run_baselines.sh --run --aggregate-only
+```
+
+前処理済みのcase ID一覧と保存結果を照合し、不足していればsummaryを書き換えず停止します。
+成功時の出力先は
+`results/baselines/rcaeval_re1/run_neural_granger_known_onset/summary_service.json` です。
+各行の `Case 125/125, saved` はcase番号とその保存完了を示します。
+並列実行では全caseの完了を意味せず、`Inference finished` の後に集計へ進みます。
+既存summaryがなければ実験全体のwall-clock時間は復元できず、既存仕様に従って
+`total_execution_time_sec`にはcase実行時間の合計を使います（並列実行の経過時間ではありません）。
+
+BAROの実験名は `baro_robust_scorer_known_onset`、モデル識別子は
 `baro_robust_scorer` です。`data/raw/baro` に置く旧BARO pilotデータセットとは
 別物です。ここではAMBERと条件を揃えるため障害開始時刻を既知とし、
 Multivariate BOCPDを含むend-to-end BAROではなく、公式RCAEval実装と同じ

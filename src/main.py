@@ -644,11 +644,6 @@ def run_experiment(
         )
         progress = progress_map.get((fault, run))
 
-    if progress is not None and total_progress:
-        print(f" {dataset} - {fault} (Run {run}, Progress {progress}/{total_progress}) : {execution_time} sec")
-    else:
-        print(f" {dataset} - {fault} (Run {run}) : {execution_time} sec")
-
     if not batch:
         print(f"\n===== Evaluation Summary (Metrics for {dataset} | Model: {target_model}) =====")
         for k in k_values:
@@ -784,6 +779,17 @@ def run_experiment(
 
     with output_file.open("w", encoding="utf-8") as f:
         json.dump(results, f, indent=4, ensure_ascii=False, )
+
+    # The case index is not a completion count when workers finish out of order.
+    # Report only after the potentially large diagnostics have been saved.
+    if progress is not None and total_progress:
+        print(
+            f" {dataset} - {fault} (Run {run}, Case {progress}/{total_progress}, saved)"
+            f" : {execution_time} sec",
+            flush=True,
+        )
+    else:
+        print(f" {dataset} - {fault} (Run {run}, saved) : {execution_time} sec", flush=True)
 
     return results, str(output_file)
 

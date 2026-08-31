@@ -4,6 +4,8 @@ from __future__ import annotations
 
 import argparse
 import json
+import re
+import time
 from collections import defaultdict
 from pathlib import Path
 
@@ -17,12 +19,20 @@ from experiments.paths import (
 )
 
 
-_DIAGNOSTICS_MARKER = b'\n    "amber_diagnostics":'
+_DIAGNOSTICS_MARKER = re.compile(
+    rb'\n    "(?:amber|baro_robust_scorer|epsilon_diagnosis|rcd|circa|run)_diagnostics":'
+)
 _MAX_HEADER_BYTES = 4 * 1024 * 1024
 
 
 def load_result_for_aggregation(filepath: Path) -> dict:
-    """Read only the result header when large diagnostics are the last field."""
+    """Read the header of main.py's indent=4, trailing-diagnostics format.
+
+    In particular, RUN's quadratic attention table is not needed to average
+    case metrics. This is a projection, not full diagnostic JSON validation;
+    do not use it to decide whether an interrupted inference can be skipped.
+    Other JSON layouts retain the complete-read fallback.
+    """
     prefix = bytearray()
 
     with filepath.open("rb") as file:
@@ -32,12 +42,23 @@ def load_result_for_aggregation(filepath: Path) -> dict:
                 return json.loads(prefix.decode("utf-8"))
 
             prefix.extend(chunk)
-            marker_index = prefix.find(_DIAGNOSTICS_MARKER)
-            if marker_index >= 0:
-                header = bytes(prefix[:marker_index]).rstrip()
+            marker = _DIAGNOSTICS_MARKER.search(prefix)
+            if marker is not None:
+                header = bytes(prefix[:marker.start()]).rstrip()
                 if header.endswith(b","):
                     header = header[:-1]
-                return json.loads((header + b"\n}").decode("utf-8"))
+                # A partially written diagnostic object must not be accepted
+                # just because its evaluation header is already available.
+                file.seek(0, 2)
+                file.seek(max(0, file.tell() - 1024))
+                tail = file.read().rstrip()
+                if not tail.endswith(b"\n    }\n}"):
+                    break
+                try:
+                    return json.loads((header + b"\n}").decode("utf-8"))
+                except json.JSONDecodeError:
+                    # A similarly indented nested key is not a result header.
+                    break
 
     # Older or differently formatted result files may not place diagnostics
     # last. Preserve compatibility by falling back to a complete JSON read.
@@ -49,6 +70,9 @@ def aggregate_config(
     config: dict,
     granularity: str,
     total_time: float = 0.0,
+    *,
+    require_complete: bool = False,
+    progress: bool = False,
 ) -> dict:
     """1実験の結果を読み込み、集計結果を返す。"""
 
@@ -93,14 +117,36 @@ def aggregate_config(
 
     number_of_cases = 0
     pure_execution_time = 0.0
+    expected_cases = {}
+    if require_complete:
+        from data_loader import list_benchmark_processed_cases
+
+        benchmark = config.get("benchmark", {}).get("name")
+        if not benchmark:
+            raise ValueError("--require-complete requires a benchmark config")
+        for dataset in target_datasets:
+            cases = list_benchmark_processed_cases(
+                benchmark=benchmark,
+                dataset=dataset,
+                strategy=config["model"].get("preprocess_strategy", "default"),
+                processed_root=config.get("paths", {}).get(
+                    "processed_data_dir", "data/processed"
+                ),
+            )
+            expected_cases[dataset] = {case.case_id for case in cases}
+            if not cases or len(expected_cases[dataset]) != len(cases):
+                raise ValueError(f"Missing or duplicate processed case IDs: {dataset}")
+    incomplete = []
 
     for dataset in target_datasets:
         dataset_dir = (
             results_root / dataset
         )
 
-        if not dataset_dir.is_dir():
-            continue
+        matched_cases = set()
+        dataset_count = 0
+        if progress:
+            print(f"Aggregating {dataset}: {dataset_dir}", flush=True)
 
         for filepath in sorted(
             dataset_dir.glob("*.json")
@@ -143,6 +189,25 @@ def aggregate_config(
             ):
                 continue
 
+            if require_complete:
+                case_id = data.get("case_id")
+                if (
+                    data.get("dataset") != dataset
+                    or case_id != filepath.stem
+                    or case_id not in expected_cases[dataset]
+                    or case_id in matched_cases
+                ):
+                    raise ValueError(f"Unexpected or duplicate case identity: {filepath}")
+                required_metrics = {
+                    f"{metric}@{k}"
+                    for k in config.get("evaluation", {}).get("k_values", [1, 3, 5])
+                    for metric in ("AC", "Avg")
+                }
+                if not required_metrics.issubset(data.get("metrics", {})):
+                    raise ValueError(f"Missing evaluation metrics: {filepath}")
+                matched_cases.add(case_id)
+
+            dataset_count += 1
             number_of_cases += 1
 
             pure_execution_time += (
@@ -162,6 +227,22 @@ def aggregate_config(
                 ][metric_name].append(
                     value
                 )
+
+        if progress:
+            expected = f"/{len(expected_cases[dataset])}" if require_complete else ""
+            print(f"  {dataset}: {dataset_count}{expected} matching cases", flush=True)
+        if require_complete:
+            missing = expected_cases[dataset] - matched_cases
+            if missing:
+                incomplete.append(
+                    f"{dataset}: {len(matched_cases)}/{len(expected_cases[dataset])} "
+                    f"saved; missing {len(missing)} (e.g. {', '.join(sorted(missing)[:3])})"
+                )
+
+    if incomplete:
+        raise ValueError(
+            "Incomplete benchmark results; summary not written. " + "; ".join(incomplete)
+        )
 
     if number_of_cases == 0:
         raise FileNotFoundError(
@@ -317,6 +398,11 @@ def main() -> None:
         type=float,
         default=0.0,
     )
+    parser.add_argument(
+        "--require-complete",
+        action="store_true",
+        help="Require every processed benchmark case before writing a summary (no inference).",
+    )
 
     args = parser.parse_args()
 
@@ -332,10 +418,11 @@ def main() -> None:
 
     granularity = granularities[0]
     summaries = {}
+    aggregation_start = time.perf_counter()
 
     for config in configs:
         summary = None
-        if len(configs) > 1:
+        if len(configs) > 1 and not args.require_complete:
             summary = load_recorded_summary(
                 config,
                 granularity,
@@ -350,10 +437,18 @@ def main() -> None:
                     granularity,
                 )
             )
+            if len(configs) == 1 and total_time <= 0:
+                previous = load_recorded_summary(config, granularity)
+                if previous is not None:
+                    # Re-aggregation must not replace a recorded run duration
+                    # with the sum of parallel case durations.
+                    total_time = float(previous.get("total_execution_time_sec", 0.0))
             summary = aggregate_config(
                 config,
                 granularity,
                 total_time,
+                require_complete=args.require_complete,
+                progress=True,
             )
         summaries[summary["experiment_name"]] = summary
 
@@ -441,6 +536,11 @@ def main() -> None:
         print(json.dumps(table_summary, indent=4, ensure_ascii=False))
 
     write_summary(output_file, output)
+    print(
+        f"Summary saved: {output_file} "
+        f"(aggregation {time.perf_counter() - aggregation_start:.2f} sec)",
+        flush=True,
+    )
 
 
 if __name__ == "__main__":

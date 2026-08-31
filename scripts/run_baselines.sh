@@ -16,7 +16,21 @@ else
 fi
 
 SELECTOR="${1:---all}"
-WORKERS="${2:-${AMBER_WORKERS:-1}}"
+WORKERS="${AMBER_WORKERS:-1}"
+AGGREGATE_ONLY=0
+if (( $# > 0 )); then shift; fi
+if (( $# > 0 )) && [[ "$1" != --aggregate-only ]]; then
+    WORKERS="$1"
+    shift
+fi
+if (( $# > 0 )) && [[ "$1" == --aggregate-only ]]; then
+    AGGREGATE_ONLY=1
+    shift
+fi
+if (( $# > 0 )); then
+    echo "Unexpected argument: $1" >&2
+    exit 2
+fi
 
 if [[ ! "${WORKERS}" =~ '^[1-9][0-9]*$' ]]; then
     echo "workers must be a positive integer: ${WORKERS}" >&2
@@ -48,7 +62,7 @@ case "${SELECTOR}" in
         CONFIGS=(configs/baselines/baro.yaml)
         ;;
     *)
-        echo "Usage: $0 [--all|--epsilon-diagnosis|--rcd|--circa|--run|--baro] [workers]" >&2
+        echo "Usage: $0 [--all|--epsilon-diagnosis|--rcd|--circa|--run|--baro] [workers] [--aggregate-only]" >&2
         exit 2
         ;;
 esac
@@ -58,8 +72,18 @@ export PYTHONPATH="${PROJECT_ROOT}/src${PYTHONPATH:+:${PYTHONPATH}}"
 for CONFIG in "${CONFIGS[@]}"; do
     echo
     echo "========================================"
-    echo "Running baseline: ${CONFIG}"
+    if (( AGGREGATE_ONLY )); then
+        echo "Aggregating saved results only (no inference): ${CONFIG}"
+    else
+        echo "Running baseline: ${CONFIG}"
+    fi
     echo "========================================"
+    if (( AGGREGATE_ONLY )); then
+        "${PYTHON_BIN}" src/aggregate_results.py \
+            --config "${CONFIG}" \
+            --require-complete
+        continue
+    fi
     START_TIME=$(date +%s)
     "${PYTHON_BIN}" src/runner.py \
         --config "${CONFIG}" \
@@ -68,7 +92,9 @@ for CONFIG in "${CONFIGS[@]}"; do
         --defer-success-notification
     END_TIME=$(date +%s)
     ELAPSED_TIME=$((END_TIME - START_TIME))
+    echo "Inference finished; aggregating saved case results."
     "${PYTHON_BIN}" src/aggregate_results.py \
         --config "${CONFIG}" \
+        --require-complete \
         --total-time "${ELAPSED_TIME}"
 done
