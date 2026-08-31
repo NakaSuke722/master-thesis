@@ -343,6 +343,7 @@ def run_experiment(
                 batch_size=int(params.get("batch_size", 128)),
                 device=params.get("device", "cpu"),
                 torch_num_threads=int(params.get("torch_num_threads", 1)),
+                execution_backend=params.get("execution_backend", "vectorized"),
                 seed=int(params.get("seed", current_seed)),
             )
 

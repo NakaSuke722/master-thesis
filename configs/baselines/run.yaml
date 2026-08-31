@@ -25,6 +25,8 @@ model:
     learning_rate: 0.001
     batch_size: 128
     device: "cpu"
+    execution_backend: "vectorized"
+    torch_num_threads: 1
     seed: 42
     source_repository: "https://github.com/zmlin1998/RUN"
     source_commit: "e2c97d7b5796455a1acbd66ab10c5bbb88eaccc8"

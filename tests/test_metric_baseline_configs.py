@@ -43,6 +43,8 @@ def test_run_training_is_known_onset_and_normal_only():
     config = load_config(PROJECT_ROOT / "configs/baselines/run.yaml")
     assert config["model"]["params"]["training_scope"] == "normal_only"
     assert config["model"]["params"]["device"] == "cpu"
+    assert config["model"]["params"]["execution_backend"] == "vectorized"
+    assert config["model"]["params"]["torch_num_threads"] == 1
 
 
 def test_circa_declares_tractable_pc_adapter_rules():

@@ -152,6 +152,23 @@ RUNの推論が完了し、集計だけをやり直す場合は次を使いま�
 既存summaryがなければ実験全体のwall-clock時間は復元できず、既存仕様に従って
 `total_execution_time_sec`にはcase実行時間の合計を使います（並列実行の経過時間ではありません）。
 
+RUNは`configs/baselines/run.yaml`の`model.params.execution_backend: vectorized`で
+入力metricごとの独立したDLinear層をまとめて計算します。epoch数・hidden size・
+入力metric数・targetごとに別モデルを学習する条件は削減しません。
+`reference`にすると元の層ループで学習できます（循環除去はどちらも同値な高速版）。
+新規結果の`run_diagnostics`にbackendと学習・循環除去の時間を記録します。
+起動済みプロセスへコード変更は反映されないため、一度停止してから再開してください。
+
+長い正式実験に入る前に、1ケースの少数targetだけで速度と同等性を確認できます。
+これは正式case結果を上書きしません。
+
+```bash
+PYTHONPATH=src:. venv/bin/python scripts/benchmark_run_optimization.py --dataset re1_tt --targets 3
+```
+
+CPUではTTの学習自体が重く、case並列数を増やしても1ケースの仕事量は減りません。
+メモリ16 GBの環境ではまず`--workers 2`でメモリ使用量を確認してください。
+
 BAROの実験名は `baro_robust_scorer_known_onset`、モデル識別子は
 `baro_robust_scorer` です。`data/raw/baro` に置く旧BARO pilotデータセットとは
 別物です。ここではAMBERと条件を揃えるため障害開始時刻を既知とし、

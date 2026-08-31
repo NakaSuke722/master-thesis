@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import random
+import time
 
 import networkx as nx
 import numpy as np
@@ -143,11 +144,97 @@ def _temporal_contrastive_loss(left, right):
     length = left.shape[1]
     if length <= 1:
         return left.new_tensor(0.0)
+    # Keep the reference GEMM shape, even though only one block is consumed.
+    # Reducing the GEMM to left @ right.T changes float32 accumulation on TT
+    # enough to perturb nearly tied attention scores after training.
     joined = torch.cat([left, right], dim=1)
     similarities = joined @ joined.transpose(1, 2)
     return -functional.log_softmax(
         similarities[:, :length, length:], dim=-1
     ).mean()
+
+
+def _pack_dlinear(reference):
+    """Batch independent channel layers without sharing any parameters.
+
+    Copy the reference initialization, including its RNG draw order. Adam
+    remains elementwise, with identical step counts within each channel bank.
+    Floating-point reductions can differ slightly from separate Linear calls.
+    """
+    torch, nn, functional = _torch_modules()
+
+    class ChannelLinear(nn.Module):
+        def __init__(self, layers):
+            super().__init__()
+            self.weight = nn.Parameter(torch.stack([layer.weight.detach() for layer in layers]))
+            self.bias = nn.Parameter(torch.stack([layer.bias.detach() for layer in layers]))
+
+        def forward(self, x):
+            # channels x batch x inputs; no cross-channel weight sharing.
+            return torch.baddbmm(self.bias[:, None, :], x, self.weight.transpose(1, 2))
+
+    class ChannelProjector(nn.Module):
+        def __init__(self, layers):
+            super().__init__()
+            self.first = ChannelLinear([layer[0] for layer in layers])
+            self.slope = nn.Parameter(torch.stack([layer[1].weight.detach() for layer in layers]))
+            self.second = ChannelLinear([layer[2] for layer in layers])
+
+        def forward(self, x):
+            x = self.first(x)
+            # PReLU's channel dimension is now the bank dimension.
+            x = functional.prelu(x.transpose(0, 1), self.slope.flatten()).transpose(0, 1)
+            return self.second(x)
+
+    class PackedDLinear(nn.Module):
+        def __init__(self, original):
+            super().__init__()
+            self.attention = original.attention
+            self.seasonal_encoder = ChannelLinear(original.seasonal_encoder)
+            self.trend_encoder = ChannelLinear(original.trend_encoder)
+            self.seasonal_decoder = ChannelLinear(original.seasonal_decoder)
+            self.trend_decoder = ChannelLinear(original.trend_decoder)
+            self.seasonal_projector = ChannelProjector(original.seasonal_projector)
+            self.trend_projector = ChannelProjector(original.trend_projector)
+            self.seasonal_output = original.seasonal_output
+            self.trend_output = original.trend_output
+            self.decompose = original.decompose
+
+        def encode(self, x, *, project: bool):
+            seasonal, trend = self.decompose(x)
+            seasonal = self.seasonal_encoder(seasonal.transpose(0, 1))
+            trend = self.trend_encoder(trend.transpose(0, 1))
+            if project:
+                seasonal = self.seasonal_projector(seasonal)
+                trend = self.trend_projector(trend)
+            return (seasonal + trend).permute(1, 2, 0)
+
+        def contrastive_views(self, x):
+            # The unprojected teacher uses the very same encoder weights and
+            # inputs, with no stochastic layers. Reuse its value, not gradients.
+            seasonal, trend = self.decompose(x)
+            seasonal = self.seasonal_encoder(seasonal.transpose(0, 1))
+            trend = self.trend_encoder(trend.transpose(0, 1))
+            encoded = (seasonal + trend).permute(1, 2, 0).detach()
+            projected = (
+                self.seasonal_projector(seasonal) + self.trend_projector(trend)
+            ).permute(1, 2, 0)
+            return projected, encoded
+
+        def forward(self, x):
+            seasonal, trend = self.decompose(x)
+            weights = functional.softmax(self.attention, dim=0)[:, None, :]
+            seasonal = self.seasonal_decoder(
+                self.seasonal_encoder(seasonal.transpose(0, 1)) * weights
+            )
+            trend = self.trend_decoder(
+                self.trend_encoder(trend.transpose(0, 1)) * weights
+            )
+            seasonal = seasonal.transpose(0, 1).reshape(len(x), -1)
+            trend = trend.transpose(0, 1).reshape(len(x), -1)
+            return self.seasonal_output(seasonal) + self.trend_output(trend)
+
+    return PackedDLinear(reference)
 
 
 def _hierarchical_contrastive_loss(left, right):
@@ -187,6 +274,7 @@ class RUNScorer:
         batch_size: int = 128,
         device: str = "cpu",
         torch_num_threads: int = 1,
+        execution_backend: str = "vectorized",
         seed: int = 42,
     ) -> None:
         if seq_len < 2:
@@ -199,6 +287,8 @@ class RUNScorer:
             raise ValueError("hidden_size and batch_size must be positive")
         if torch_num_threads <= 0:
             raise ValueError("torch_num_threads must be positive")
+        if execution_backend not in {"reference", "vectorized"}:
+            raise ValueError("execution_backend must be reference or vectorized")
         if min(pretrain_epochs, epochs) < 0:
             raise ValueError("epoch counts cannot be negative")
         self.seq_len = int(seq_len)
@@ -210,6 +300,7 @@ class RUNScorer:
         self.batch_size = int(batch_size)
         self.device = device
         self.torch_num_threads = int(torch_num_threads)
+        self.execution_backend = execution_backend
         self.seed = int(seed)
         self.metric_scores_: pd.DataFrame | None = None
         self.diagnostics_: dict | None = None
@@ -246,7 +337,10 @@ class RUNScorer:
             self.hidden_size,
             x.shape[2],
             self.moving_average_kernel,
-        ).to(device)
+        )
+        if self.execution_backend == "vectorized":
+            model = _pack_dlinear(model)
+        model = model.to(device)
         optimizer = torch.optim.Adam(model.parameters(), lr=self.learning_rate)
         generator = torch.Generator().manual_seed(self.seed + target)
 
@@ -256,12 +350,27 @@ class RUNScorer:
             ):
                 batch = x[indices].to(device)
                 optimizer.zero_grad()
-                projected = model.encode(batch, project=True)
-                with torch.no_grad():
-                    encoded = model.encode(batch, project=False)
+                if self.execution_backend == "vectorized":
+                    projected, encoded = model.contrastive_views(batch)
+                else:
+                    projected = model.encode(batch, project=True)
+                    with torch.no_grad():
+                        encoded = model.encode(batch, project=False)
                 loss = _hierarchical_contrastive_loss(projected, encoded)
                 loss.backward()
                 optimizer.step()
+                del projected, encoded, loss
+
+        if self.execution_backend == "vectorized":
+            # Projectors are never read in forecasting. Free their parameters
+            # and Adam moments without resetting the encoders' optimizer state.
+            unused = set(model.seasonal_projector.parameters()) | set(model.trend_projector.parameters())
+            for group in optimizer.param_groups:
+                group["params"] = [p for p in group["params"] if p not in unused]
+            for parameter in unused:
+                optimizer.state.pop(parameter, None)
+            del model.seasonal_projector, model.trend_projector
+            del unused, parameter
 
         for _ in range(self.epochs):
             for indices in torch.randperm(len(x), generator=generator).split(
@@ -298,18 +407,29 @@ class RUNScorer:
 
     @staticmethod
     def _prune_cycles(graph: nx.DiGraph, data: pd.DataFrame) -> int:
-        removed = 0
-        while not nx.is_directed_acyclic_graph(graph):
-            edges = list(graph.edges)
-            if not edges:
-                break
-            correlations = []
-            for source, target in edges:
-                value = data[source].corr(data[target])
-                correlations.append(float(value) if np.isfinite(value) else 0.0)
-            graph.remove_edge(*edges[int(np.argmin(correlations))])
-            removed += 1
-        return removed
+        if nx.is_directed_acyclic_graph(graph):
+            return 0
+        # Correlation never changes as edges are removed. Stable sorting keeps
+        # the original edge iteration order for ties, just as repeated argmin.
+        edges = list(graph.edges)
+        correlations = []
+        for source, target in edges:
+            value = data[source].corr(data[target])
+            correlations.append(float(value) if np.isfinite(value) else 0.0)
+        ordered = [edges[index] for index in np.argsort(correlations, kind="stable")]
+        # Deleting a larger prefix cannot introduce a cycle. Find exactly the
+        # first acyclic prefix length, not a different cycle-removal heuristic.
+        lower, upper = 1, len(ordered)
+        while lower < upper:
+            middle = (lower + upper) // 2
+            candidate = graph.copy()
+            candidate.remove_edges_from(ordered[:middle])
+            if nx.is_directed_acyclic_graph(candidate):
+                upper = middle
+            else:
+                lower = middle + 1
+        graph.remove_edges_from(ordered[:lower])
+        return lower
 
     def score_metrics(
         self,
@@ -334,6 +454,7 @@ class RUNScorer:
         graph = nx.DiGraph()
         graph.add_nodes_from(columns)
         attention_by_target: dict[str, dict[str, float]] = {}
+        training_start = time.perf_counter()
         for target, target_name in enumerate(columns):
             attention = self._fit_target(x, y, target, device)
             attention_by_target[target_name] = {
@@ -346,7 +467,10 @@ class RUNScorer:
         combined = pd.concat(
             [paired.normal, paired.abnormal], ignore_index=True
         )
+        training_seconds = time.perf_counter() - training_start
+        pruning_start = time.perf_counter()
         removed_edges = self._prune_cycles(graph, combined)
+        pruning_seconds = time.perf_counter() - pruning_start
         sinks = {node for node, degree in graph.out_degree if degree == 0}
         personalization = {
             node: 1.0 if node in sinks else 0.5 for node in graph.nodes
@@ -367,6 +491,11 @@ class RUNScorer:
             "batch_size": self.batch_size,
             "device": str(device),
             "torch_num_threads": self.torch_num_threads,
+            "execution_backend": self.execution_backend,
+            "stage_time_sec": {
+                "target_training_and_graph_building": training_seconds,
+                "cycle_pruning": pruning_seconds,
+            },
             "seed": self.seed,
             "normal_samples": int(len(paired.normal)),
             "abnormal_samples": int(len(paired.abnormal)),
