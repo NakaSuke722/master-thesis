@@ -1,81 +1,77 @@
-% reportクラスだが本文はsectionを最大単位にしているため、付録もsectionで採番する。
+% 本文はsectionを最大単位にしているため、付録もsectionで採番する。
 \appendix
 \setcounter{section}{0}
 \renewcommand{\thesection}{\Alph{section}}
 
-\section{補足資料の配置計画}
+\section{本文を補う資料}
 \label{sec:appendix}
 \begin{itemize}
-    \item \textbf{数理：} NIG周辺尤度の導出，AR再帰・予測分散，定常性projectionの詳細．本文の記号を再利用する．
-    \item \textbf{実装・再現：} 正常定数列と8 ULPガード，スケール下限，候補・同点処理，設定・実行コマンド・版情報．本文には必要な仮定だけを残す．
-    \item \textbf{補足実験：} 次数・半径の全条件表，障害種別の詳細，BSRC-AR等の負の結果．正式・探索的・部分ケース実験を分離する．
+    \item 数式の詳しい導出，実験の設定一覧，障害の種類ごとの詳しい結果を置く．本文は研究の問いと答えの流れを追える長さに保つ．
+    \item 採用しなかった案は，本文の議論を支えるものだけを補足する．開発履歴をすべて並べる必要はない．
 \end{itemize}
 
-\section{根拠ファイル対応表（draft0用）}
-\label{sec:evidence}
-\noindent パスはrepoルートからの相対表記．研究状態の確認日：2026年9月1日．
-数値は将来の本文記入時にJSON・完全順位・設定の同一性を再確認する．この対応表は執筆管理用で，提出稿では再現性資料へ整理する．
-\begingroup
-\small
-\raggedright
-\begin{description}
-    \item[E1：主方式・定義]\phantomsection\label{ev:method}
-    \path{src/models/amber.py}，
-    \path{configs/main/rcaeval_re1_zenodo_v2.yaml}，
-    \path{notes/decisions/2026-08-28_final_amber.md}．
-    AR次数の追記はE6を優先する．
-
-    \item[E2：データ・評価条件]\phantomsection\label{ev:protocol}
-    \path{notes/decisions/2026-08-19_rcaeval_re1_zenodo_v2_migration.md}，
-    \path{notes/decisions/2026-08-25_rcaeval_input_column_sanitation.md}，
-    \path{src/evaluation/metrics.py}．
-    共通入力の変更前後を同じ条件として扱わない．
-
-    \item[E3：正式main・順位診断]\phantomsection\label{ev:main}
-    \path{results/main/rcaeval_re1/amber_zenodo_v2/summary_service.json}，
-    \path{results/analysis/final_ar_diagnostics/summary.json}，
-    \path{results/analysis/final_ar_diagnostics/case_diagnostics.csv}，
-    \path{notes/experiments/2026-08-28_final_counterfactual_ar_brushup.md}．
-    正式mainと感度分析の基準条件の対応を確認する．
-
-    \item[E4：外部比較・adapter]\phantomsection\label{ev:baselines}
-    \path{notes/decisions/2026-08-29_metric_baseline_protocols.md}，
-    \path{notes/decisions/2026-08-29_baro_baseline_protocol.md}，
-    \path{notes/experiments/2026-08-31_run_aggregation_and_baseline_results.md}．
-    結果は\path{results/baselines/rcaeval_re1/}内の各実験の\path{summary_service.json}とcase JSON．
-    BARO・$\varepsilon$-Diagnosis・RCD・CIRCAに375ケースのsummaryあり．RUNは正式summary未確認．
-
-    \item[E5：旧ARの診断・設計動機]\phantomsection\label{ev:history}
-    \path{notes/experiments/2026-08-22_rcaeval_re1_zenodo_v2_formal_ablation.md}，
-    \path{results/analysis/ar_rank_movement/summary.json}，
-    \path{results/analysis/ar_signal_attenuation/case_diagnostics.csv}，
-    \path{notes/ideas/2026-08-18_observed_lag_ar_signal_attenuation.md}．
-    旧mainの値を現在のmain保存先から復元したと誤記しない．
-
-    \item[E6：感度・次数の未確定事項]\phantomsection\label{ev:sensitivity}
-    \path{results/analysis/final_ar_sensitivity/summary.md}，
-    \path{notes/experiments/2026-08-29_extended_ar_order_sensitivity.md}，
-    \path{notes/decisions/2026-08-29_ar_order_selection.md}．
-    元結果は\path{results/sensitivity/rcaeval_re1/}内の各条件の\path{summary_service.json}．
-
-    \item[E7：単位不変性・正常時挙動]\phantomsection\label{ev:robustness}
-    \path{results/analysis/ar_unit_invariance_ulp_guard/summary.json}，
-    \path{results/analysis/ar_final_sensitivity_pseudo_fault/unit_invariant_r0_98_p3/summary.json}，
-    \path{results/analysis/ar_residual_generalization_unit_invariant/summary.md}．
-    順位一致とスコア・係数の数値的一致を区別する．
-
-    \item[E8：採用しない拡張]\phantomsection\label{ev:negative}
-    \path{notes/decisions/2026-08-27_bsrc_ar_research_stop.md}，
-    \path{notes/experiments/2026-08-25_bsrc_ar_adaptive_variance.md}，
-    \path{notes/experiments/2026-08-24_adaptive_direct_rollback_ablation.md}．
-    部分ケースのgate結果と正式評価を分ける．
-\end{description}
-\endgroup
-
-\section{次のdraftへ進むためのTODO（執筆管理用）}
-\begin{itemize}
-    \item \textbf{draft1：} 各小節を段落へ展開し，RQ→手法→評価→考察→結論を一度通す．未確認の引用・結果はTODOのまま明示する．
-    \item \textbf{draft2：} AR次数と主方式をfreezeし，比較結果の完了・条件差を確認する．主要claimの根拠，数理定義，正式図表，一次文献を揃える．
-    \item \textbf{draft3：} 過剰claim・事後適合・負の結果・妥当性への脅威を点検し，章間の重複を削る．
-    \item \textbf{draft4--5：} 用語・引用・参照・レイアウトを整え，数値照合・再現性・提出要件を最終確認する．draft別コピーは作らずGit履歴で管理する．
-\end{itemize}
+% ----------------------------------------------------------------------
+% 以下は執筆者用の根拠対応表。レビュー用PDFには表示しない。
+% 2026-09-01確認。数値を本文へ記入する際は、元結果と設定の対応を再確認する。
+% draft1で段落・具体例・引用へ展開し、draft2で設定と根拠を確定する。
+% draft3で主張と限界を精査し、draft4--5で表現・体裁・提出要件を確認する。
+%
+% E1：提案手法（序論・背景・提案手法）
+% src/models/amber.py
+% configs/main/rcaeval_re1_zenodo_v2.yaml
+% notes/decisions/2026-08-28_final_amber.md
+% 次数はAR(3)が現行設定。最終決定についてはE6の後続判断を優先する。
+%
+% E2：データと評価条件（背景・評価実験）
+% notes/decisions/2026-08-19_rcaeval_re1_zenodo_v2_migration.md
+% notes/decisions/2026-08-25_rcaeval_input_column_sanitation.md
+% src/evaluation/metrics.py
+% RCAEval RE1 Zenodo record 14590730 v2、各125件、計375件、前後最大600点。
+% 前後結合区間による完全定数列の除外と、正常限定のモデル学習を区別する。
+% 旧データからの移行経緯はdraft0の読者向け説明には含めない。
+%
+% E3：現在の主方式の結果・ケース対応診断（問い1・問い2・考察）
+% results/main/rcaeval_re1/amber_zenodo_v2/summary_service.json
+% results/analysis/final_ar_diagnostics/summary.json
+% results/analysis/final_ar_diagnostics/case_diagnostics.csv
+% notes/experiments/2026-08-28_final_counterfactual_ar_brushup.md
+%
+% E4：既存方法との比較（関連研究・問い1）
+% notes/decisions/2026-08-29_metric_baseline_protocols.md
+% notes/decisions/2026-08-29_baro_baseline_protocol.md
+% notes/experiments/2026-08-31_run_aggregation_and_baseline_results.md
+% results/baselines/rcaeval_re1/
+% 各実験のsummary_service.jsonとcase JSONで確認する。
+% BARO（正常時からのずれを得点にする比較手法）は開始時刻既知のRobustScorerのみ。
+% ε-Diagnosis・RCD・CIRCA・RUNは比較手法名。本文導入時に考え方を説明する。
+% 前回確認時にRUNは未完了。CIRCA/RUN等の変更点と入力条件を比較表で開示する。
+% 実時間とケース時間合計、並列数・実行方式を混同しない。
+%
+% E5：実測値を使い続けるARの診断（提案の動機・問い2）
+% notes/experiments/2026-08-22_rcaeval_re1_zenodo_v2_formal_ablation.md
+% results/analysis/ar_rank_movement/summary.json
+% results/analysis/ar_signal_attenuation/case_diagnostics.csv
+% notes/ideas/2026-08-18_observed_lag_ar_signal_attenuation.md
+% 旧Observed-lag AR/Raw × BF/GLRTの比較と、現在の構成を混同しない。
+% 前処理や標準化等の条件差を監査し、一つの要素の効果と断定しない。
+%
+% E6：設定への感度・次数の選択（問い3）
+% results/analysis/final_ar_sensitivity/summary.md
+% notes/experiments/2026-08-29_extended_ar_order_sensitivity.md
+% notes/decisions/2026-08-29_ar_order_selection.md
+% results/sensitivity/rcaeval_re1/
+% AR(7)は探索的候補で未昇格。draft2までに次数を確定する。
+%
+% E7：単位変換・正常時の得点（問い3・考察）
+% results/analysis/ar_unit_invariance_ulp_guard/summary.json
+% results/analysis/ar_final_sensitivity_pseudo_fault/unit_invariant_r0_98_p3/summary.json
+% results/analysis/ar_residual_generalization_unit_invariant/summary.md
+% 順位の一致と、得点・係数の数値的一致は別に確認する。
+% 正常データの分割診断は、学習内分散の過小評価だけで問題を説明する説を支持しない。
+%
+% E8：採用しなかった案（考察・補足資料）
+% notes/decisions/2026-08-27_bsrc_ar_research_stop.md
+% notes/experiments/2026-08-25_bsrc_ar_adaptive_variance.md
+% notes/experiments/2026-08-24_adaptive_direct_rollback_ablation.md
+% BSRC-ARはAR生成過程の変化を直接比較する試行名で、主方式ではない。
+% 層化75ケースの確認と正式375ケースの結果は分ける。執筆中に再開発しない。
