@@ -1,7 +1,31 @@
-% --- 結論 ---
-\section{結論}
-この論文の結論およびまとめと，今後の展望とかを書く．
-アブストの再掲にならないよう，より具体的な結果を交えてまとめる．
-本研究で解決しきれなかった課題や新しく見つかった問題点を正直に書く．「今後は〇〇への拡張が期待される」などで結ぶ．
+% draft0: 結果 → 解釈 → 限界。実験節の数値を繰り返すだけにしない。
+\section{考察}
+\label{sec:discussion}
 
-結論まで書き終わった後に序論に戻ると，最初に宣言したことと最終結果にズレが生じていることがある．整合性を取るため，序論は最後に見直して修正する．
+\subsection{RQへの回答と改善・失敗の解釈}
+\begin{itemize}
+    \item \textbf{書くこと：} RQ1は比較可能な完了手法の範囲，RQ2は旧ARの問題と現行構成の寄与，RQ3は順位の安定性と絶対校正の限界，という順に答える．
+    \item \textbf{図案：} 改善・悪化の代表ケースで，観測系列／正常継続予測／残差／サービス順位を並べる．選定規則とcase IDを記し，良い例だけを選ばない（\hyperref[ev:main]{E3}・\hyperref[ev:history]{E5}）．
+    \item \textbf{注意：} shift吸収と順位変化の関連は因果的証明ではない．CPUを含む障害種別差を隠さず，事後的な障害種別switchを提案しない．
+\end{itemize}
+
+\subsection{Bayes Factorの解釈とモデル仮定の限界}
+\begin{itemize}
+    \item \textbf{主張：} 正常内pseudo-faultでも大きな正のスコアが出るため，現方式は同一ケース内の相対順位付けとして解釈する（\hyperref[ev:robustness]{E7}）．
+    \item \textbf{書くこと：} 正常時の非定常性，Gaussian・独立性仮定，多段誤差の残存相関，正常データの再利用，top-3集約の影響を切り分ける．
+    \item \textbf{注意：} 正常holdout診断は「学習内分散の過小評価だけが原因」という説明を支持しない．原因が一意に判明したとは書かず，BF閾値・事後確率・case間比較へ拡大解釈しない．
+\end{itemize}
+
+\subsection{採用しなかった拡張と負の結果}
+\begin{itemize}
+    \item \textbf{書くこと：} BSRC-ARはAR生成regimeを直接比較する試みとして説明し，積分の収束と校正・RCA性能を分けて評価する．Adaptive Directは参考比較として位置付ける（\hyperref[ev:negative]{E8}）．
+    \item \textbf{注意：} BSRC-ARを最終AMBERと混同しない．層化75ケースのgateと正式375ケースを分け，今回の具体化の負の結果をARとBayesの組合せ全般へ一般化しない．
+    \item \textbf{TODO：} 本文は採用しない理由に絞り，詳細な仮説・積分・探索履歴は付録へ置く．この執筆ブランチでは再開発しない．
+\end{itemize}
+
+\subsection{妥当性への脅威と適用範囲}
+\begin{itemize}
+    \item \textbf{書くこと：} 同じRE1上での設計・次数探索，多重比較，ケース間の依存，少数システム・注入障害への依存を明記する．
+    \item \textbf{注意：} 比較adapterの変更，欠測・空候補，時刻情報の利用，前処理の世代差，サービス当たりメトリクス数と集約の影響を公平性の観点で点検する．
+    \item \textbf{範囲外：} 未知開始時刻の検出，実運用・外部benchmarkへの一般化，原因メトリクスの正解保証，因果方向の識別は今後の課題とする．
+\end{itemize}

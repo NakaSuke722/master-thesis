@@ -1,0 +1,17 @@
+% draft0: 手法の列挙ではなく、入力・仮定・出力の差から本研究を位置付ける。
+\section{関連研究}
+\label{sec:related}
+
+\subsection{メトリクスベースの原因分析}
+\begin{itemize}
+    \item \textbf{書くこと：} 分布変化・異常スコア系（$\varepsilon$-Diagnosis，BARO）と，依存構造を用いる系（RCD，CIRCA，RUN）の考え方を比較する．
+    \item \textbf{表案：} 入力情報／障害開始時刻／時間依存性／グラフの取得方法／順位付け単位．本研究が外部グラフを要求しない位置付けを示す．
+    \item \textbf{注意：} 原論文の方法と本repoのadapterを分ける．BAROはknown-onset RobustScorer，CIRCAは制約付きPC，RUNは正常限定学習という比較条件を評価節で開示する（\hyperref[ev:baselines]{E4}）．
+\end{itemize}
+
+\subsection{時系列予測・ベイズ的変化検出との関係}
+\begin{itemize}
+    \item \textbf{書くこと：} 予測誤差による異常評価，ベイズ的分布変化検出，ARの生成機構を直接比較する方式と本方式の差を整理する．
+    \item \textbf{注意：} 本方式の「Counterfactual」は正常モデルの継続予測を指す．構造的因果モデルから介入効果を識別したという意味では使わない．
+    \item \textbf{TODO：} 上記テーマの一次文献を確認し，対象問題・仮定・本研究との差を一文ずつ対応付ける．未確認の著者名・書誌・引用キーは作らない．
+\end{itemize}

@@ -1,11 +1,38 @@
-% --- 手法 ---
-\section{手法}
-論文の提案内容（新しい手法や発見など）の詳しい説明．論文の核心部分であり，あなたのオリジナリティをアピールする節である．
-具体的な解決策（How）を記述し，最もページ数を割くべきパートである．
+% draft0: 現在の主方式だけを説明する。試行錯誤の全履歴は本文へ持ち込まない。
+\section{提案手法}
+\label{sec:method}
 
+\subsection{設計の動機と全体像}
 \begin{itemize}
-    \item いきなり数式に入ると読者は迷子になるので，まずは直感的な理解を促すといいかも．
-    \item 何を解く問題なのかをきちんと定義する．（例：「対数尤度関数 $L(\theta)$ を最大化するパラメータ $\theta$ を求めることが目的である．」）
-    \item 提案手法が単に動くだけでなく，数学的に良い性質（一致性，計算オーダーなど）を持っていることも示したいところ．
-    \item 計算過程を飛ばしすぎない．数式展開は丁寧に．また，図解を入れる．
+    \item \textbf{主張：} 障害後の観測値を予測のlagへ戻すと持続的変化を吸収し得るため，正常モデル自身の予測値を再帰入力する．
+    \item \textbf{図案：} 正常時標準化→定常AR推定→正常状態の継続予測→予測誤差補正→BF→サービス集約（C1，\hyperref[ev:method]{E1}）．
+    \item \textbf{式案・注意：} 持続的な加法shiftでは誤差のshift成分が $(1-\sum_j\phi_j)\Delta$ となり得る．適用条件と雑音項を説明し，実データの順位悪化を必然とする証明にはしない（\hyperref[ev:history]{E5}）．
+\end{itemize}
+
+\subsection{正常時の標準化と定常AR推定}
+\begin{itemize}
+    \item \textbf{書くこと：} 正常区間だけで入力を標準化し，ridgeでARを推定する．companion root projectionと切片の調整で正常平均を固定点として保つ手順を示す．
+    \item \textbf{注意：} AR係数は点推定であり，後段のBFでAR係数まで積分するわけではない．定数列・微小スケールの数値処理は付録へ分ける．
+    \item \textbf{TODO：} 現行正式設定はAR(3)，半径0.98．AR(7)は探索的候補で未昇格のため，次数の選択根拠と最終freezeをdraft2までに確定する（\hyperref[ev:method]{E1}・\hyperref[ev:sensitivity]{E6}）．
+\end{itemize}
+
+\subsection{正常継続予測と予測距離に応じた補正}
+\begin{itemize}
+    \item \textbf{書くこと：} 正常末尾を初期値とする再帰予測と，障害後観測との差を定義する．正常残差は一段先誤差，障害後残差は多段誤差であることを明示する．
+    \item \textbf{式案：} $v_h=\sum_{j=0}^{h-1}\psi_j^2$ とし，正常残差から定める中心$b$・スケール$s$を用いて $z_h=(r_h-b)/(s\sqrt{v_h})$ と補正する．
+    \item \textbf{注意：} 現行方式は対角分散の補正であり，時点間相関の除去やAR推定不確実性の完全な伝播を保証しない．clipは用いない（\hyperref[ev:method]{E1}）．
+\end{itemize}
+
+\subsection{残差分布変化のBayes Factor}
+\label{sec:method-bf}
+\begin{itemize}
+    \item \textbf{書くこと：} $H_0$は正常・障害後で平均と分散を共有，$H_1$は別々の平均と分散を持つGaussian作業モデル．各仮説のNIG周辺尤度を定義する．
+    \item \textbf{式案：} メトリクス$m$のスコアを $\ell_m=\log p(z_N\mid\pi)+\log p(z_A\mid\pi)-\log p(z_N,z_A\mid\pi)$ とする．$\pi$はNIG事前，$N,A$は区間を表す．
+    \item \textbf{注意：} 正常データでARと誤差の基準を推定した後の比較であり，全処理を統合した生成モデルではない．残差の独立性・Gaussian仮定の限界を考察へつなぐ（\hyperref[ev:method]{E1}）．
+\end{itemize}
+
+\subsection{サービス集約とアルゴリズム}
+\begin{itemize}
+    \item \textbf{書くこと：} サービス内の上位$\min(3,M_s)$本のlog BFを平均し，降順に順位付けする．$M_s$は集約対象のメトリクス数．擬似コードは学習・予測・集約の三段階で示す．
+    \item \textbf{注意：} 上位スコアの平均はサービス全体の周辺尤度でも事後確率でもない．欠損・候補不足・同点の扱いと計算量は実装と照合する（\hyperref[ev:method]{E1}）．
 \end{itemize}

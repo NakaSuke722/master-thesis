@@ -1,22 +1,43 @@
-% --- 概要 --- 
+% draft0: 問題設定 → 研究質問 → 貢献。数値を並べる前に主張の範囲を定める。
 \begin{abstract}
-    ここに論文の概要（アブスト）を記述する．
-    通常このセクションでは研究の目的，手法，主な結果，結論を簡潔にまとめる．
+    \textbf{draft0：論文設計図。} 各節の箇条書きは執筆メモであり，完成本文ではない．
+    概要は「原因サービス順位付けの課題→正常時AR予測とBayes Factor→正式評価→有効範囲と限界」の順にまとめる．
+    TODO：正式な手法名・次数・結果表を確定後，本文に即して要約し，仮題を決める．
+
+    \medskip
+    \noindent\textbf{論文構成：} 序論／背景／関連研究／提案手法／評価実験／考察／結論．
+    付録に補足資料の配置計画，根拠ファイル対応表，次のdraftへのTODOを置く．
 \end{abstract}
 
-\pagenumbering{arabic} % ページ番号を 1, 2... にリセット
-\setcounter{page}{1}   % 強制的に1ページ目にする
+\clearpage
+\pagenumbering{arabic}
+% draft0の短い箇条書きがページ境界で分断されないようにする。
+\interlinepenalty=10000
 
+\section{序論}
+\label{sec:intro}
 
+\subsection{問題設定と研究の動機}
+\begin{itemize}
+    \item \textbf{主張：} 障害が複数サービスへ波及すると，観測上の大きな変化と障害注入元は一致するとは限らない．本研究は調査候補の順位付けを支援する．
+    \item \textbf{書くこと：} メトリクスの時間依存性，静的な前後比較の位置付け，正常時予測からの逸脱を使う動機．図案：原因サービスと影響先を区別した模式図．
+    \item \textbf{注意：} 障害と開始時刻は既知，入力はメトリクスとサービス対応，出力はサービス順位．因果グラフの同定や障害検知の達成は主張しない（根拠：\hyperref[ev:protocol]{E2}）．
+\end{itemize}
 
-% --- 序論 ---
-\begingroup
-    \let\clearpage\relax        % 改ページ命令を無効化
-    \let\cleardoublepage\relax  % 偶数奇数ページ調整も無効化
-    \section{序論}
-\endgroup
-ここに序論を書く．この研究の背景や重要性，既存の手法について説明する．そしてこの論文で何をやったのかを説明をする．
-本文で各内容を明確にするため，適当に流さず「目的（何を解決するためにこの論文を書いた？）」や「動機（なぜこの論文を書きたいと思った？）」，「意義（この論文で誰がハッピーになる？）」などを
-数式をなるべく用いずに，わかりやすく簡潔に示す大事な節である．
+\subsection{研究質問}
+\label{sec:rq}
+\noindent\textbf{中心RQ：} 正常時のAR予測を基準とした分布変化のBayes Factorは，既知の障害開始時刻の下で，原因サービスの順位付けにどこまで有効か．
+\begin{itemize}
+    \item \textbf{RQ1（性能）：} 正式RCAEval条件において，既存のメトリクスベース手法と比較した順位精度はどうか．
+    \item \textbf{RQ2（構成要素）：} ARの使い方とBFによるスコア化は，Raw入力・GLRTとの比較で何に寄与し，どこで悪化するか．
+    \item \textbf{RQ3（有効範囲）：} 単位変換・次数・予測不確実性への感度と，正常時のスコア挙動から，どの限界が分かるか．
+\end{itemize}
 
-読者（審査員）はここを読んで「面白そうか」「読む価値があるか」を判断する．
+\subsection{貢献と論文全体の主張}
+\label{sec:claims}
+\begin{itemize}
+    \item \textbf{C1（手法）：} 正常時だけで推定した定常ARの再帰予測誤差を，予測距離に応じて補正し，NIG Bayes Factorでサービス順位へ結び付けるAMBERの構成を示す（\ref{sec:method}節，\hyperref[ev:method]{E1}）．
+    \item \textbf{C2（実証）：} 正式評価とケース対応比較によって，構成全体の精度と改善・悪化の内訳を示す（RQ1・RQ2，\ref{sec:experiment}節，\hyperref[ev:main]{E3}--\hyperref[ev:sensitivity]{E6}）．既存手法全般への優越は未確定．
+    \item \textbf{C3（限界の明確化）：} 順位付けの有効性とスコアの絶対校正を分け，単位不変性・感度・負の結果から適用範囲を定める（RQ3，\ref{sec:discussion}節，\hyperref[ev:robustness]{E7}・\hyperref[ev:negative]{E8}）．
+    \item \textbf{TODO：} 新規性は関連研究照合後に限定して表現する．完成時にC1--C3と結論が一対一で対応するか確認する．
+\end{itemize}

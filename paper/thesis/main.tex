@@ -149,20 +149,27 @@
 
 % 表紙情報の入力（ここを書き換える）
 \academicYear{令和8年度}
-\title{論文テンプレート\\（ここにタイトル）}
+\title{修士論文 draft0\\論文設計図（仮題未定）}
 \date{2027年2月1日}
 \advisor{清水 泰隆}
 \affiliation{早稲田大学 基幹理工学研究科 数学応用数理専攻}
 \studentID{5125A028}
 \author{中川 浩輔}
 
+\hypersetup{pageanchor=false} % 表紙と本文のpage.1重複を避ける
 \maketitle %表紙出力
+\pagenumbering{roman}
+\hypersetup{pageanchor=true}
 
+% draft0: 各節は主張・書く内容・注意点の骨子のみ。根拠ファイルは付録Bへ集約。
+% ファイル名は既存構成を維持し、論文の表示順は以下で管理する。
 \input{sections/01_intro}
 \input{sections/02_background}
+\input{sections/02_related_work}
 \input{sections/03_method}
 \input{sections/04_experiment}
 \input{sections/05_discussion}
+\input{sections/06_conclusion}
 \input{sections/90_acknowledgement}
 \input{sections/99_appendix}
 
