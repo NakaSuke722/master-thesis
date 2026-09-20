@@ -21,7 +21,7 @@ def _pc_orientation_components():
         from causallearn.utils.PCUtils.Helper import append_value
     except ImportError as exc:  # pragma: no cover - environment dependent
         raise ImportError(
-            "CIRCA requires causal-learn. Install requirements-baselines.txt."
+            "CIRCA requires causal-learn. Run `uv sync --group baseline`."
         ) from exc
     return CausalGraph, Meek, UCSepset, append_value
 
@@ -31,7 +31,7 @@ def _pc_function():
         from causallearn.search.ConstraintBased.PC import pc
     except ImportError as exc:  # pragma: no cover - environment dependent
         raise ImportError(
-            "CIRCA requires causal-learn. Install requirements-baselines.txt."
+            "CIRCA requires causal-learn. Run `uv sync --group baseline`."
         ) from exc
     return pc
 
