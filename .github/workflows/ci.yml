@@ -34,7 +34,7 @@ jobs:
         run: uv sync --locked # pyproject.toml と uv.lock が一致しなければエラーにする。CI中に勝手にロックファイルを書き換えない。
 
       - name: Install zsh
-        run:
+        run: |
             sudo apt-get update
             sudo apt-get install --yes zsh
       - name: Run tests # テスト実行
