@@ -33,5 +33,9 @@ jobs:
       - name: Sync dependencies
         run: uv sync --locked # pyproject.toml と uv.lock が一致しなければエラーにする。CI中に勝手にロックファイルを書き換えない。
 
+      - name: Install zsh
+        run:
+            sudo apt-get update
+            sudo apt-get install --yes zsh
       - name: Run tests # テスト実行
         run: uv run --frozen pytest -q -rs # --frozen: ロックファイルを更新しない -q: 出力を簡潔にする -rs: skip理由を表示する
