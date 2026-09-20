@@ -12,7 +12,7 @@
 - Python依存関係は `pyproject.toml` と `uv.lock` を唯一の定義として管理し、環境構築には `uv sync` を使用する。
 - Pythonコマンドは原則 `uv run ...` で実行する。causal-learn と PyTorch を使うbaselineは、先に `uv sync --group baseline` を実行する。
 - コミットメッセージは日本語にし、さらにPrefix(feat:, fix:, chore:など)をつける。
-- `git push`、PR作成、ブランチ作成なども、適宜行ってよい。
+- `git push`、PR作成、ブランチ作成、Issue作成なども、積極的に行ってよい。
 - `git reset --hard`、強制checkout、大量削除などの破壊的操作は行わない。
 - 大容量データや既存の実験結果を削除・上書きする前に、必ず対象と影響を確認する。
 
@@ -84,3 +84,4 @@
 - 実行していない長時間処理
 - 生成物・実験結果の保存先
 - 残っているリスクまたは次の推奨アクション
+- 技術的な知識の補足や参考情報
