@@ -3,6 +3,7 @@ from __future__ import annotations
 import networkx as nx
 import numpy as np
 import pandas as pd
+import pytest
 import warnings
 
 from benchmarks.base import BenchmarkCase
@@ -84,6 +85,7 @@ def test_epsilon_diagnosis_silences_constant_bootstrap_draw_warning():
 
 
 def test_rcd_localized_f_node_finds_large_regime_shift():
+    pytest.importorskip("causallearn")
     normal, abnormal = _shift_case()
     model = RCDScorer(seed=1)
     result = model.score_metrics(normal, abnormal)
@@ -129,6 +131,7 @@ def test_circa_pc_selection_removes_redundancy_and_preserves_services():
 
 
 def test_run_adapter_executes_without_fixed_batch_or_cuda_assumptions():
+    pytest.importorskip("torch")
     normal, abnormal = _shift_case(20)
     model = RUNScorer(
         seq_len=6,

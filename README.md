@@ -60,26 +60,32 @@ master-thesis/
 ├── notes/                         # 研究メモ
 ├── paper/                         # 修士論文・発表資料
 ├── README.md
-└── requirements.txt
+├── pyproject.toml                 # Python依存関係の定義
+└── uv.lock                        # 再現可能な依存関係のロックファイル
 ```
 
 `results/metrics/` と `results/final_summary.json` は旧構成です。新しい実験では、後述する `results/main/`、`results/ablation/`、`results/baselines/`、`results/sensitivity/` を使用します。
 
 ## セットアップ
 
-Python 3.10 以降を推奨します。リポジトリのルートで仮想環境を作成し、依存パッケージをインストールしてください。
+Python 3.10 以降と [uv](https://docs.astral.sh/uv/) を使用します。リポジトリのルートで次を実行してください。`uv sync` は `.venv/` を作成し、`uv.lock` に固定された通常実験・開発用の環境を構築します。
 
 ```bash
-python3 -m venv venv
-source venv/bin/activate
-python -m pip install --upgrade pip
-python -m pip install -r requirements.txt
+uv sync
 ```
 
-Windows PowerShell では、仮想環境の有効化に次を使用します。
+コマンドは仮想環境を有効化せずに実行できます。
 
-```powershell
-venv\Scripts\Activate.ps1
+```bash
+uv run pytest -q
+uv run python src/runner.py --config configs/main/rcaeval_re1_zenodo_v2.yaml
+```
+
+比較手法（causal-learn / PyTorch）が必要な場合だけ、重い依存関係を追加します。`networkx` はbaselineのテスト収集にも使う軽量依存関係のため、通常の開発環境に含まれます。
+
+```bash
+uv sync --group baseline
+uv run python src/runner.py --config configs/baselines/run.yaml
 ```
 
 ## データの配置
@@ -163,7 +169,7 @@ RUNは`configs/baselines/run.yaml`の`model.params.execution_backend: vectorized
 これは正式case結果を上書きしません。
 
 ```bash
-PYTHONPATH=src:. venv/bin/python scripts/benchmark_run_optimization.py --dataset re1_tt --targets 3
+PYTHONPATH=src:. uv run python scripts/benchmark_run_optimization.py --dataset re1_tt --targets 3
 ```
 
 CPUではTTの学習自体が重く、case並列数を増やしても1ケースの仕事量は減りません。
@@ -1035,19 +1041,17 @@ metric/
 
 ---
 
-### 20. `requirements.txt`
+### 20. `pyproject.toml` と `uv.lock`
 
-これは、「この研究コードを動かすためのPython依存関係」です。
+`pyproject.toml` は、この研究コードを動かすためのPython依存関係の定義です。`uv.lock` は実際に使用するバージョンを固定する再現性のsource of truthです。
 
-最終的には、
+通常の実験・テスト環境は、
 
 ```bash
-python -m venv venv
-source venv/bin/activate
-pip install -r requirements.txt
+uv sync
 ```
 
-だけで別PCでも環境を再現できる状態を目指します。
+だけで別PCでも再現できます。baseline用の依存関係は通常環境に含めず、必要なときだけ `uv sync --group baseline` を実行します。
 
 ---
 

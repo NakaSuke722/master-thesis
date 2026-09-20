@@ -9,6 +9,8 @@
 - 未コミットの変更はユーザーの作業として扱い、無関係な変更を上書き・削除しない。
 - 調査だけを依頼された場合は、ファイルを変更しない。
 - 実装を依頼された場合は、必要な変更、テスト、差分確認、コミットまで行う。
+- Python依存関係は `pyproject.toml` と `uv.lock` を唯一の定義として管理し、環境構築には `uv sync` を使用する。
+- Pythonコマンドは原則 `uv run ...` で実行する。causal-learn と PyTorch を使うbaselineは、先に `uv sync --group baseline` を実行する。
 - コミットメッセージは日本語にし、さらにPrefix(feat:, fix:, chore:など)をつける。
 - `git push`、PR作成、ブランチ作成なども、適宜行ってよい。
 - `git reset --hard`、強制checkout、大量削除などの破壊的操作は行わない。
@@ -55,7 +57,7 @@
 - Pythonコードまたは設定を変更したら、原則としてリポジトリルートで次を実行する。
 
   ```bash
-  python3 -m pytest -q
+  uv run pytest -q
   ```
 
 - shell scriptを変更したら、対象スクリプトを `zsh -n` または適切なshellの構文チェックに通す。

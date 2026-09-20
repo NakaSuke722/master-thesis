@@ -24,6 +24,7 @@ __pycache__/
 *$py.class
 .ipynb_checkpoints/
 venv/
+.venv/
 .env
 
 # LaTeX specific
