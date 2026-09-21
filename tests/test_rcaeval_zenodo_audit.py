@@ -11,10 +11,11 @@ from benchmarks.rcaeval_re1 import (
 RAW_ROOT = Path(
     "data/raw/rcaeval_zenodo_v2"
 )
+RAW_DATA_AVAILABLE = any(RAW_ROOT.rglob("data.csv"))
 
 
 @pytest.mark.skipif(
-    not RAW_ROOT.is_dir(),
+    not RAW_DATA_AVAILABLE,
     reason=(
         "Zenodo RCAEval data "
         "is not downloaded."

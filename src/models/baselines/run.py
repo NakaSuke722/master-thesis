@@ -21,7 +21,7 @@ def _torch_modules():
         import torch.nn.functional as functional
     except ImportError as exc:  # pragma: no cover - environment dependent
         raise ImportError(
-            "RUN requires PyTorch. Install requirements-baselines.txt."
+            "RUN requires PyTorch. Run `uv sync --group baseline`."
         ) from exc
     return torch, nn, functional
 

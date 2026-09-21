@@ -20,7 +20,7 @@ def _causal_learn_components():
         from causallearn.utils.PCUtils import SkeletonDiscovery
     except ImportError as exc:  # pragma: no cover - environment dependent
         raise ImportError(
-            "RCD requires causal-learn. Install requirements-baselines.txt."
+            "RCD requires causal-learn. Run `uv sync --group baseline`."
         ) from exc
     return CIT, SkeletonDiscovery
 

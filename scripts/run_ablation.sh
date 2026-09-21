@@ -8,10 +8,10 @@ cd "${PROJECT_ROOT}"
 
 if [[ -n "${AMBER_PYTHON:-}" ]]; then
     PYTHON_BIN="${AMBER_PYTHON}"
-elif [[ -x "${PROJECT_ROOT}/venv/bin/python" ]]; then
-    PYTHON_BIN="${PROJECT_ROOT}/venv/bin/python"
 elif [[ -x "${PROJECT_ROOT}/.venv/bin/python" ]]; then
     PYTHON_BIN="${PROJECT_ROOT}/.venv/bin/python"
+elif [[ -x "${PROJECT_ROOT}/venv/bin/python" ]]; then
+    PYTHON_BIN="${PROJECT_ROOT}/venv/bin/python"
 else
     PYTHON_BIN="$(command -v python3)"
 fi
