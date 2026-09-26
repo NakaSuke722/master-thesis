@@ -72,6 +72,7 @@ results/figures/**/*.jpg
 results/figures/**/*.jpeg
 results/figures/**/*.pdf
 results/figures/**/*.svg
+results/figures/**/*.drawio
 
 # Keep directory structure
 !results/**/.gitkeep
