@@ -1,0 +1,97 @@
+<mxfile host="Electron">
+  <diagram name="ページ-1" id="xWPmCvU-V1t7-bklE9OT">
+    <mxGraphModel dx="1347" dy="901" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="827" pageHeight="1169" math="1" shadow="0">
+      <root>
+        <mxCell id="0" />
+        <mxCell id="1" parent="0" />
+        <mxCell id="N43ZwG6JkV38jM3BijBD-1" parent="1" style="rounded=1;whiteSpace=wrap;html=1;absoluteArcSize=1;arcSize=14;strokeWidth=2;" value="service score \( S_s \) を保存" vertex="1">
+          <mxGeometry height="40" width="180" x="448" y="130" as="geometry" />
+        </mxCell>
+        <mxCell id="N43ZwG6JkV38jM3BijBD-14" edge="1" parent="1" source="N43ZwG6JkV38jM3BijBD-2" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;entryX=0.5;entryY=0;entryDx=0;entryDy=0;" target="N43ZwG6JkV38jM3BijBD-3">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="N43ZwG6JkV38jM3BijBD-2" parent="1" style="rounded=1;whiteSpace=wrap;html=1;absoluteArcSize=1;arcSize=100;strokeWidth=2;" value="Service Aggregation 開始" vertex="1">
+          <mxGeometry height="40" width="180" x="140" y="210" as="geometry" />
+        </mxCell>
+        <mxCell id="N43ZwG6JkV38jM3BijBD-15" edge="1" parent="1" source="N43ZwG6JkV38jM3BijBD-3" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;entryX=0.5;entryY=0;entryDx=0;entryDy=0;" target="N43ZwG6JkV38jM3BijBD-4">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="N43ZwG6JkV38jM3BijBD-3" parent="1" style="shape=parallelogram;html=1;strokeWidth=2;perimeter=parallelogramPerimeter;whiteSpace=wrap;rounded=1;arcSize=12;size=0.23;" value="入力&lt;div&gt;全Metric Score \( S_i \)&lt;/div&gt;&lt;div&gt;Metric-Service 対応関係&lt;/div&gt;" vertex="1">
+          <mxGeometry height="70" width="230" x="115" y="290" as="geometry" />
+        </mxCell>
+        <mxCell id="N43ZwG6JkV38jM3BijBD-4" parent="1" style="rounded=1;whiteSpace=wrap;html=1;absoluteArcSize=1;arcSize=14;strokeWidth=2;" value="Service \( s \) を選択" vertex="1">
+          <mxGeometry height="40" width="140" x="160" y="400" as="geometry" />
+        </mxCell>
+        <mxCell id="N43ZwG6JkV38jM3BijBD-5" parent="1" style="rounded=1;whiteSpace=wrap;html=1;absoluteArcSize=1;arcSize=14;strokeWidth=2;" value="次のServiceへ" vertex="1">
+          <mxGeometry height="40" width="120" x="360" y="400" as="geometry" />
+        </mxCell>
+        <mxCell id="N43ZwG6JkV38jM3BijBD-22" edge="1" parent="1" source="N43ZwG6JkV38jM3BijBD-6" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;entryX=0.5;entryY=0;entryDx=0;entryDy=0;exitX=0;exitY=0.5;exitDx=0;exitDy=0;exitPerimeter=0;" target="N43ZwG6JkV38jM3BijBD-5">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="N43ZwG6JkV38jM3BijBD-26" connectable="0" parent="N43ZwG6JkV38jM3BijBD-22" style="edgeLabel;html=1;align=center;verticalAlign=middle;resizable=0;points=[];" value="No" vertex="1">
+          <mxGeometry relative="1" x="0.1216" y="-1" as="geometry">
+            <mxPoint as="offset" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="N43ZwG6JkV38jM3BijBD-23" edge="1" parent="1" source="N43ZwG6JkV38jM3BijBD-6" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;exitX=1;exitY=0.5;exitDx=0;exitDy=0;exitPerimeter=0;" target="N43ZwG6JkV38jM3BijBD-7">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="N43ZwG6JkV38jM3BijBD-25" connectable="0" parent="N43ZwG6JkV38jM3BijBD-23" style="edgeLabel;html=1;align=center;verticalAlign=middle;resizable=0;points=[];" value="Yes" vertex="1">
+          <mxGeometry relative="1" x="0.1175" as="geometry">
+            <mxPoint as="offset" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="N43ZwG6JkV38jM3BijBD-6" parent="1" style="strokeWidth=2;html=1;shape=mxgraph.flowchart.decision;whiteSpace=wrap;" value="最後のServiceか？" vertex="1">
+          <mxGeometry height="60" width="196" x="440" y="200" as="geometry" />
+        </mxCell>
+        <mxCell id="N43ZwG6JkV38jM3BijBD-29" edge="1" parent="1" source="N43ZwG6JkV38jM3BijBD-7" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;entryX=0.5;entryY=0;entryDx=0;entryDy=0;" target="N43ZwG6JkV38jM3BijBD-12">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="N43ZwG6JkV38jM3BijBD-7" parent="1" style="rounded=1;whiteSpace=wrap;html=1;absoluteArcSize=1;arcSize=14;strokeWidth=2;" value="全Serviceを&lt;div&gt;\( S_s \) の降順にソート&lt;/div&gt;" vertex="1">
+          <mxGeometry height="50" width="140" x="590" y="400" as="geometry" />
+        </mxCell>
+        <mxCell id="N43ZwG6JkV38jM3BijBD-18" edge="1" parent="1" source="N43ZwG6JkV38jM3BijBD-8" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;entryX=0.5;entryY=0;entryDx=0;entryDy=0;" target="N43ZwG6JkV38jM3BijBD-9">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="N43ZwG6JkV38jM3BijBD-8" parent="1" style="rounded=1;whiteSpace=wrap;html=1;absoluteArcSize=1;arcSize=14;strokeWidth=2;" value="Service&amp;nbsp;&lt;span style=&quot;background-color: transparent; color: light-dark(rgb(0, 0, 0), rgb(255, 255, 255));&quot;&gt;\( s \) に属するMetricを&lt;/span&gt;&lt;div&gt;&lt;span style=&quot;background-color: transparent; color: light-dark(rgb(0, 0, 0), rgb(255, 255, 255));&quot;&gt;Score順に並べる&lt;/span&gt;&lt;/div&gt;" vertex="1">
+          <mxGeometry height="50" width="180" x="242" y="490" as="geometry" />
+        </mxCell>
+        <mxCell id="N43ZwG6JkV38jM3BijBD-19" edge="1" parent="1" source="N43ZwG6JkV38jM3BijBD-9" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;entryX=0.5;entryY=0;entryDx=0;entryDy=0;" target="N43ZwG6JkV38jM3BijBD-10">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="N43ZwG6JkV38jM3BijBD-9" parent="1" style="rounded=1;whiteSpace=wrap;html=1;absoluteArcSize=1;arcSize=14;strokeWidth=2;" value="&lt;div&gt;\( K_s = \min{(3, n_s)} \)&lt;/div&gt;上位 \( K_s \) Metricを選択" vertex="1">
+          <mxGeometry height="50" width="180" x="242" y="580" as="geometry" />
+        </mxCell>
+        <mxCell id="N43ZwG6JkV38jM3BijBD-20" edge="1" parent="1" source="N43ZwG6JkV38jM3BijBD-10" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;entryX=0;entryY=0.5;entryDx=0;entryDy=0;" target="N43ZwG6JkV38jM3BijBD-1">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="90" y="695" />
+              <mxPoint x="90" y="150" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="N43ZwG6JkV38jM3BijBD-10" parent="1" style="rounded=1;whiteSpace=wrap;html=1;absoluteArcSize=1;arcSize=14;strokeWidth=2;" value="&lt;div&gt;選択Metricの平均を計算&lt;/div&gt;&lt;div&gt;Service Score \( S_s \)&lt;/div&gt;" vertex="1">
+          <mxGeometry height="50" width="180" x="242" y="670" as="geometry" />
+        </mxCell>
+        <mxCell id="N43ZwG6JkV38jM3BijBD-12" parent="1" style="shape=parallelogram;html=1;strokeWidth=2;perimeter=parallelogramPerimeter;whiteSpace=wrap;rounded=1;arcSize=12;size=0.23;" value="出力&lt;div&gt;Root cause&lt;/div&gt;&lt;div&gt;Service Ranking&lt;/div&gt;" vertex="1">
+          <mxGeometry height="60" width="170" x="575" y="500" as="geometry" />
+        </mxCell>
+        <mxCell id="N43ZwG6JkV38jM3BijBD-13" parent="1" style="rounded=1;whiteSpace=wrap;html=1;absoluteArcSize=1;arcSize=100;strokeWidth=2;" value="Service Aggregation 終了" vertex="1">
+          <mxGeometry height="40" width="180" x="570" y="610" as="geometry" />
+        </mxCell>
+        <mxCell id="N43ZwG6JkV38jM3BijBD-16" edge="1" parent="1" source="N43ZwG6JkV38jM3BijBD-4" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;entryX=0.25;entryY=0;entryDx=0;entryDy=0;" target="N43ZwG6JkV38jM3BijBD-8">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="N43ZwG6JkV38jM3BijBD-17" edge="1" parent="1" source="N43ZwG6JkV38jM3BijBD-5" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;entryX=0.75;entryY=0;entryDx=0;entryDy=0;" target="N43ZwG6JkV38jM3BijBD-8">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="N43ZwG6JkV38jM3BijBD-21" edge="1" parent="1" source="N43ZwG6JkV38jM3BijBD-1" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;entryX=0.5;entryY=0;entryDx=0;entryDy=0;entryPerimeter=0;" target="N43ZwG6JkV38jM3BijBD-6">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="N43ZwG6JkV38jM3BijBD-30" edge="1" parent="1" source="N43ZwG6JkV38jM3BijBD-12" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;entryX=0.5;entryY=0;entryDx=0;entryDy=0;" target="N43ZwG6JkV38jM3BijBD-13">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+      </root>
+    </mxGraphModel>
+  </diagram>
+</mxfile>

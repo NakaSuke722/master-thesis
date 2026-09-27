@@ -1,0 +1,123 @@
+<mxfile host="Electron">
+  <diagram name="ページ-1" id="xWPmCvU-V1t7-bklE9OT">
+    <mxGraphModel dx="2020" dy="1263" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="827" pageHeight="1169" math="1" shadow="0">
+      <root>
+        <mxCell id="0" />
+        <mxCell id="1" parent="0" />
+        <mxCell id="RpDW3Ks04s-y2vQLiRKC-13" edge="1" parent="1" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;entryX=0.5;entryY=0;entryDx=0;entryDy=0;" target="RpDW3Ks04s-y2vQLiRKC-2">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="463.13043478260875" y="140" as="sourcePoint" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="RpDW3Ks04s-y2vQLiRKC-14" edge="1" parent="1" source="RpDW3Ks04s-y2vQLiRKC-2" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;entryX=0.5;entryY=0;entryDx=0;entryDy=0;" target="RpDW3Ks04s-y2vQLiRKC-3">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="RpDW3Ks04s-y2vQLiRKC-2" parent="1" style="shape=parallelogram;html=1;strokeWidth=2;perimeter=parallelogramPerimeter;whiteSpace=wrap;rounded=1;arcSize=12;size=0.23;" value="入力&lt;div&gt;正常系列 \( x_N \)&lt;/div&gt;&lt;div&gt;障害系列 \( x_A \)&lt;/div&gt;" vertex="1">
+          <mxGeometry height="80" width="160" x="383.12" y="190" as="geometry" />
+        </mxCell>
+        <mxCell id="RpDW3Ks04s-y2vQLiRKC-15" edge="1" parent="1" source="RpDW3Ks04s-y2vQLiRKC-3" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;entryX=0.5;entryY=0;entryDx=0;entryDy=0;" target="RpDW3Ks04s-y2vQLiRKC-4">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="RpDW3Ks04s-y2vQLiRKC-3" parent="1" style="rounded=1;whiteSpace=wrap;html=1;absoluteArcSize=1;arcSize=14;strokeWidth=2;" value="正常期間の \( \mu, \sigma \) で&lt;div&gt;\( x_N, x_A \) を標準化&lt;/div&gt;" vertex="1">
+          <mxGeometry height="60" width="149.16" x="388.53999999999996" y="320" as="geometry" />
+        </mxCell>
+        <mxCell id="RpDW3Ks04s-y2vQLiRKC-21" edge="1" parent="1" source="RpDW3Ks04s-y2vQLiRKC-4" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;entryX=0.5;entryY=0;entryDx=0;entryDy=0;exitX=0.5;exitY=1;exitDx=0;exitDy=0;" target="RpDW3Ks04s-y2vQLiRKC-7">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="463.09" y="520" />
+              <mxPoint x="160" y="520" />
+            </Array>
+            <mxPoint x="230" y="530" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="RpDW3Ks04s-y2vQLiRKC-22" edge="1" parent="1" source="RpDW3Ks04s-y2vQLiRKC-4" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;" target="RpDW3Ks04s-y2vQLiRKC-5">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="463.11" y="590.02" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="RpDW3Ks04s-y2vQLiRKC-23" edge="1" parent="1" source="RpDW3Ks04s-y2vQLiRKC-4" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;exitX=0.5;exitY=1;exitDx=0;exitDy=0;" target="RpDW3Ks04s-y2vQLiRKC-18">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="463.09" y="520" />
+              <mxPoint x="706" y="520" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="RpDW3Ks04s-y2vQLiRKC-4" parent="1" style="rounded=1;whiteSpace=wrap;html=1;absoluteArcSize=1;arcSize=14;strokeWidth=2;" value="正常期間に&lt;div&gt;ARモデルを適合&lt;/div&gt;" vertex="1">
+          <mxGeometry height="60" width="149.16" x="388.53999999999996" y="430" as="geometry" />
+        </mxCell>
+        <mxCell id="RpDW3Ks04s-y2vQLiRKC-16" edge="1" parent="1" source="RpDW3Ks04s-y2vQLiRKC-5" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;entryX=0.5;entryY=0;entryDx=0;entryDy=0;" target="RpDW3Ks04s-y2vQLiRKC-6">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="RpDW3Ks04s-y2vQLiRKC-5" parent="1" style="rounded=1;whiteSpace=wrap;html=1;absoluteArcSize=1;arcSize=14;strokeWidth=2;" value="正常期間末尾を初期値として&lt;div&gt;ARモデルを再帰的に予測し&lt;/div&gt;&lt;div&gt;Counterfactual系列 \( \hat{x}_A^{(0)} \) を生成&lt;/div&gt;" vertex="1">
+          <mxGeometry height="80" width="206.24" x="360" y="555" as="geometry" />
+        </mxCell>
+        <mxCell id="RpDW3Ks04s-y2vQLiRKC-25" edge="1" parent="1" source="RpDW3Ks04s-y2vQLiRKC-6" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;entryX=0.5;entryY=0;entryDx=0;entryDy=0;" target="RpDW3Ks04s-y2vQLiRKC-17">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="RpDW3Ks04s-y2vQLiRKC-6" parent="1" style="rounded=1;whiteSpace=wrap;html=1;absoluteArcSize=1;arcSize=14;strokeWidth=2;" value="障害期間の予測誤差&lt;div&gt;\( r_A = x_A - \hat{x}_A^{(0)} \) を計算&lt;/div&gt;" vertex="1">
+          <mxGeometry height="60" width="180" x="373.12" y="700" as="geometry" />
+        </mxCell>
+        <mxCell id="RpDW3Ks04s-y2vQLiRKC-10" edge="1" parent="1" source="RpDW3Ks04s-y2vQLiRKC-7" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;entryX=0.25;entryY=0;entryDx=0;entryDy=0;" target="RpDW3Ks04s-y2vQLiRKC-9">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="160" y="670" />
+              <mxPoint x="90" y="670" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="RpDW3Ks04s-y2vQLiRKC-11" edge="1" parent="1" source="RpDW3Ks04s-y2vQLiRKC-7" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;entryX=0.5;entryY=0;entryDx=0;entryDy=0;" target="RpDW3Ks04s-y2vQLiRKC-8">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="160" y="670" />
+              <mxPoint x="230" y="670" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="RpDW3Ks04s-y2vQLiRKC-7" parent="1" style="rounded=1;whiteSpace=wrap;html=1;absoluteArcSize=1;arcSize=14;strokeWidth=2;" value="正常期間の&lt;div&gt;one-step 残差&amp;nbsp;&lt;span style=&quot;background-color: transparent; color: light-dark(rgb(0, 0, 0), rgb(255, 255, 255));&quot;&gt;\( r_N \) を計算&lt;/span&gt;&lt;/div&gt;" vertex="1">
+          <mxGeometry height="80" width="160" x="80" y="555" as="geometry" />
+        </mxCell>
+        <mxCell id="RpDW3Ks04s-y2vQLiRKC-12" edge="1" parent="1" source="RpDW3Ks04s-y2vQLiRKC-8" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;entryX=0.75;entryY=0;entryDx=0;entryDy=0;" target="RpDW3Ks04s-y2vQLiRKC-9">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="RpDW3Ks04s-y2vQLiRKC-24" edge="1" parent="1" source="RpDW3Ks04s-y2vQLiRKC-8" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;exitX=0.5;exitY=1;exitDx=0;exitDy=0;entryX=0.25;entryY=0;entryDx=0;entryDy=0;" target="RpDW3Ks04s-y2vQLiRKC-17">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="RpDW3Ks04s-y2vQLiRKC-8" parent="1" style="rounded=1;whiteSpace=wrap;html=1;absoluteArcSize=1;arcSize=14;strokeWidth=2;" value="正常 \( r_N \)から&lt;div&gt;center・scale を推定&lt;/div&gt;" vertex="1">
+          <mxGeometry height="60" width="160" x="150" y="700" as="geometry" />
+        </mxCell>
+        <mxCell id="RpDW3Ks04s-y2vQLiRKC-9" parent="1" style="rounded=1;whiteSpace=wrap;html=1;absoluteArcSize=1;arcSize=14;strokeWidth=2;" value="正常 \( r_N \) を標準化&lt;div&gt;\( z_N = (r_N - a) / b \)&amp;nbsp;&lt;/div&gt;" vertex="1">
+          <mxGeometry height="60" width="160" x="50" y="825" as="geometry" />
+        </mxCell>
+        <mxCell id="RpDW3Ks04s-y2vQLiRKC-27" edge="1" parent="1" source="RpDW3Ks04s-y2vQLiRKC-17" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;entryX=0.5;entryY=0;entryDx=0;entryDy=0;" target="RpDW3Ks04s-y2vQLiRKC-19">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="RpDW3Ks04s-y2vQLiRKC-17" parent="1" style="rounded=1;whiteSpace=wrap;html=1;absoluteArcSize=1;arcSize=14;strokeWidth=2;" value="障害 予測誤差を標準化&lt;div&gt;\( z_{A,h} = (r_{A,h} - a) / (b q_h) \)&lt;/div&gt;" vertex="1">
+          <mxGeometry height="60" width="160" x="383.12" y="825" as="geometry" />
+        </mxCell>
+        <mxCell id="RpDW3Ks04s-y2vQLiRKC-26" edge="1" parent="1" source="RpDW3Ks04s-y2vQLiRKC-18" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;entryX=0.75;entryY=0;entryDx=0;entryDy=0;exitX=0.5;exitY=1;exitDx=0;exitDy=0;" target="RpDW3Ks04s-y2vQLiRKC-17">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="RpDW3Ks04s-y2vQLiRKC-18" parent="1" style="rounded=1;whiteSpace=wrap;html=1;absoluteArcSize=1;arcSize=14;strokeWidth=2;" value="ARモデルからhorizon別&lt;div&gt;予測不確実性 \( q_h \) を計算&lt;/div&gt;" vertex="1">
+          <mxGeometry height="60" width="180" x="616" y="700" as="geometry" />
+        </mxCell>
+        <mxCell id="RpDW3Ks04s-y2vQLiRKC-19" parent="1" style="shape=parallelogram;html=1;strokeWidth=2;perimeter=parallelogramPerimeter;whiteSpace=wrap;rounded=1;arcSize=12;size=0.23;" value="出力&lt;div&gt;\( z_N, z_A \)&lt;/div&gt;" vertex="1">
+          <mxGeometry height="60" width="124.58" x="400.83" y="930" as="geometry" />
+        </mxCell>
+        <mxCell id="RpDW3Ks04s-y2vQLiRKC-28" edge="1" parent="1" source="RpDW3Ks04s-y2vQLiRKC-19" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;entryX=0.5;entryY=0;entryDx=0;entryDy=0;entryPerimeter=0;">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="463.125" y="1050" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="RpDW3Ks04s-y2vQLiRKC-31" parent="1" style="rounded=1;whiteSpace=wrap;html=1;absoluteArcSize=1;arcSize=50100;strokeWidth=2;" value="Metric iの&lt;div&gt;処理開始&lt;/div&gt;" vertex="1">
+          <mxGeometry height="60" width="111.88" x="407.18" y="80" as="geometry" />
+        </mxCell>
+        <mxCell id="RpDW3Ks04s-y2vQLiRKC-32" parent="1" style="rounded=1;whiteSpace=wrap;html=1;absoluteArcSize=1;arcSize=50100;strokeWidth=2;" value="Counterfactual AR&lt;div&gt;処理終了&lt;/div&gt;" vertex="1">
+          <mxGeometry height="60" width="150" x="383.12" y="1035" as="geometry" />
+        </mxCell>
+      </root>
+    </mxGraphModel>
+  </diagram>
+</mxfile>
