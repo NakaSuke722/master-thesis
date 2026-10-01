@@ -1,0 +1,356 @@
+% !TeX encoding = UTF-8
+% Build from repository root:
+% latexmk -pdfdvi -e '$latex=q/uplatex %O -interaction=nonstopmode -halt-on-error %S/' -e '$dvipdf=q/dvipdfmx %O -o %D %S/' -outdir=paper/shared/build paper/shared/amber_notation.tex
+\documentclass[uplatex,dvipdfmx,fontsize=11pt,baselineskip=17pt,paper=a4]{jlreq}
+% Thesis typography and existing indicator macro; no shared preamble exists.
+\usepackage{mathtools,amssymb,booktabs,array}
+\usepackage{newtxtext,newtxmath}
+\usepackage[haranoaji]{pxchfon}
+\usepackage[top=20mm,bottom=20mm,left=18mm,right=18mm]{geometry}
+\newcommand{\ind}{\mathbf{1}}
+\newcommand{\AC}{\mathrm{AC@}}
+\newcommand{\Avg}{\mathrm{Avg@}}
+\newcommand{\head}[1]{\par\bigskip\noindent{\large\bfseries #1}\par\smallskip}
+\setlength{\parindent}{0pt}
+\setlength{\parskip}{5pt}
+\setlength{\abovedisplayskip}{10pt}
+\setlength{\belowdisplayskip}{10pt}
+\renewcommand{\arraystretch}{1.3}
+\begin{document}
+\begin{center}
+{\LARGE\bfseries AMBER 記号と計算の補足資料}\\[3pt]
+入力から評価まで、具体例で読む記法ガイド
+\end{center}
+修論本文とは独立して読める補足資料。本文・図・スライドで共通に用いる記法を、計算の順に整理する。
+
+以下の数値例は説明用の仮想例であり、実験結果ではない。
+
+上付き $(N)$ は正常期間、$(A)$ は障害期間、
+$(\mathrm{cf})$ は反実仮想（counterfactual）を表すラベルであり、累乗ではない。
+
+\head{1. 添字と入力系列}
+\textbf{1.1 何を1つの入力として扱うか}
+
+まず、1つの障害事例（実験ケース）を固定する。この事例について、解析対象の
+$M$ 個のメトリクスを共通の時刻軸上で観測したデータと、既知の障害発生境界を入力とする。
+以下の $M,S,T,t_F$ はこの事例に対する値であり、事例間で同じとは限らない。
+
+\begin{tabular}{@{}p{38mm}p{132mm}@{}}
+\toprule
+記号 & 定義 \\
+\midrule
+$i\in\{1,\ldots,M\}$ & メトリクスを識別する添字。$M$ は解析対象のメトリクス数。\\
+$s\in\{1,\ldots,S\}$ & サービスを識別する添字。$S$ は順位付け対象のサービス数。\\
+$t\in\{1,\ldots,T\}$ & 採用した観測窓内の標本番号。$T$ は観測点の総数。\\
+$x_{i,t}\in\mathbb R$ & メトリクス $i$ の、標本番号 $t$ における観測値（スカラー）。\\
+\bottomrule
+\end{tabular}
+
+$i$ と $s$ は対象の識別番号であり、順位ではない。
+例えば、サービス1のCPU使用率とメモリ使用量は、同じサービスに属する別々のメトリクスである。
+各メトリクスの所属サービスを $s(i)$ と書けば、
+\[
+\mathcal M_s=\{i\in\{1,\ldots,M\}:s(i)=s\}
+\]
+はサービス $s$ に属するメトリクスの添字集合となる。
+ここでは各メトリクスが1つのサービスに属し、各対象サービスが少なくとも1つの対象メトリクスを持つものとする。
+
+\textbf{1.2 観測値と観測系列を区別する}
+
+メトリクス $i$ の全観測を、時刻順に並べた列ベクトルとして定義する。
+\[
+\boxed{\mathbf{x}_i=(x_{i,1},\ldots,x_{i,T})^\top\in\mathbb R^T}
+\]
+太字の $\mathbf{x}_i$ は系列全体、通常の $x_{i,t}$ はその第 $t$ 成分、
+$\top$ は転置を表す。全メトリクスをまとめる場合は、
+\[
+X=[\mathbf{x}_1\ \cdots\ \mathbf{x}_M]\in\mathbb R^{T\times M}
+\]
+と書ける。$X$ の行は時刻、列はメトリクスであり、$X_{t,i}=x_{i,t}$ である。
+
+\textbf{時刻についての前提}
+
+$t$ は日時そのものではなく、採用した観測窓内で1から付けた離散的な番号である。
+ARの1期は隣り合う標本間の1ステップを意味し、等間隔の共通時刻軸を前提とする。
+本資料は解析に用いる系列が用意された後の記法を扱い、欠測処理などの前処理仕様は省略する。
+
+\newpage
+\head{1. 添字と入力系列（続き）}
+\textbf{1.3 障害発生境界で系列を分割する}
+
+$t_F\in\{2,\ldots,T\}$ を、\textbf{障害発生以降に属する最初の標本番号}とする。
+実際の障害発生日時が標本間にある場合も、その日時以降の最初の標本を $t_F$ とする。
+$t_F$ 自身は障害期間に含め、正常期間と障害期間を次のように定める。
+\[
+\underbrace{1,\ldots,t_F-1}_{\text{正常期間：}T_N=t_F-1\text{ 点}},\qquad
+\underbrace{t_F,\ldots,T}_{\text{障害期間：}T_A=T-t_F+1\text{ 点}}.
+\]
+したがって $T_N\ge1$、$T_A\ge1$、$T=T_N+T_A$ である。
+ここで「期間長」は経過秒数ではなく\textbf{観測点数}を指す。
+障害期間という名称は、全メトリクスの全観測値が異常であることまでは意味しない。
+
+\textbf{1.4 分割後の系列と局所添字を定義する}
+
+正常期間は元の番号を保ち、障害期間だけを $h=1$ から数え直す。
+$h$ は正常期間末尾 $T_N$ から何ステップ先かも表し、後の反実仮想予測で用いる。
+各 $i\in\{1,\ldots,M\}$ に対し、まず成分を定義する。
+\[
+ x_{i,t}^{(N)}:=x_{i,t},\qquad t=1,\ldots,T_N,
+\]
+\[
+ \boxed{x_{i,h}^{(A)}:=x_{i,t_F+h-1}=x_{i,T_N+h}},\qquad h=1,\ldots,T_A.
+\]
+従って $h=t-t_F+1=t-T_N$ であり、$h=1$ は元の $t=t_F$ に対応する。
+これらを並べた列ベクトルが、正常系列と障害系列である。
+\[
+\mathbf{x}_i^{(N)}=(x_{i,1}^{(N)},\ldots,x_{i,T_N}^{(N)})^\top\in\mathbb R^{T_N},
+\]
+\[
+\mathbf{x}_i^{(A)}=(x_{i,1}^{(A)},\ldots,x_{i,T_A}^{(A)})^\top\in\mathbb R^{T_A},\qquad
+\mathbf{x}_i=\begin{pmatrix}\mathbf{x}_i^{(N)}\\\mathbf{x}_i^{(A)}\end{pmatrix}.
+\]
+この分割は成分の切り出しと添字の付け直しであり、観測値自体を変換する操作ではない。
+
+\textbf{例：$T=10$、$t_F=7$ の場合}
+
+$T_N=6$、$T_A=4$。正常系列は元の1～6番目、障害系列は7～10番目の観測である。
+\begin{center}
+\begin{tabular}{lcccccc}
+\toprule
+元の番号 $t$ & $1$ & $\cdots$ & $6$ & $7$ & $8$ & $\cdots\ 10$ \\
+\midrule
+期間 & 正常 & 正常 & 正常 & 障害 & 障害 & 障害 \\
+障害期間の番号 $h$ & --- & --- & --- & $1$ & $2$ & $\cdots\ 4$ \\
+\bottomrule
+\end{tabular}
+\end{center}
+例えば $x_{i,2}^{(A)}=x_{i,8}$ であり、元の $x_{i,2}$ とは異なる観測を指す。
+以降、1メトリクスを固定した式では添字 $i$ を省略する（例：$x_h^{(A)}=x_{i,h}^{(A)}$）。
+
+\newpage
+\head{2. 正常期間だけに基づく入力の標準化}
+\[
+\mu_x=\frac{1}{T_N}\sum_{t=1}^{T_N}x_t^{(N)},\qquad
+\sigma_x=\sqrt{\frac{1}{T_N}\sum_{t=1}^{T_N}(x_t^{(N)}-\mu_x)^2}.
+\]
+\[
+ y_t^{(N)}=\frac{x_t^{(N)}-\mu_x}{\sigma_x},\quad
+ y_h^{(A)}=\frac{x_h^{(A)}-\mu_x}{\sigma_x}.
+\]
+$x$ は観測値、$y$ は標準化後の観測値。両期間に同じ正常時の平均・尺度を使う。
+上式は $\sigma_x>0$ の通常ケースを示す（実装では定数系列等への数値的保護を行う）。
+
+\textbf{例：同じ変換を両期間に使う}
+
+正常期間で $\mu_x=10$、$\sigma_x=2$ と求まったとする。
+正常値 $x_t^{(N)}=12$ は $y_t^{(N)}=1$、障害値 $x_h^{(A)}=16$ は $y_h^{(A)}=3$ となる。
+障害期間だけで平均・標準偏差を求め直すと、検出したい水準変化まで消してしまう場合がある。
+
+\head{3. 正常期間の1期先予測と反実仮想予測}
+AR次数を $P$、正常期間で推定した切片を $c_0$、ラグ $p$ の係数を $\phi_p$ とする。
+正常残差を定義できるよう $T_N>P$ を前提とする。切片 $c_0$ は実験ケースの添字 $c$ と区別する。
+\[
+\hat y_{t\mid t-1}^{(N)}=c_0+\sum_{p=1}^{P}\phi_p y_{t-p}^{(N)},
+\]
+\[
+r_t^{(N)}=y_t^{(N)}-\hat y_{t\mid t-1}^{(N)},\quad t=P+1,\ldots,T_N.
+\]
+\textbf{1期先予測}は、$t-1$ 以前の実測値をラグに使って時刻 $t$ を予測すること。
+$r_t^{(N)}$ は正常期間の1期先予測残差である。
+\[
+\hat y_h^{(\mathrm{cf})}=c_0+\sum_{p=1}^{P}\phi_p\tilde y_{h-p}^{(\mathrm{cf})},
+\]
+\[
+\tilde y_j^{(\mathrm{cf})}=\begin{cases}
+y_{T_N+j}^{(N)},&1-P\le j\le0,\\
+\hat y_j^{(\mathrm{cf})},&j\ge1,
+\end{cases}
+\]
+\[
+r_h^{(A)}=y_h^{(A)}-\hat y_h^{(\mathrm{cf})}.
+\]
+$\hat y_h^{(\mathrm{cf})}$ は正常状態の継続を仮定した予測、$r_h^{(A)}$ は障害期間の反実仮想予測誤差。
+正常期間末尾を起点に再帰予測し、\textbf{障害期間の実測値はラグに戻さない}。
+
+\textbf{例：1期先予測と再帰予測の違い}
+
+$P=1$、$c_0=0$、$\phi_1=0.5$、正常期間末尾 $y_{T_N}^{(N)}=2$ とする。
+反実仮想予測は $\hat y_1^{(\mathrm{cf})}=1$、$\hat y_2^{(\mathrm{cf})}=0.5$。
+実測が $y_1^{(A)}=4$、$y_2^{(A)}=3$ なら、誤差はそれぞれ $3$、$2.5$ となる。
+2期目の予測には実測の $4$ ではなく、前の予測値 $1$ を使う。
+
+\newpage
+\head{4. 予測不確実性と誤差の標準化}
+\[
+\psi_0=1,\qquad \psi_j=\sum_{p=1}^{\min(P,j)}\phi_p\psi_{j-p}\ (j\ge1),\qquad
+q_h=\sqrt{\sum_{j=0}^{h-1}\psi_j^2},\qquad q_1=1.
+\]
+$q_h$ は予測先 $h$ に応じた不確実性倍率（horizon uncertainty）。$\psi_j$ はARのインパルス応答。
+正常残差の中央値 $a=\operatorname{median}_t r_t^{(N)}$ と正常残差から定めた尺度 $b>0$ を使い、
+\[
+\boxed{z_t^{(N)}=\frac{r_t^{(N)}-a}{b}},\qquad
+\boxed{z_h^{(A)}=\frac{r_h^{(A)}-a}{bq_h}}.
+\]
+$b$ はMADを主とし標準偏差・尺度下限で保護した正常時の尺度。
+ここでは各予測先の分散で補正する設定を記す。$z$ は標準化誤差であり、入力の $y$ と区別する。
+
+\textbf{例：遠い予測先の誤差を割り引く}
+
+前ページのAR(1)では $\psi_j=0.5^j$ なので、
+\[
+q_1=1,\qquad q_2=\sqrt{1+0.5^2}=\sqrt{1.25}\simeq1.118.
+\]
+$a=0$、$b=1$ とすると、$r_1^{(A)}=3$ は $z_1^{(A)}=3$、
+$r_2^{(A)}=2.5$ は $z_2^{(A)}=2.5/1.118\simeq2.236$ となる。
+予測先が遠いほど増えるモデル上の不確実性を、異常の大きさと区別する補正である。
+
+\head{似た記号の読み分け}
+\begin{tabular}{@{}p{35mm}p{130mm}@{}}
+\toprule
+記号 & 役割 \\
+\midrule
+$x$ & 元の単位を持つ観測値。\\
+$y$ & 正常時の平均・尺度で標準化した、ARへの入力。\\
+$r$ & 観測と予測の差。予測がどれだけ外れたか。\\
+$z$ & 正常時の残差尺度と予測不確実性で標準化した誤差。\\
+\bottomrule
+\end{tabular}
+
+入力の標準化に使う $\sigma_x$ と、残差の標準化に使う $b$ は別の尺度である。
+また、$q_h$ は平均や分散を新たに障害データから学習する量ではなく、正常期間で推定したAR係数から計算する。
+
+\newpage
+\head{5. 仮説比較とメトリクス証拠スコア}
+\[
+D_N=\{z_t^{(N)}:t=P+1,\ldots,T_N\},\qquad
+D_A=\{z_h^{(A)}:h=1,\ldots,T_A\}.
+\]
+\begin{tabular}{@{}p{30mm}p{140mm}@{}}
+\toprule
+記号 & 意味 \\
+\midrule
+$H_0$ & 両期間が平均・分散を共有する同一の正規分布に従うモデル。\\
+$H_1$ & 両期間で別々の平均・分散を持つ正規分布を許すモデル。\\
+$\mathrm{BF}_i$ & メトリクス $i$ における $H_0$ に対する $H_1$ のベイズ因子。\\
+$E_i=\log\mathrm{BF}_i$ & メトリクス証拠スコア。大きいほど分布変化を支持する。\\
+\bottomrule
+\end{tabular}
+\[
+\mathrm{BF}_i=\frac{p(D_{N,i},D_{A,i}\mid H_1)}{p(D_{N,i},D_{A,i}\mid H_0)},\]
+\[
+E_i=\log p(D_{N,i},D_{A,i}\mid H_1)-\log p(D_{N,i},D_{A,i}\mid H_0).
+\]
+$p(\cdot\mid H)$ はパラメータを事前分布で積分した周辺尤度、$\log$ は自然対数。
+$E_i$ は原因である確率ではなく、正常時からの変化を示す証拠の強さである。
+
+\head{6. サービス集約と順位}
+サービス $s$ に属するメトリクス添字集合を $\mathcal M_s$、その要素数を $n_s=|\mathcal M_s|$ とする。
+その証拠スコアを $E_{s,(1)}\ge\cdots\ge E_{s,(n_s)}$ と降順に並べる。
+\[
+K_s=\min(3,n_s),\qquad
+\boxed{R_s=\frac{1}{K_s}\sum_{j=1}^{K_s}E_{s,(j)}}\quad(n_s\ge1).
+\]
+\[
+\boldsymbol{\pi}=(\pi_1,\ldots,\pi_S),\quad R_{\pi_1}\ge\cdots\ge R_{\pi_S}.
+\]
+$R_s$ はサービスRCAスコア（上位3件の平均、\texttt{mean\_top3}）。
+$\pi_k$ は第 $k$ 位のサービス。$S$ は順位付け対象のサービス数とし、同点は実装の規則で順序を確定する。
+$K_s$ は集約件数、以下の $K$ は評価する順位の上限であり、別の記号である。
+
+\textbf{例：メトリクスからサービスへ}
+
+サービスAの証拠スコアが $8,5,2,-1$ なら、$R_{\mathrm A}=(8+5+2)/3=5$。
+サービスBが $6,4$ の2メトリクスだけなら、$R_{\mathrm B}=(6+4)/2=5$。
+3件未満のサービスは、利用できる件数で平均する。
+サービスCのスコアが $7$ ならCが第1位となり、AとBは同点規則で順序を決める。
+
+\newpage
+\head{7. 正解順位とケース単位の評価}
+\begin{tabular}{@{}p{40mm}p{130mm}@{}}
+\toprule
+記号 & 意味 \\
+\midrule
+$c=1,\ldots,C$ & 実験ケースの添字と総数。\\
+$g_c$ ／ $\boldsymbol{\pi}_c$ & ケース $c$ の正解サービス（ground truth）／ 出力された順位列。\\
+$r_c=\min\{k:\pi_{c,k}=g_c\}$ & 正解サービスの順位。順位列に含まれなければ $r_c=\infty$。\\
+\bottomrule
+\end{tabular}
+\[
+\boxed{\AC K(c)=\ind[r_c\le K]},
+\]
+\[
+\boxed{\Avg K(c)=\frac{1}{K}\sum_{k=1}^{K}\AC k(c)}
+=\begin{cases}(K-r_c+1)/K,&r_c\le K,\\0,&r_c>K.\end{cases}
+\]
+$K$ は正の整数。AC@Kは正解が上位 $K$ 件に入るかを0/1で表し、Avg@Kは上位内での順位も反映する。
+例えば $r_c=3$ なら AC@5 $=1$、Avg@5 $=3/5=0.6$。
+ここでは単一正解を仮定する。複数正解の場合は、正解集合内の最上位の順位を $r_c$ とする。
+
+\textbf{例：AC@5とAvg@5の違い}
+
+\begin{center}
+\begin{tabular}{ccc}
+\toprule
+正解順位 $r_c$ & AC@5 & Avg@5 \\
+\midrule
+1 & 1 & 1.0 \\
+2 & 1 & 0.8 \\
+3 & 1 & 0.6 \\
+4 & 1 & 0.4 \\
+5 & 1 & 0.2 \\
+6以上・圏外 & 0 & 0.0 \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+正解が第3位なら、AC@1からAC@5までは $(0,0,1,1,1)$。
+この5個を平均するのでAvg@5は $0.6$ となる。
+AC@5は第1位と第5位を同じ成功として数えるが、Avg@5はより上位の正解を高く評価する。
+
+\newpage
+\head{8. ケース平均とデータセット間のマクロ平均}
+\[
+\AC K=\frac{1}{C}\sum_{c=1}^{C}\AC K(c),\qquad
+\Avg K=\frac{1}{C}\sum_{c=1}^{C}\Avg K(c)=\frac{1}{K}\sum_{k=1}^{K}\AC k.
+\]
+データセット $d=1,\ldots,D$ のケース集合を $\mathcal C_d$、件数を $C_d=|\mathcal C_d|>0$ とする。
+\[
+\AC K_d=\frac{1}{C_d}\sum_{c\in\mathcal C_d}\AC K(c),\qquad
+\Avg K_d=\frac{1}{C_d}\sum_{c\in\mathcal C_d}\Avg K(c),
+\]
+\[
+\boxed{\mathrm{macro\text{-}AC@}K=\frac{1}{D}\sum_{d=1}^{D}\AC K_d},\qquad
+\boxed{\mathrm{macro\text{-}Avg@}K=\frac{1}{D}\sum_{d=1}^{D}\Avg K_d}.
+\]
+マクロ平均はデータセットを等重みで平均する。全ケース平均とは重みが異なり、各 $C_d$ が等しい場合は一致する。
+\textbf{$E_i\to R_s\to\boldsymbol{\pi}$ は推論の出力、AC@K・Avg@Kは正解と比較する評価指標}である。
+\textbf{例：全ケース平均とマクロ平均}
+
+2つのデータセットで、AC@1の成功件数が次のようになったとする。
+\begin{center}
+\begin{tabular}{lrrr}
+\toprule
+データセット & ケース数 & 成功件数 & AC@1 \\
+\midrule
+A & 100 & 90 & 0.9 \\
+B & 20 & 10 & 0.5 \\
+\bottomrule
+\end{tabular}
+\end{center}
+\[
+\text{全ケース平均}=\frac{90+10}{100+20}\simeq0.833.
+\]
+\vspace{6pt}
+\[
+\text{macro-AC@1}=\frac{0.9+0.5}{2}=0.7.
+\]
+全ケース平均ではケース数の多いAが大きな重みを持つ。
+マクロ平均ではAとBを同じ重みで扱う。Avg@Kにも同じ平均方法を適用する。
+
+\head{読み返すときの順序}
+観測 $x$ を正常・障害期間に分け、正常時の情報で $y$ に変換する。
+AR予測との差 $r$ を尺度補正して $z$ とし、期間間の分布変化を $E_i$ で測る。
+その後、サービススコア $R_s$ に集約して順位 $\boldsymbol{\pi}$ を出す。
+最後に正解 $g_c$ と比較し、AC@K・Avg@Kを計算する。
+
+\end{document}
