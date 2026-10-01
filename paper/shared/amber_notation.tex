@@ -1,0 +1,166 @@
+% !TeX encoding = UTF-8
+% Build from repository root:
+% latexmk -pdfdvi -e '$latex=q/uplatex %O -interaction=nonstopmode -halt-on-error %S/' -e '$dvipdf=q/dvipdfmx %O -o %D %S/' -outdir=paper/shared/build paper/shared/amber_notation.tex
+\documentclass[uplatex,dvipdfmx,fontsize=10pt,baselineskip=13pt,paper=a4]{jlreq}
+% Thesis typography and existing indicator macro; no shared preamble exists.
+\usepackage{mathtools,amssymb,booktabs,array}
+\usepackage{newtxtext,newtxmath}
+\usepackage[haranoaji]{pxchfon}
+\usepackage[top=16mm,bottom=16mm,left=18mm,right=18mm]{geometry}
+\newcommand{\ind}{\mathbf{1}}
+\newcommand{\AC}{\mathrm{AC@}}
+\newcommand{\Avg}{\mathrm{Avg@}}
+\newcommand{\head}[1]{\par\smallskip\noindent{\large\bfseries #1}\par\smallskip}
+\setlength{\parindent}{0pt}
+\setlength{\abovedisplayskip}{5pt}
+\setlength{\belowdisplayskip}{5pt}
+\renewcommand{\arraystretch}{1.13}
+\begin{document}
+\begin{center}
+{\LARGE\bfseries AMBER 記号早見表}\\[3pt]
+正常系列からの予測・誤差の標準化 \hfill 1 / 2
+\end{center}
+本文・図・スライドで共通に用いる記法。上付き $(N)$ は正常期間、$(A)$ は障害期間、
+$(\mathrm{cf})$ は反実仮想（counterfactual）を表すラベルであり、累乗ではない。
+
+\head{1. 添字と入力系列}
+\begin{tabular}{@{}p{48mm}p{122mm}@{}}
+\toprule
+記号 & 意味 \\
+\midrule
+$i=1,\ldots,M$ ／ $s=1,\ldots,S$ & メトリクスの添字・総数 ／ サービスの添字・総数 \\
+$t=1,\ldots,T$ ／ $t_F$ & 観測時刻（離散的な標本番号）／ 障害発生時刻 \\
+$T_N=t_F-1$ & 正常期間長。$t_F$ の直前までを正常期間とする。\\
+$T_A=T-t_F+1$ & 障害期間長。$t_F$ を含み、$T=T_N+T_A$。\\
+$h=1,\ldots,T_A$ & 障害期間の局所時刻（予測の先行ステップ数）。$t=t_F+h-1$。\\
+$P,\ c_0,\ \phi_p$ & AR次数、切片、ラグ $p$ の係数。正常期間だけで推定。\\
+\bottomrule
+\end{tabular}
+\[
+\mathbf{x}_i=(x_{i,1},\ldots,x_{i,T})^\top
+\longmapsto
+\begin{cases}
+\mathbf{x}_i^{(N)}=(x_{i,1}^{(N)},\ldots,x_{i,T_N}^{(N)})^\top,&x_{i,t}^{(N)}=x_{i,t},\\
+\mathbf{x}_i^{(A)}=(x_{i,1}^{(A)},\ldots,x_{i,T_A}^{(A)})^\top,&x_{i,h}^{(A)}=x_{i,t_F+h-1}.
+\end{cases}
+\]
+以下、1メトリクスの計算では $i$ を省略する。切片は実験ケースの添字 $c$ と区別して $c_0$ とする。
+窓を切り出す場合、$t$ は採用した観測窓内で付け直した番号とする。
+
+\head{2. 正常期間だけに基づく入力の標準化}
+\[
+\mu_x=\frac{1}{T_N}\sum_{t=1}^{T_N}x_t^{(N)},\qquad
+\sigma_x=\sqrt{\frac{1}{T_N}\sum_{t=1}^{T_N}(x_t^{(N)}-\mu_x)^2},\qquad
+ y_t^{(N)}=\frac{x_t^{(N)}-\mu_x}{\sigma_x},\quad
+ y_h^{(A)}=\frac{x_h^{(A)}-\mu_x}{\sigma_x}.
+\]
+$x$ は観測値、$y$ は標準化後の観測値。両期間に同じ正常時の平均・尺度を使う。
+上式は $\sigma_x>0$ の通常ケースを示す（実装では定数系列等への数値的保護を行う）。
+
+\head{3. 正常期間の1期先予測と反実仮想予測}
+\[
+\hat y_{t\mid t-1}^{(N)}=c_0+\sum_{p=1}^{P}\phi_p y_{t-p}^{(N)},\qquad
+r_t^{(N)}=y_t^{(N)}-\hat y_{t\mid t-1}^{(N)},\quad t=P+1,\ldots,T_N.
+\]
+\textbf{1期先予測}は、$t-1$ 以前の実測値をラグに使って時刻 $t$ を予測すること。
+$r_t^{(N)}$ は正常期間の1期先予測残差である。
+\[
+\hat y_h^{(\mathrm{cf})}=c_0+\sum_{p=1}^{P}\phi_p\tilde y_{h-p}^{(\mathrm{cf})},\qquad
+\tilde y_j^{(\mathrm{cf})}=\begin{cases}
+y_{T_N+j}^{(N)},&1-P\le j\le0,\\
+\hat y_j^{(\mathrm{cf})},&j\ge1,
+\end{cases}
+\qquad r_h^{(A)}=y_h^{(A)}-\hat y_h^{(\mathrm{cf})}.
+\]
+$\hat y_h^{(\mathrm{cf})}$ は正常状態の継続を仮定した予測、$r_h^{(A)}$ は障害期間の反実仮想予測誤差。
+正常期間末尾を起点に再帰予測し、\textbf{障害期間の実測値はラグに戻さない}。
+
+\head{4. 予測不確実性と誤差の標準化}
+\[
+\psi_0=1,\qquad \psi_j=\sum_{p=1}^{\min(P,j)}\phi_p\psi_{j-p}\ (j\ge1),\qquad
+q_h=\sqrt{\sum_{j=0}^{h-1}\psi_j^2},\qquad q_1=1.
+\]
+$q_h$ は予測先 $h$ に応じた不確実性倍率（horizon uncertainty）。$\psi_j$ はARのインパルス応答。
+正常残差の中央値 $a=\operatorname{median}_t r_t^{(N)}$ と正常残差から定めた尺度 $b>0$ を使い、
+\[
+\boxed{z_t^{(N)}=\frac{r_t^{(N)}-a}{b}},\qquad
+\boxed{z_h^{(A)}=\frac{r_h^{(A)}-a}{bq_h}}.
+\]
+$b$ はMADを主とし標準偏差・尺度下限で保護した正常時の尺度。
+ここでは各予測先の分散で補正する設定を記す。$z$ は標準化誤差であり、入力の $y$ と区別する。
+
+\newpage
+\begin{center}
+{\LARGE\bfseries AMBER 記号早見表}\\[3pt]
+証拠スコア・サービス順位・評価指標 \hfill 2 / 2
+\end{center}
+\head{5. 仮説比較とメトリクス証拠スコア}
+\[
+D_N=\{z_t^{(N)}:t=P+1,\ldots,T_N\},\qquad
+D_A=\{z_h^{(A)}:h=1,\ldots,T_A\}.
+\]
+\begin{tabular}{@{}p{30mm}p{140mm}@{}}
+\toprule
+記号 & 意味 \\
+\midrule
+$H_0$ & 両期間が平均・分散を共有する同一の正規分布に従うモデル。\\
+$H_1$ & 両期間で別々の平均・分散を持つ正規分布を許すモデル。\\
+$\mathrm{BF}_i$ & メトリクス $i$ における $H_0$ に対する $H_1$ のベイズ因子。\\
+$E_i=\log\mathrm{BF}_i$ & メトリクス証拠スコア。大きいほど分布変化を支持する。\\
+\bottomrule
+\end{tabular}
+\[
+\mathrm{BF}_i=\frac{p(D_{N,i},D_{A,i}\mid H_1)}{p(D_{N,i},D_{A,i}\mid H_0)},\qquad
+E_i=\log p(D_{N,i},D_{A,i}\mid H_1)-\log p(D_{N,i},D_{A,i}\mid H_0).
+\]
+$p(\cdot\mid H)$ はパラメータを事前分布で積分した周辺尤度、$\log$ は自然対数。
+$E_i$ は原因である確率ではなく、正常時からの変化を示す証拠の強さである。
+
+\head{6. サービス集約と順位}
+サービス $s$ に属するメトリクス添字集合を $\mathcal M_s$、その要素数を $n_s=|\mathcal M_s|$ とする。
+その証拠スコアを $E_{s,(1)}\ge\cdots\ge E_{s,(n_s)}$ と降順に並べる。
+\[
+K_s=\min(3,n_s),\qquad
+\boxed{R_s=\frac{1}{K_s}\sum_{j=1}^{K_s}E_{s,(j)}}\quad(n_s\ge1),\qquad
+\boldsymbol{\pi}=(\pi_1,\ldots,\pi_S),\quad R_{\pi_1}\ge\cdots\ge R_{\pi_S}.
+\]
+$R_s$ はサービスRCAスコア（上位3件の平均、\texttt{mean\_top3}）。
+$\pi_k$ は第 $k$ 位のサービス。$S$ は順位付け対象のサービス数とし、同点は実装の規則で順序を確定する。
+$K_s$ は集約件数、以下の $K$ は評価する順位の上限であり、別の記号である。
+
+\head{7. 正解順位とケース単位の評価}
+\begin{tabular}{@{}p{40mm}p{130mm}@{}}
+\toprule
+記号 & 意味 \\
+\midrule
+$c=1,\ldots,C$ & 実験ケースの添字と総数。\\
+$g_c$ ／ $\boldsymbol{\pi}_c$ & ケース $c$ の正解サービス（ground truth）／ 出力された順位列。\\
+$r_c=\min\{k:\pi_{c,k}=g_c\}$ & 正解サービスの順位。順位列に含まれなければ $r_c=\infty$。\\
+\bottomrule
+\end{tabular}
+\[
+\boxed{\AC K(c)=\ind[r_c\le K]},\qquad
+\boxed{\Avg K(c)=\frac{1}{K}\sum_{k=1}^{K}\AC k(c)}
+=\begin{cases}(K-r_c+1)/K,&r_c\le K,\\0,&r_c>K.\end{cases}
+\]
+$K$ は正の整数。AC@Kは正解が上位 $K$ 件に入るかを0/1で表し、Avg@Kは上位内での順位も反映する。
+例えば $r_c=3$ なら AC@5 $=1$、Avg@5 $=3/5=0.6$。
+ここでは単一正解を仮定する。複数正解の場合は、正解集合内の最上位の順位を $r_c$ とする。
+
+\head{8. ケース平均とデータセット間のマクロ平均}
+\[
+\AC K=\frac{1}{C}\sum_{c=1}^{C}\AC K(c),\qquad
+\Avg K=\frac{1}{C}\sum_{c=1}^{C}\Avg K(c)=\frac{1}{K}\sum_{k=1}^{K}\AC k.
+\]
+データセット $d=1,\ldots,D$ のケース集合を $\mathcal C_d$、件数を $C_d=|\mathcal C_d|>0$ とする。
+\[
+\AC K_d=\frac{1}{C_d}\sum_{c\in\mathcal C_d}\AC K(c),\qquad
+\Avg K_d=\frac{1}{C_d}\sum_{c\in\mathcal C_d}\Avg K(c),
+\]
+\[
+\boxed{\mathrm{macro\text{-}AC@}K=\frac{1}{D}\sum_{d=1}^{D}\AC K_d},\qquad
+\boxed{\mathrm{macro\text{-}Avg@}K=\frac{1}{D}\sum_{d=1}^{D}\Avg K_d}.
+\]
+マクロ平均はデータセットを等重みで平均する。全ケース平均とは重みが異なり、各 $C_d$ が等しい場合は一致する。
+\textbf{$E_i\to R_s\to\boldsymbol{\pi}$ は推論の出力、AC@K・Avg@Kは正解と比較する評価指標}である。
+\end{document}
