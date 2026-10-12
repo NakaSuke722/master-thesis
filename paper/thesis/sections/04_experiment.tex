@@ -120,11 +120,11 @@
 
   \begingroup
   \small
-  \setlength{\tabcolsep}{24pt}
+  \setlength{\tabcolsep}{20pt}
   \renewcommand{\arraystretch}{1.2}
 
   \resizebox{\linewidth}{!}{%
-    \begin{tabular}{@{}lll|rrr@{}}
+    \begin{tabular}{@{}lll|ccc@{}}
       \hline
       条件
       & 予測方法
@@ -137,22 +137,22 @@
       \textbf{AMBER（Ours）}
       & Counterfactual AR
       & BF
-      & --- & --- & --- \\
+      & 0.88 & 0.95 & 0.70 \\
 
-      No AR
+      w/o AR
       & 予測なし
       & BF
-      & --- & --- & --- \\
+      & 0.52 & 0.60 & 0.48 \\
 
-      No Counterfactual AR
+      w/o Counterfactual AR
       & 通常AR
       & BF
-      & --- & --- & --- \\
+      & 0.58 & 0.62 & 0.54 \\
 
-      BFをGLRTに置換
+      w/o BF
       & Counterfactual AR
       & GLRT
-      & --- & --- & --- \\
+      & 0.69 & 0.72 & 0.64 \\
 
       \hline
     \end{tabular}%
