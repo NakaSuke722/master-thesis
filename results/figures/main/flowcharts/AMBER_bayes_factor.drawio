@@ -1,93 +1,105 @@
 <mxfile host="Electron">
   <diagram name="ページ-1" id="xWPmCvU-V1t7-bklE9OT">
-    <mxGraphModel dx="2175" dy="1403" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1200" pageHeight="1200" math="1" shadow="0">
+    <mxGraphModel dx="1571" dy="1051" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1200" pageHeight="1200" math="1" shadow="0">
       <root>
         <mxCell id="0" />
         <mxCell id="1" parent="0" />
-        <mxCell id="b3JDA3Xcim5KabuicFFj-6" edge="1" parent="1" source="b3JDA3Xcim5KabuicFFj-1" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;entryX=0.5;entryY=0;entryDx=0;entryDy=0;" target="b3JDA3Xcim5KabuicFFj-5">
-          <mxGeometry relative="1" as="geometry" />
+        <mxCell id="yWq80URSMp4M814FGgOc-10" parent="1" style="rounded=0;whiteSpace=wrap;html=1;" value="" vertex="1">
+          <mxGeometry height="258" width="290" x="310.41" y="420" as="geometry" />
         </mxCell>
-        <mxCell id="b3JDA3Xcim5KabuicFFj-1" parent="1" style="strokeWidth=2;html=1;shape=mxgraph.flowchart.terminator;whiteSpace=wrap;" value="Bayes Factor&lt;div&gt;Scoring 開始&lt;/div&gt;" vertex="1">
-          <mxGeometry height="70" width="116.67" x="550.83" y="70" as="geometry" />
+        <mxCell id="yWq80URSMp4M814FGgOc-8" parent="1" style="rounded=0;whiteSpace=wrap;html=1;" value="" vertex="1">
+          <mxGeometry height="258" width="290" x="627.5" y="420" as="geometry" />
+        </mxCell>
+        <mxCell id="b3JDA3Xcim5KabuicFFj-6" edge="1" parent="1" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;entryX=0.5;entryY=0;entryDx=0;entryDy=0;" target="b3JDA3Xcim5KabuicFFj-5">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="609.1578947368421" y="140" as="sourcePoint" />
+          </mxGeometry>
         </mxCell>
         <mxCell id="b3JDA3Xcim5KabuicFFj-13" edge="1" parent="1" source="b3JDA3Xcim5KabuicFFj-5" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;entryX=0.5;entryY=0;entryDx=0;entryDy=0;" target="b3JDA3Xcim5KabuicFFj-7">
           <mxGeometry relative="1" as="geometry" />
         </mxCell>
-        <mxCell id="b3JDA3Xcim5KabuicFFj-5" parent="1" style="shape=parallelogram;html=1;strokeWidth=2;perimeter=parallelogramPerimeter;whiteSpace=wrap;rounded=1;arcSize=12;size=0.23;" value="入力&lt;div&gt;正常 標準化残差 \( z_N \)&lt;/div&gt;&lt;div&gt;障害 標準化予測誤差 \( z_A \)&lt;/div&gt;" vertex="1">
-          <mxGeometry height="70" width="225" x="496.66" y="180" as="geometry" />
+        <mxCell id="b3JDA3Xcim5KabuicFFj-5" parent="1" style="shape=parallelogram;html=1;strokeWidth=2;perimeter=parallelogramPerimeter;whiteSpace=wrap;rounded=1;arcSize=12;size=0.23;" value="入力&lt;div&gt;正常 標準化残差 \( D_N = \{ z_{N,1}, \ldots, z_{N, t_{F}-1} \} \)&lt;/div&gt;&lt;div&gt;障害 標準化予測誤差 \( D_A = \{ z_{A, t_{F}}, \ldots, z_{A, T} \} \)&lt;/div&gt;" vertex="1">
+          <mxGeometry height="70" width="412.89" x="402.71000000000004" y="200" as="geometry" />
         </mxCell>
-        <mxCell id="b3JDA3Xcim5KabuicFFj-11" edge="1" parent="1" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;entryX=0.5;entryY=0;entryDx=0;entryDy=0;" target="b3JDA3Xcim5KabuicFFj-8">
+        <mxCell id="yWq80URSMp4M814FGgOc-4" edge="1" parent="1" source="b3JDA3Xcim5KabuicFFj-7" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;entryX=0.5;entryY=0;entryDx=0;entryDy=0;" target="b3JDA3Xcim5KabuicFFj-8">
           <mxGeometry relative="1" as="geometry">
-            <mxPoint x="610" y="370" as="sourcePoint" />
+            <Array as="points">
+              <mxPoint x="609.14" y="400.03" />
+              <mxPoint x="455.43" y="400.03" />
+            </Array>
           </mxGeometry>
         </mxCell>
-        <mxCell id="b3JDA3Xcim5KabuicFFj-12" edge="1" parent="1" source="b3JDA3Xcim5KabuicFFj-7" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;entryX=0.5;entryY=0;entryDx=0;entryDy=0;exitX=0.5;exitY=1;exitDx=0;exitDy=0;" target="b3JDA3Xcim5KabuicFFj-15">
+        <mxCell id="yWq80URSMp4M814FGgOc-5" edge="1" parent="1" source="b3JDA3Xcim5KabuicFFj-7" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;" target="b3JDA3Xcim5KabuicFFj-15">
           <mxGeometry relative="1" as="geometry">
-            <mxPoint x="750" y="390" as="targetPoint" />
+            <Array as="points">
+              <mxPoint x="609.14" y="400.03" />
+              <mxPoint x="772.57" y="400.03" />
+            </Array>
           </mxGeometry>
         </mxCell>
-        <mxCell id="b3JDA3Xcim5KabuicFFj-7" parent="1" style="rounded=1;whiteSpace=wrap;html=1;absoluteArcSize=1;arcSize=14;strokeWidth=2;" value="2つの仮説モデルを評価" vertex="1">
-          <mxGeometry height="60" width="165" x="526.6700000000001" y="290" as="geometry" />
+        <mxCell id="b3JDA3Xcim5KabuicFFj-7" parent="1" style="rounded=1;whiteSpace=wrap;html=1;absoluteArcSize=1;arcSize=14;strokeWidth=2;" value="正規尤度とNIG事前分布&lt;div&gt;平均・分散を積分して周辺尤度 \( m(D) \) を計算&lt;/div&gt;" vertex="1">
+          <mxGeometry height="60" width="283.33" x="467.48999999999995" y="309" as="geometry" />
         </mxCell>
         <mxCell id="b3JDA3Xcim5KabuicFFj-18" edge="1" parent="1" source="b3JDA3Xcim5KabuicFFj-8" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;entryX=0.5;entryY=0;entryDx=0;entryDy=0;" target="b3JDA3Xcim5KabuicFFj-14">
           <mxGeometry relative="1" as="geometry" />
         </mxCell>
-        <mxCell id="b3JDA3Xcim5KabuicFFj-8" parent="1" style="rounded=1;whiteSpace=wrap;html=1;absoluteArcSize=1;arcSize=14;strokeWidth=2;" value="\( H_0 \)&lt;div&gt;\( z_N, z_A \) が&amp;nbsp;&lt;span style=&quot;background-color: transparent; color: light-dark(rgb(0, 0, 0), rgb(255, 255, 255));&quot;&gt;\( \mathcal{N}(\mu, \sigma^2) \) に従う&lt;/span&gt;&lt;/div&gt;" vertex="1">
-          <mxGeometry height="80" width="190.83" x="360" y="390" as="geometry" />
+        <mxCell id="b3JDA3Xcim5KabuicFFj-8" parent="1" style="rounded=1;whiteSpace=wrap;html=1;absoluteArcSize=1;arcSize=14;strokeWidth=2;" value="\( D_N \) と \( D_A \)&amp;nbsp; が共通の正規分布に従う&lt;div&gt;$$ z_{N,t}, z_{A,t} \mid \mu,\sigma^2 \sim \mathcal{N}(\mu, \sigma^2) $$&lt;/div&gt;" vertex="1">
+          <mxGeometry height="80" width="240" x="335.41" y="465" as="geometry" />
         </mxCell>
-        <mxCell id="b3JDA3Xcim5KabuicFFj-24" edge="1" parent="1" source="b3JDA3Xcim5KabuicFFj-14" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;entryX=0.5;entryY=0;entryDx=0;entryDy=0;" target="b3JDA3Xcim5KabuicFFj-21">
+        <mxCell id="yWq80URSMp4M814FGgOc-6" edge="1" parent="1" source="b3JDA3Xcim5KabuicFFj-14" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;entryX=0.5;entryY=0;entryDx=0;entryDy=0;" target="b3JDA3Xcim5KabuicFFj-23">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="455.42" y="700" />
+              <mxPoint x="609.23" y="700" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="b3JDA3Xcim5KabuicFFj-14" parent="1" style="rounded=1;whiteSpace=wrap;html=1;absoluteArcSize=1;arcSize=14;strokeWidth=2;spacing=2;verticalAlign=middle;" value="\( D_N, D_A \) を連結して周辺化&lt;div&gt;$$ \ell_0 := \log{m(D_N \cup D_A)} $$&lt;/div&gt;" vertex="1">
+          <mxGeometry height="70" width="177.91" x="366.46" y="590" as="geometry" />
+        </mxCell>
+        <mxCell id="yWq80URSMp4M814FGgOc-3" edge="1" parent="1" source="b3JDA3Xcim5KabuicFFj-15" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;entryX=0.5;entryY=0;entryDx=0;entryDy=0;" target="b3JDA3Xcim5KabuicFFj-22">
           <mxGeometry relative="1" as="geometry" />
         </mxCell>
-        <mxCell id="b3JDA3Xcim5KabuicFFj-14" parent="1" style="rounded=1;whiteSpace=wrap;html=1;absoluteArcSize=1;arcSize=14;strokeWidth=2;" value="NIG事前分布の下で&lt;div&gt;\( \mu, \sigma \) を積分消去&lt;/div&gt;" vertex="1">
-          <mxGeometry height="70" width="165" x="372.91" y="520" as="geometry" />
-        </mxCell>
-        <mxCell id="b3JDA3Xcim5KabuicFFj-19" edge="1" parent="1" source="b3JDA3Xcim5KabuicFFj-15" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;" target="b3JDA3Xcim5KabuicFFj-17" value="">
-          <mxGeometry relative="1" as="geometry" />
-        </mxCell>
-        <mxCell id="b3JDA3Xcim5KabuicFFj-20" edge="1" parent="1" source="b3JDA3Xcim5KabuicFFj-15" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;entryX=0.5;entryY=0;entryDx=0;entryDy=0;" target="b3JDA3Xcim5KabuicFFj-16">
-          <mxGeometry relative="1" as="geometry" />
-        </mxCell>
-        <mxCell id="b3JDA3Xcim5KabuicFFj-15" parent="1" style="rounded=1;whiteSpace=wrap;html=1;absoluteArcSize=1;arcSize=14;strokeWidth=2;" value="\( H_1 \)&lt;div&gt;\( z_N \) が&amp;nbsp;&lt;span style=&quot;background-color: transparent; color: light-dark(rgb(0, 0, 0), rgb(255, 255, 255));&quot;&gt;\( \mathcal{N}(\mu_0, \sigma_0^2) \) に従い,&lt;/span&gt;&lt;/div&gt;&lt;div&gt;\( z_A \) が &lt;span style=&quot;color: light-dark(rgb(0, 0, 0), rgb(255, 255, 255)); background-color: transparent;&quot;&gt;\( \mathcal{N}(\mu_1, \sigma_1^2) \) に従う&lt;/span&gt;&lt;span style=&quot;background-color: transparent; color: light-dark(rgb(0, 0, 0), rgb(255, 255, 255));&quot;&gt;&lt;/span&gt;&lt;/div&gt;" vertex="1">
-          <mxGeometry height="80" width="190.83" x="667.5" y="390" as="geometry" />
-        </mxCell>
-        <mxCell id="b3JDA3Xcim5KabuicFFj-25" edge="1" parent="1" source="b3JDA3Xcim5KabuicFFj-16" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;" target="b3JDA3Xcim5KabuicFFj-22">
-          <mxGeometry relative="1" as="geometry" />
-        </mxCell>
-        <mxCell id="b3JDA3Xcim5KabuicFFj-16" parent="1" style="rounded=1;whiteSpace=wrap;html=1;absoluteArcSize=1;arcSize=14;strokeWidth=2;" value="正常期間について&lt;div&gt;\( m(z_N) \) を計算&lt;/div&gt;" vertex="1">
-          <mxGeometry height="70" width="165" x="586.6600000000001" y="520" as="geometry" />
-        </mxCell>
-        <mxCell id="b3JDA3Xcim5KabuicFFj-26" edge="1" parent="1" source="b3JDA3Xcim5KabuicFFj-17" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;entryX=0.5;entryY=0;entryDx=0;entryDy=0;" target="b3JDA3Xcim5KabuicFFj-22">
-          <mxGeometry relative="1" as="geometry" />
-        </mxCell>
-        <mxCell id="b3JDA3Xcim5KabuicFFj-17" parent="1" style="rounded=1;whiteSpace=wrap;html=1;absoluteArcSize=1;arcSize=14;strokeWidth=2;" value="異常期間について&lt;div&gt;\( m(z_A) \) を計算&lt;/div&gt;" vertex="1">
-          <mxGeometry height="70" width="165" x="776.6600000000001" y="520" as="geometry" />
-        </mxCell>
-        <mxCell id="b3JDA3Xcim5KabuicFFj-27" edge="1" parent="1" source="b3JDA3Xcim5KabuicFFj-21" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;entryX=0.5;entryY=0;entryDx=0;entryDy=0;" target="b3JDA3Xcim5KabuicFFj-23">
-          <mxGeometry relative="1" as="geometry" />
-        </mxCell>
-        <mxCell id="b3JDA3Xcim5KabuicFFj-21" parent="1" style="rounded=1;whiteSpace=wrap;html=1;absoluteArcSize=1;arcSize=14;strokeWidth=2;" value="対数周辺尤度&lt;div&gt;\( \log{m(z_N \cup z_A)} \) を計算&lt;/div&gt;" vertex="1">
-          <mxGeometry height="70" width="165" x="372.91" y="640" as="geometry" />
+        <mxCell id="b3JDA3Xcim5KabuicFFj-15" parent="1" style="rounded=1;whiteSpace=wrap;html=1;absoluteArcSize=1;arcSize=14;strokeWidth=2;" value="&lt;div&gt;\( D_N \) と \( D_A \) が別の正規分布に従う&lt;/div&gt;&lt;div&gt;&lt;span style=&quot;background-color: transparent; color: light-dark(rgb(0, 0, 0), rgb(255, 255, 255));&quot;&gt;$$ z_{N,t} \sim \mathcal{N}(\mu_0, \sigma_0^2) $$&lt;/span&gt;&lt;/div&gt;&lt;div&gt;$$ z_{A,t} \sim \mathcal{N}(\mu_1, \sigma_1^2) $$&lt;/div&gt;" vertex="1">
+          <mxGeometry height="110" width="262.5" x="641.25" y="450" as="geometry" />
         </mxCell>
         <mxCell id="b3JDA3Xcim5KabuicFFj-28" edge="1" parent="1" source="b3JDA3Xcim5KabuicFFj-22" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;entryX=0.5;entryY=0;entryDx=0;entryDy=0;" target="b3JDA3Xcim5KabuicFFj-23">
-          <mxGeometry relative="1" as="geometry" />
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="772.52" y="700" />
+              <mxPoint x="609.23" y="700" />
+            </Array>
+          </mxGeometry>
         </mxCell>
-        <mxCell id="b3JDA3Xcim5KabuicFFj-22" parent="1" style="rounded=1;whiteSpace=wrap;html=1;absoluteArcSize=1;arcSize=14;strokeWidth=2;" value="対数周辺尤度&lt;div&gt;\( \log{m(z_N)} + \log{m(z_A)} \) を計算&lt;/div&gt;" vertex="1">
-          <mxGeometry height="70" width="210" x="657.9100000000001" y="640" as="geometry" />
+        <mxCell id="b3JDA3Xcim5KabuicFFj-22" parent="1" style="rounded=1;whiteSpace=wrap;html=1;absoluteArcSize=1;arcSize=14;strokeWidth=2;" value="\( D_N, D_A \) を独立に周辺化&lt;br&gt;&lt;div&gt;$$ \ell_1 := \log{m(z_N)} + \log{m(z_A)} $$&lt;/div&gt;" vertex="1">
+          <mxGeometry height="70" width="210" x="667.5000000000001" y="590" as="geometry" />
         </mxCell>
         <mxCell id="b3JDA3Xcim5KabuicFFj-31" edge="1" parent="1" source="b3JDA3Xcim5KabuicFFj-23" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;entryX=0.5;entryY=0;entryDx=0;entryDy=0;" target="b3JDA3Xcim5KabuicFFj-29">
           <mxGeometry relative="1" as="geometry" />
         </mxCell>
-        <mxCell id="b3JDA3Xcim5KabuicFFj-23" parent="1" style="rounded=1;whiteSpace=wrap;html=1;absoluteArcSize=1;arcSize=14;strokeWidth=2;" value="対数Bayes Factor&amp;nbsp;&lt;span style=&quot;background-color: transparent; color: light-dark(rgb(0, 0, 0), rgb(255, 255, 255));&quot;&gt;\( S_i = \log{BF_{10,i}} \)&lt;/span&gt;&lt;div&gt;\( = \log{m(z_N \cup z_A)} - \log{m(z_N)} - \log{m(z_A)} \) を計算&lt;/div&gt;" vertex="1">
-          <mxGeometry height="70" width="331.25" x="443.54" y="760" as="geometry" />
+        <mxCell id="b3JDA3Xcim5KabuicFFj-23" parent="1" style="rounded=1;whiteSpace=wrap;html=1;absoluteArcSize=1;arcSize=14;strokeWidth=2;" value="分布変化を指示する証拠をスコアリング&lt;div&gt;$$ S_i = \log{BF_{10,i}} = \ell_1 - \ell_0 $$&lt;/div&gt;" vertex="1">
+          <mxGeometry height="80" width="331.25" x="443.53" y="740" as="geometry" />
         </mxCell>
         <mxCell id="b3JDA3Xcim5KabuicFFj-29" parent="1" style="shape=parallelogram;html=1;strokeWidth=2;perimeter=parallelogramPerimeter;whiteSpace=wrap;rounded=1;arcSize=12;size=0.23;" value="出力&lt;br&gt;&lt;div&gt;metric score \( S_i \)&lt;/div&gt;" vertex="1">
-          <mxGeometry height="70" width="225" x="496.66" y="880" as="geometry" />
+          <mxGeometry height="60" width="225" x="496.65999999999997" y="855" as="geometry" />
         </mxCell>
         <mxCell id="b3JDA3Xcim5KabuicFFj-30" parent="1" style="strokeWidth=2;html=1;shape=mxgraph.flowchart.terminator;whiteSpace=wrap;" value="Metric i&lt;div&gt;の処理終了&lt;/div&gt;" vertex="1">
-          <mxGeometry height="70" width="116.67" x="550.83" y="1000" as="geometry" />
+          <mxGeometry height="70" width="116.67" x="550.83" y="950" as="geometry" />
         </mxCell>
         <mxCell id="b3JDA3Xcim5KabuicFFj-32" edge="1" parent="1" source="b3JDA3Xcim5KabuicFFj-29" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;entryX=0.5;entryY=0;entryDx=0;entryDy=0;entryPerimeter=0;" target="b3JDA3Xcim5KabuicFFj-30">
           <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="yWq80URSMp4M814FGgOc-1" parent="1" style="rounded=1;whiteSpace=wrap;html=1;absoluteArcSize=1;arcSize=100;strokeWidth=2;" value="Bayes Factor&lt;div&gt;Scoring 開始&lt;/div&gt;" vertex="1">
+          <mxGeometry height="60" width="150.83" x="533.74" y="101" as="geometry" />
+        </mxCell>
+        <mxCell id="yWq80URSMp4M814FGgOc-9" parent="1" style="text;html=1;whiteSpace=wrap;strokeColor=none;fillColor=none;align=center;verticalAlign=middle;rounded=0;" value="\( H_1 : \) 正常期間と障害期間で分布が変化" vertex="1">
+          <mxGeometry height="30" width="269" x="770" y="390" as="geometry" />
+        </mxCell>
+        <mxCell id="yWq80URSMp4M814FGgOc-11" parent="1" style="text;html=1;whiteSpace=wrap;strokeColor=none;fillColor=none;align=center;verticalAlign=middle;rounded=0;" value="\( H_1 : \) 正常期間と障害期間で分布が同じ" vertex="1">
+          <mxGeometry height="30" width="269" x="190" y="390" as="geometry" />
+        </mxCell>
+        <mxCell id="pz2aS0kEC5tJVGqNIUE0-1" parent="1" style="rounded=0;whiteSpace=wrap;html=1;" value="$$&amp;nbsp;&amp;nbsp;\sigma^2 \sim InvGamma(\alpha_0, \beta_0), \quad \mu\mid\sigma^2 \sim \mathcal{N}(m_0, \sigma^2/\kappa_0),&amp;nbsp;$$&lt;br&gt;&lt;div&gt;&lt;div&gt;&lt;span style=&quot;background-color: transparent; color: light-dark(rgb(0, 0, 0), rgb(255, 255, 255));&quot;&gt;$$m(D) = \int p(D \mid \mu, \sigma^2)p(\mu, \sigma^2)d\mu d\sigma^2 $$&lt;/span&gt;&lt;/div&gt;&lt;/div&gt;" vertex="1">
+          <mxGeometry height="139" width="400" x="877.5" y="210" as="geometry" />
         </mxCell>
       </root>
     </mxGraphModel>

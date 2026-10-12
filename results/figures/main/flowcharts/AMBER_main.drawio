@@ -1,9 +1,86 @@
 <mxfile host="Electron">
   <diagram name="ページ-1" id="YMTt-5K2vLxpgBuRm1Tt">
-    <mxGraphModel dx="925" dy="800" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="827" pageHeight="1169" math="1" shadow="0">
+    <mxGraphModel dx="619" dy="562" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="827" pageHeight="1169" math="1" shadow="0">
       <root>
         <mxCell id="0" />
         <mxCell id="1" parent="0" />
+        <mxCell id="kqsnXe6wlzyZoaaAck0P-15" edge="1" parent="1" source="kqsnXe6wlzyZoaaAck0P-1" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;entryX=0.5;entryY=0;entryDx=0;entryDy=0;" target="kqsnXe6wlzyZoaaAck0P-2">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="kqsnXe6wlzyZoaaAck0P-1" parent="1" style="rounded=1;whiteSpace=wrap;html=1;absoluteArcSize=1;arcSize=100;strokeWidth=2;" value="開始" vertex="1">
+          <mxGeometry height="50" width="100" x="147.5" y="170" as="geometry" />
+        </mxCell>
+        <mxCell id="kqsnXe6wlzyZoaaAck0P-16" edge="1" parent="1" source="kqsnXe6wlzyZoaaAck0P-2" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;entryX=0.5;entryY=0;entryDx=0;entryDy=0;" target="kqsnXe6wlzyZoaaAck0P-3">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="kqsnXe6wlzyZoaaAck0P-2" parent="1" style="shape=parallelogram;html=1;strokeWidth=2;perimeter=parallelogramPerimeter;whiteSpace=wrap;rounded=1;arcSize=12;size=0.23;" value="入力&lt;div&gt;正常期間 データ \( X_N \)&lt;/div&gt;&lt;div&gt;障害期間 データ \( X_A \)&lt;/div&gt;" vertex="1">
+          <mxGeometry height="70" width="210" x="92.5" y="270" as="geometry" />
+        </mxCell>
+        <mxCell id="kqsnXe6wlzyZoaaAck0P-17" edge="1" parent="1" source="kqsnXe6wlzyZoaaAck0P-3" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;entryX=0.25;entryY=0;entryDx=0;entryDy=0;" target="kqsnXe6wlzyZoaaAck0P-4">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="kqsnXe6wlzyZoaaAck0P-3" parent="1" style="rounded=1;whiteSpace=wrap;html=1;absoluteArcSize=1;arcSize=14;strokeWidth=2;" value="Metric iを選択" vertex="1">
+          <mxGeometry height="50" width="125" x="135" y="390" as="geometry" />
+        </mxCell>
+        <mxCell id="kqsnXe6wlzyZoaaAck0P-20" edge="1" parent="1" source="kqsnXe6wlzyZoaaAck0P-4" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;entryX=0.5;entryY=0;entryDx=0;entryDy=0;" target="kqsnXe6wlzyZoaaAck0P-6">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="kqsnXe6wlzyZoaaAck0P-4" parent="1" style="verticalLabelPosition=middle;verticalAlign=middle;html=1;shape=process;whiteSpace=wrap;rounded=1;size=0.043478260869565216;arcSize=6;labelPosition=center;align=center;" value="Counterfactual ARによる&lt;div&gt;予測誤差・標準化残差の生成&lt;/div&gt;&lt;div&gt;Figure 2&lt;/div&gt;" vertex="1">
+          <mxGeometry height="70" width="230" x="162.5" y="500" as="geometry" />
+        </mxCell>
+        <mxCell id="kqsnXe6wlzyZoaaAck0P-18" edge="1" parent="1" source="kqsnXe6wlzyZoaaAck0P-5" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;entryX=0.75;entryY=0;entryDx=0;entryDy=0;" target="kqsnXe6wlzyZoaaAck0P-4">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="kqsnXe6wlzyZoaaAck0P-5" parent="1" style="rounded=1;whiteSpace=wrap;html=1;absoluteArcSize=1;arcSize=14;strokeWidth=2;" value="次のMetricへ" vertex="1">
+          <mxGeometry height="50" width="115" x="302.5" y="390" as="geometry" />
+        </mxCell>
+        <mxCell id="kqsnXe6wlzyZoaaAck0P-21" edge="1" parent="1" source="kqsnXe6wlzyZoaaAck0P-6" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;entryX=0.5;entryY=0;entryDx=0;entryDy=0;" target="kqsnXe6wlzyZoaaAck0P-8">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="kqsnXe6wlzyZoaaAck0P-6" parent="1" style="shape=parallelogram;html=1;strokeWidth=2;perimeter=parallelogramPerimeter;whiteSpace=wrap;rounded=1;arcSize=12;size=0.23;" value="正常期間 標準化残差 \( D_N \)&lt;div&gt;障害期間 標準化予測誤差 \( D_A \)&amp;nbsp;&lt;/div&gt;" vertex="1">
+          <mxGeometry height="70" width="260" x="147.5" y="616" as="geometry" />
+        </mxCell>
+        <mxCell id="kqsnXe6wlzyZoaaAck0P-23" edge="1" parent="1" source="kqsnXe6wlzyZoaaAck0P-8" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;exitX=0;exitY=0.5;exitDx=0;exitDy=0;" target="kqsnXe6wlzyZoaaAck0P-9">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="50.05" y="765" />
+              <mxPoint x="50.05" y="140" />
+            </Array>
+            <mxPoint x="30" y="110" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="kqsnXe6wlzyZoaaAck0P-8" parent="1" style="verticalLabelPosition=middle;verticalAlign=middle;html=1;shape=process;whiteSpace=wrap;rounded=1;size=0.043478260869565216;arcSize=6;labelPosition=center;align=center;" value="Bayes Factorによる&lt;div&gt;分布変化仮説検定&lt;br&gt;&lt;div&gt;Figure 3&lt;/div&gt;&lt;/div&gt;" vertex="1">
+          <mxGeometry height="70" width="182.5" x="186.25" y="730" as="geometry" />
+        </mxCell>
+        <mxCell id="kqsnXe6wlzyZoaaAck0P-9" parent="1" style="shape=parallelogram;html=1;strokeWidth=2;perimeter=parallelogramPerimeter;whiteSpace=wrap;rounded=1;arcSize=12;size=0.23;" value="Metric Score&lt;div&gt;\( S_i = \log{BF_{10,i}} \)&amp;nbsp;&lt;/div&gt;" vertex="1">
+          <mxGeometry height="70" width="167.5" x="540.75" y="106" as="geometry" />
+        </mxCell>
+        <mxCell id="kqsnXe6wlzyZoaaAck0P-25" edge="1" parent="1" source="kqsnXe6wlzyZoaaAck0P-10" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;entryX=0.5;entryY=0;entryDx=0;entryDy=0;" target="kqsnXe6wlzyZoaaAck0P-11">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="kqsnXe6wlzyZoaaAck0P-10" parent="1" style="strokeWidth=2;html=1;shape=mxgraph.flowchart.decision;whiteSpace=wrap;" value="全Metricを&lt;div&gt;処理したか？&lt;/div&gt;" vertex="1">
+          <mxGeometry height="90" width="192.5" x="528.25" y="226" as="geometry" />
+        </mxCell>
+        <mxCell id="kqsnXe6wlzyZoaaAck0P-27" edge="1" parent="1" source="kqsnXe6wlzyZoaaAck0P-11" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;" target="kqsnXe6wlzyZoaaAck0P-12">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="624.5" y="490" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="kqsnXe6wlzyZoaaAck0P-11" parent="1" style="verticalLabelPosition=middle;verticalAlign=middle;html=1;shape=process;whiteSpace=wrap;rounded=1;size=0.043478260869565216;arcSize=6;labelPosition=center;align=center;" value="Metric Scoreの&lt;div&gt;Service-level-aggregation&lt;br&gt;&lt;div&gt;Figure 4&lt;/div&gt;&lt;/div&gt;" vertex="1">
+          <mxGeometry height="70" width="199" x="525" y="366" as="geometry" />
+        </mxCell>
+        <mxCell id="kqsnXe6wlzyZoaaAck0P-28" edge="1" parent="1" source="kqsnXe6wlzyZoaaAck0P-12" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;entryX=0.5;entryY=0;entryDx=0;entryDy=0;" target="kqsnXe6wlzyZoaaAck0P-14">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="kqsnXe6wlzyZoaaAck0P-12" parent="1" style="shape=parallelogram;html=1;strokeWidth=2;perimeter=parallelogramPerimeter;whiteSpace=wrap;rounded=1;arcSize=12;size=0.23;" value="出力&lt;div&gt;Root-cause Service ranking&lt;/div&gt;" vertex="1">
+          <mxGeometry height="70" width="240" x="504.5" y="496" as="geometry" />
+        </mxCell>
+        <mxCell id="kqsnXe6wlzyZoaaAck0P-14" parent="1" style="rounded=1;whiteSpace=wrap;html=1;absoluteArcSize=1;arcSize=100;strokeWidth=2;" value="終了" vertex="1">
+          <mxGeometry height="50" width="100" x="574.5" y="626" as="geometry" />
+        </mxCell>
+        <mxCell id="kqsnXe6wlzyZoaaAck0P-24" edge="1" parent="1" source="kqsnXe6wlzyZoaaAck0P-9" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;entryX=0.5;entryY=0;entryDx=0;entryDy=0;entryPerimeter=0;" target="kqsnXe6wlzyZoaaAck0P-10">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
       </root>
     </mxGraphModel>
   </diagram>
