@@ -68,9 +68,13 @@
 \DeclareMathOperator*{\argmax}{arg\,max} % argmax, argmin の定義
 \DeclareMathOperator*{\argmin}{arg\,min}
 
+% スコアの強調用
+\newcommand{\best}[1]{\textbf{#1}}
+\newcommand{\second}[1]{\underline{#1}}
+\newcommand{\NA}{\textemdash}
 
-\numberwithin{equation}{section} % 数式番号をセクション単位にする.
-
+% 数式番号をセクション単位にする.
+\numberwithin{equation}{section}
 
 % 表紙のカスタマイズ設定（ここから基本書き換えない）
 \makeatletter
